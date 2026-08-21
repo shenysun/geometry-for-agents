@@ -25,6 +25,17 @@ export const messages = {
       space: "空间",
       primitiveCount: "图元数量",
     },
+    tool: {
+      select: "选择",
+      line: "线段",
+      polygon: "多边形",
+    },
+    grid: {
+      label: "格",
+      unit: "1",
+      half: "1/2",
+      off: "关",
+    },
     locale: {
       zh: "中文",
       en: "English",
@@ -62,6 +73,17 @@ export const messages = {
       empty: "No primitive selected",
       space: "Space",
       primitiveCount: "Primitive count",
+    },
+    tool: {
+      select: "Select",
+      line: "Line",
+      polygon: "Polygon",
+    },
+    grid: {
+      label: "Grid",
+      unit: "1",
+      half: "1/2",
+      off: "Off",
     },
     locale: {
       zh: "中文",

@@ -84,6 +84,7 @@ function strokeLine(
   points: number[],
   closed: boolean,
   fill?: Fill,
+  dash?: number[],
 ): Konva.Line {
   return new Konva.Line({
     points,
@@ -93,6 +94,7 @@ function strokeLine(
     lineJoin: "round",
     lineCap: "round",
     listening: false,
+    dash,
     ...fillConfig(fill),
   });
 }
@@ -217,6 +219,45 @@ function drawPrimitive(primitive: Primitive, view: ViewTransform): Konva.Shape[]
         }),
       ];
     }
+  }
+}
+
+export type LinePolygonPreview = {
+  type: "line" | "polygon";
+  points: Point2[];
+};
+
+export function drawLinePolygonPreview(
+  layer: Konva.Layer,
+  preview: LinePolygonPreview | null,
+  view: ViewTransform,
+): void {
+  layer.destroyChildren();
+  if (preview === null || preview.points.length === 0) {
+    return;
+  }
+  if (preview.points.length >= 2) {
+    const closed = preview.type === "polygon" && preview.points.length >= 3;
+    layer.add(
+      strokeLine(
+        toScreenPoints(preview.points, view),
+        closed,
+        closed ? "none" : undefined,
+        [6, 4],
+      ),
+    );
+  }
+  for (const point of preview.points) {
+    const screen = worldToScreen(point, view);
+    layer.add(
+      new Konva.Circle({
+        x: screen.x,
+        y: screen.y,
+        radius: 3,
+        fill: STROKE,
+        listening: false,
+      }),
+    );
   }
 }
 

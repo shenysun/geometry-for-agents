@@ -36,11 +36,16 @@ describe("createAppI18n", () => {
     expect(i18n.global.t("objectList.empty")).toMatch(/空/);
     expect(i18n.global.t("file.open")).toBe("打开");
     expect(i18n.global.t("history.undo")).toBe("撤销");
+    expect(i18n.global.t("tool.line")).toBe("线段");
+    expect(i18n.global.t("tool.polygon")).toBe("多边形");
 
     i18n.global.locale.value = "en";
     expect(i18n.global.t("objectList.empty")).toMatch(/empty/i);
     expect(i18n.global.t("objectList.empty")).not.toMatch(/[\u4e00-\u9fff]/);
     expect(i18n.global.t("file.open")).toBe("Open");
     expect(i18n.global.t("history.undo")).toBe("Undo");
+    expect(i18n.global.t("tool.line")).toBe("Line");
+    expect(i18n.global.t("tool.polygon")).toBe("Polygon");
+    expect(i18n.global.t("tool.line")).not.toMatch(/[\u4e00-\u9fff]/);
   });
 });

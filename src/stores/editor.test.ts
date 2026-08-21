@@ -42,4 +42,23 @@ describe("editor store", () => {
     store.setLocale("zh");
     expect(store.locale).toBe("zh");
   });
+
+  test("current tool and grid snap live on the editor store", () => {
+    const store = useEditorStore();
+    expect(store.tool).toBe("select");
+    expect(store.grid).toBe(1);
+    expect(store.selectionId).toBeNull();
+
+    store.setTool("line");
+    store.setGrid(0.5);
+    store.setSelectionId("line-1");
+    expect(store.tool).toBe("line");
+    expect(store.grid).toBe(0.5);
+    expect(store.selectionId).toBe("line-1");
+
+    store.setTool("polygon");
+    store.setGrid("off");
+    expect(store.tool).toBe("polygon");
+    expect(store.grid).toBe("off");
+  });
 });

@@ -1,16 +1,30 @@
 import Konva from "konva";
 import type { GeometryDocument } from "../document/index.ts";
 import { drawGridAndAxes } from "./draw-grid.ts";
-import { drawDocumentPrimitives } from "./draw-primitives.ts";
-import { panView, zoomViewAt, type ViewTransform } from "./transform.ts";
+import {
+  drawDocumentPrimitives,
+  drawLinePolygonPreview,
+  type LinePolygonPreview,
+} from "./draw-primitives.ts";
+import {
+  panView,
+  screenToWorld,
+  zoomViewAt,
+  type Point2,
+  type ViewTransform,
+} from "./transform.ts";
 
 const MIN_SCALE = 4;
 const MAX_SCALE = 400;
 const DEFAULT_SCALE = 40;
 
+type ProjectorTool = "select" | "line" | "polygon" | null;
+
 export type Viewport2dProjector = {
   render: (document: GeometryDocument) => void;
-  setPreview: (gesture: unknown) => void;
+  setPreview: (gesture: LinePolygonPreview | null) => void;
+  setTool: (tool: ProjectorTool) => void;
+  toWorld: (screen: Point2) => Point2;
   resize: (width: number, height: number) => void;
   destroy: () => void;
 };
@@ -40,6 +54,20 @@ export function createViewport2dProjector(
   };
   let currentDocument: GeometryDocument | null = null;
   let lastPointer: { x: number; y: number } | null = null;
+  let currentTool: ProjectorTool = "select";
+  let preview: LinePolygonPreview | null = null;
+
+  function applyCursor(): void {
+    if (currentTool === "line" || currentTool === "polygon") {
+      container.style.cursor = "crosshair";
+      return;
+    }
+    container.style.cursor = lastPointer === null ? "grab" : "grabbing";
+  }
+
+  function isPanTool(): boolean {
+    return currentTool === "select" || currentTool === null;
+  }
 
   container.style.cursor = "grab";
   container.style.touchAction = "none";
@@ -54,6 +82,7 @@ export function createViewport2dProjector(
     if (currentDocument !== null) {
       drawDocumentPrimitives(primitiveLayer, currentDocument, view);
     }
+    drawLinePolygonPreview(previewLayer, preview, view);
     gridLayer.batchDraw();
     primitiveLayer.batchDraw();
     previewLayer.batchDraw();
@@ -73,9 +102,9 @@ export function createViewport2dProjector(
   }
 
   function onMouseDown(event: Konva.KonvaEventObject<MouseEvent>): void {
-    if (event.evt.button !== 0) return;
+    if (event.evt.button !== 0 || !isPanTool()) return;
     lastPointer = stage.getPointerPosition();
-    container.style.cursor = "grabbing";
+    applyCursor();
   }
 
   function onMouseMove(): void {
@@ -89,7 +118,7 @@ export function createViewport2dProjector(
 
   function endPan(): void {
     lastPointer = null;
-    container.style.cursor = "grab";
+    applyCursor();
   }
 
   stage.on("wheel", onWheel);
@@ -105,9 +134,20 @@ export function createViewport2dProjector(
       currentDocument = document;
       redraw();
     },
-    setPreview(_gesture: unknown): void {
-      previewLayer.destroyChildren();
+    setPreview(gesture: LinePolygonPreview | null): void {
+      preview = gesture;
+      drawLinePolygonPreview(previewLayer, preview, view);
       previewLayer.batchDraw();
+    },
+    setTool(tool: ProjectorTool): void {
+      currentTool = tool;
+      if (!isPanTool()) {
+        lastPointer = null;
+      }
+      applyCursor();
+    },
+    toWorld(screen: Point2): Point2 {
+      return screenToWorld(screen, view);
     },
     resize(width: number, height: number): void {
       const nextWidth = Math.max(1, Math.floor(width));

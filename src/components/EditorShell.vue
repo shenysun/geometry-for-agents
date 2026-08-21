@@ -4,11 +4,14 @@ import { useI18n } from "vue-i18n";
 import { serializeDocument, useOpenSave } from "../io/open-save.ts";
 import PromptShareBar from "../share/PromptShareBar.vue";
 import { useDocumentStore } from "../stores/document.ts";
+import { useEditorStore } from "../stores/editor.ts";
 import Viewport2d from "../viewport2d/Viewport2d.vue";
+import DrawToolbar from "./DrawToolbar.vue";
 import LocaleSwitch from "./LocaleSwitch.vue";
 
 const { t } = useI18n();
 const documentStore = useDocumentStore();
+const editor = useEditorStore();
 const { openFile, saveUrl, saveFilename } = useOpenSave();
 
 const primitiveCount = computed(() => documentStore.current.primitives.length);
@@ -20,9 +23,10 @@ const serializedDocument = computed(() =>
 <template>
   <div class="flex h-full min-h-0 flex-col bg-zinc-50 text-zinc-900">
     <header
-      class="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2"
+      class="flex items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-2"
     >
       <h1 class="text-base font-medium">{{ t("app.title") }}</h1>
+      <DrawToolbar />
       <div class="flex items-center gap-2">
         <button
           type="button"
@@ -86,6 +90,11 @@ const serializedDocument = computed(() =>
             v-for="primitive in documentStore.current.primitives"
             :key="primitive.id"
             class="px-3 py-1.5"
+            :class="
+              primitive.id === editor.selectionId
+                ? 'bg-zinc-100 font-medium'
+                : undefined
+            "
           >
             {{ primitive.type }} · {{ primitive.id }}
           </li>

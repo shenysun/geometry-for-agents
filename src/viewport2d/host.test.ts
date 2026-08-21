@@ -19,7 +19,21 @@ describe("2d viewport host", () => {
 
     expect(source).toContain("render(document: GeometryDocument)");
     expect(source).toContain("setPreview");
+    expect(source).toContain("setTool");
     expect(source).toContain("new Konva.Stage");
     expect(source).not.toMatch(/vue-konva/);
+    expect(source).toContain('currentTool === "line" || currentTool === "polygon"');
+  });
+
+  test("Vue host wires draw gestures when the tool is line or polygon", () => {
+    const source = readFileSync(resolve(dir, "Viewport2d.vue"), "utf8");
+
+    expect(source).toContain("startDraw");
+    expect(source).toContain("clickDraw");
+    expect(source).toContain("escDraw");
+    expect(source).toContain("addPrimitive");
+    expect(source).toContain("hitTest");
+    expect(source).toContain("removePrimitive");
+    expect(source).not.toMatch(/vue-konva|v-circle|v-layer|TresCanvas/i);
   });
 });
