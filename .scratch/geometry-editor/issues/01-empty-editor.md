@@ -4,9 +4,9 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Vite + Vue3 + TS + Reka UI + Tailwind + vue-i18n + Pinia + VueUse 的应用能本地启动
-- [ ] Pinia 仅有 `document` 与 `editor` 两块；空说明书可在界面上看到
-- [ ] 界面语言跟浏览器，可手动中英切换；说明书字段不出现中文键名
-- [ ] LICENSE 为 MIT
+- [x] Vite + Vue3 + TS + Reka UI + Tailwind + vue-i18n + Pinia + VueUse 的应用能本地启动
+- [x] Pinia 仅有 `document` 与 `editor` 两块；空说明书可在界面上看到
+- [x] 界面语言跟浏览器，可手动中英切换；说明书字段不出现中文键名
+- [x] LICENSE 为 MIT

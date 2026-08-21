@@ -4,9 +4,9 @@
 
 **Blocked by:** 02 — 说明书契约
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 吸附 1、1/2、关闭三种行为有测试
-- [ ] 3D 体素坐标只落在整数
-- [ ] 点在重叠封闭图元内时命中面积较小者
-- [ ] 不引入 Euclid / JSXGraph / Clipper
+- [x] 吸附 1、1/2、关闭三种行为有测试
+- [x] 3D 体素坐标只落在整数
+- [x] 点在重叠封闭图元内时命中面积较小者
+- [x] 不引入 Euclid / JSXGraph / Clipper
