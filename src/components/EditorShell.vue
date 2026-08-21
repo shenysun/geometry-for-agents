@@ -89,14 +89,20 @@ const serializedDocument = computed(() =>
           <li
             v-for="primitive in documentStore.current.primitives"
             :key="primitive.id"
-            class="px-3 py-1.5"
-            :class="
-              primitive.id === editor.selectionId
-                ? 'bg-zinc-100 font-medium'
-                : undefined
-            "
           >
-            {{ primitive.type }} · {{ primitive.id }}
+            <button
+              type="button"
+              class="block w-full px-3 py-1.5 text-left"
+              :class="
+                primitive.id === editor.selectionId
+                  ? 'bg-zinc-100 font-medium'
+                  : undefined
+              "
+              :aria-pressed="primitive.id === editor.selectionId"
+              @click="editor.setSelectionId(primitive.id)"
+            >
+              {{ primitive.type }} · {{ primitive.id }}
+            </button>
           </li>
         </ul>
       </aside>

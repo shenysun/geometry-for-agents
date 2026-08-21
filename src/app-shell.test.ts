@@ -39,6 +39,17 @@ describe("app shell", () => {
     expect(license).toMatch(/Permission is hereby granted, free of charge/);
   });
 
+  test("object list items are clickable to set selectionId", () => {
+    const source = readFileSync(
+      resolve(root, "src/components/EditorShell.vue"),
+      "utf8",
+    );
+
+    expect(source).toMatch(/@click="[^"]*setSelectionId/);
+    expect(source).toContain("editor.selectionId");
+    expect(source).toContain("bg-zinc-100");
+  });
+
   test("Pinia has only document and editor modules", () => {
     const pinia = createPinia();
     setActivePinia(pinia);

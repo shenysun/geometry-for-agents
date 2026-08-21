@@ -34,6 +34,13 @@ function samePoint(a: Point2, b: Point2): boolean {
   return a.x === b.x && a.y === b.y;
 }
 
+function distinctVertexCount(points: Point2[]): number {
+  return points.filter(
+    (point, index) =>
+      points.findIndex((other) => samePoint(other, point)) === index,
+  ).length;
+}
+
 function previewFrom(state: DrawGestureState): DrawPreview {
   if (state.kind === "line") {
     return { type: "line", points: [state.start, state.cursor] };
@@ -123,11 +130,10 @@ export function clickDraw(
 
   const point = snap2d(ctx.point, ctx.grid);
   const first = state.vertices[0];
-  if (
-    first !== undefined &&
-    state.vertices.length >= 3 &&
-    samePoint(first, point)
-  ) {
+  if (first !== undefined && samePoint(first, point)) {
+    if (distinctVertexCount(state.vertices) < 3) {
+      return result(state);
+    }
     return {
       state: idleDrawState(),
       preview: null,

@@ -203,4 +203,25 @@ describe("draw-gesture reducer", () => {
     expect(committed.preview).toBeNull();
     expect(committed.state).toEqual(idleDrawState());
   });
+
+  test("closing with fewer than 3 distinct vertices does not commit", () => {
+    const a = clickDraw(
+      idleDrawState(),
+      ctx("polygon", { x: 0, y: 0 }, 1, polygonId),
+    );
+    const b = clickDraw(a.state, ctx("polygon", { x: 2, y: 0 }, 1, polygonId));
+    const backToA = clickDraw(
+      b.state,
+      ctx("polygon", { x: 0, y: 0 }, 1, polygonId),
+    );
+    expect(backToA.commit).toBeNull();
+
+    const closed = clickDraw(
+      backToA.state,
+      ctx("polygon", { x: 0, y: 0 }, 1, polygonId),
+    );
+    expect(closed.commit).toBeNull();
+    expect(closed.state.kind).toBe("polygon");
+    expect(closed.preview).not.toBeNull();
+  });
 });

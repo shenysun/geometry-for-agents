@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, test } from "vitest";
+import { useDocumentStore } from "./document.ts";
 import { useEditorStore } from "./editor.ts";
 
 function stubBrowserLanguages(languages: string[]): void {
@@ -60,5 +61,33 @@ describe("editor store", () => {
     store.setGrid("off");
     expect(store.tool).toBe("polygon");
     expect(store.grid).toBe("off");
+  });
+
+  test("selecting a primitive by id then removePrimitive deletes it", () => {
+    const document = useDocumentStore();
+    const editor = useEditorStore();
+    const line = {
+      id: "line-1",
+      type: "line" as const,
+      points: [
+        { x: 0, y: 0 },
+        { x: 3, y: 1 },
+      ],
+    };
+
+    const added = document.addPrimitive(line);
+    expect(added.success).toBe(true);
+    expect(document.current.primitives).toEqual([line]);
+
+    editor.setSelectionId(line.id);
+    const selectedId = editor.selectionId;
+    expect(selectedId).toBe("line-1");
+    if (selectedId === null) {
+      throw new Error("selectionId should be the selected 图元");
+    }
+
+    const removed = document.removePrimitive(selectedId);
+    expect(removed.success).toBe(true);
+    expect(document.current.primitives).toEqual([]);
   });
 });
