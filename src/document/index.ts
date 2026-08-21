@@ -16,3 +16,5 @@ export {
   undo,
 } from "./history.ts";
 export type { DocumentHistory } from "./history.ts";
+export { documentToPrompt } from "./prompt.ts";
+export { documentToHash, hashToDocument } from "./hash.ts";

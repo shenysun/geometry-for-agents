@@ -1,0 +1,65 @@
+import type { GeometryDocument, Primitive } from "./parse-document.ts";
+
+const CONVENTIONS = [
+  "Coordinate conventions:",
+  "- Y is up in 2D and 3D.",
+  "- Angles are in degrees; 0° is at +X, counterclockwise positive.",
+  "- In 3D, Y is height and the ground is the XZ plane.",
+  "- A voxel occupies the unit cube [x,x+1]×[y,y+1]×[z,z+1]; the integer (x,y,z) is the minimum corner.",
+].join("\n");
+
+const SYNTAX = [
+  "Primitive syntax (closed set):",
+  "- line: 2+ {x,y} points",
+  "- polygon: 3+ {x,y} points, fill none|solid|hatch",
+  "- circle: cx, cy, r, fill",
+  "- sector: cx, cy, r, startDeg, endDeg, fill",
+  "- bow: circular segment, cx, cy, r, startDeg, endDeg, fill",
+  "- arc: cx, cy, r, startDeg, endDeg",
+  "- ring: cx, cy, rInner < rOuter, fill",
+  "- ellipse: axis-aligned, cx, cy, rx, ry, fill",
+  "- label: named point at x, y with text",
+  "- voxel: 3D unit cube at integer min corner x, y, z",
+].join("\n");
+
+function compareId(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortKeys);
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, sortKeys(record[key])]),
+    );
+  }
+  return value;
+}
+
+function listedPrimitives(primitives: readonly Primitive[]): unknown[] {
+  return [...primitives]
+    .sort((left, right) => compareId(left.id, right.id))
+    .map((primitive) => sortKeys(primitive));
+}
+
+export function documentToPrompt(document: GeometryDocument): string {
+  const listed = listedPrimitives(document.primitives);
+  return [
+    "Geometry document projection for an Agent. Reconstruct the figure from the primitives below. This text is a readable projection, not the source of truth.",
+    "",
+    CONVENTIONS,
+    "",
+    SYNTAX,
+    "",
+    `version: ${document.version}`,
+    `space: ${document.space}`,
+    `S = ${JSON.stringify(listed)}`,
+  ].join("\n");
+}
