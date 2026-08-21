@@ -34,9 +34,13 @@ describe("createAppI18n", () => {
   test("manual locale switch changes interface copy not 说明书 field names", () => {
     const i18n = createAppI18n(["zh-CN"]);
     expect(i18n.global.t("objectList.empty")).toMatch(/空/);
+    expect(i18n.global.t("file.open")).toBe("打开");
+    expect(i18n.global.t("history.undo")).toBe("撤销");
 
     i18n.global.locale.value = "en";
     expect(i18n.global.t("objectList.empty")).toMatch(/empty/i);
     expect(i18n.global.t("objectList.empty")).not.toMatch(/[\u4e00-\u9fff]/);
+    expect(i18n.global.t("file.open")).toBe("Open");
+    expect(i18n.global.t("history.undo")).toBe("Undo");
   });
 });

@@ -3,6 +3,15 @@ export const messages = {
     app: {
       title: "几何说明书编辑器",
     },
+    file: {
+      open: "打开",
+      save: "保存",
+      openFailed: "无法打开说明书",
+    },
+    history: {
+      undo: "撤销",
+      redo: "重做",
+    },
     viewport: {
       label: "视口",
       placeholder: "视口占位（投影器尚未接入）",
@@ -25,6 +34,15 @@ export const messages = {
   en: {
     app: {
       title: "Geometry Document Editor",
+    },
+    file: {
+      open: "Open",
+      save: "Save",
+      openFailed: "Could not open document",
+    },
+    history: {
+      undo: "Undo",
+      redo: "Redo",
     },
     viewport: {
       label: "Viewport",

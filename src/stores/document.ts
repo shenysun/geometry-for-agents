@@ -1,8 +1,17 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import {
+  addPrimitive as addPrimitiveToDocument,
+  commitSnapshot,
+  createHistory,
   parseDocument,
+  redo as redoHistory,
+  removePrimitive as removePrimitiveFromDocument,
+  undo as undoHistory,
+  updatePrimitive as updatePrimitiveInDocument,
+  type DocumentUpdateResult,
   type GeometryDocument,
+  type Primitive,
 } from "../document/index.ts";
 
 function empty2dDocument(): GeometryDocument {
@@ -19,11 +28,69 @@ function empty2dDocument(): GeometryDocument {
 }
 
 export const useDocumentStore = defineStore("document", () => {
-  const current = ref<GeometryDocument>(empty2dDocument());
+  const history = shallowRef(createHistory(empty2dDocument()));
+  const openError = ref<string | null>(null);
 
-  function setDocument(next: GeometryDocument): void {
-    current.value = next;
+  const current = computed(() => history.value.present);
+  const canUndo = computed(() => history.value.past.length > 0);
+  const canRedo = computed(() => history.value.future.length > 0);
+
+  function openFromText(
+    text: string,
+  ): { success: true } | { success: false; error: string } {
+    const parsed = parseDocument(text);
+    if (!parsed.success) {
+      openError.value = parsed.error;
+      return parsed;
+    }
+    history.value = createHistory(parsed.document);
+    openError.value = null;
+    return { success: true };
   }
 
-  return { current, setDocument };
+  function undo(): void {
+    history.value = undoHistory(history.value);
+  }
+
+  function redo(): void {
+    history.value = redoHistory(history.value);
+  }
+
+  function applyUpdate(result: DocumentUpdateResult): DocumentUpdateResult {
+    if (!result.success) {
+      return result;
+    }
+    history.value = commitSnapshot(history.value, result.document);
+    return result;
+  }
+
+  function addPrimitive(primitive: Primitive): DocumentUpdateResult {
+    return applyUpdate(addPrimitiveToDocument(current.value, primitive));
+  }
+
+  function removePrimitive(id: string): DocumentUpdateResult {
+    return applyUpdate(removePrimitiveFromDocument(current.value, id));
+  }
+
+  function updatePrimitive(
+    id: string,
+    primitive: Primitive,
+  ): DocumentUpdateResult {
+    return applyUpdate(
+      updatePrimitiveInDocument(current.value, id, primitive),
+    );
+  }
+
+  return {
+    current,
+    openError,
+    canUndo,
+    canRedo,
+    openFromText,
+    undo,
+    redo,
+    addPrimitive,
+    removePrimitive,
+    updatePrimitive,
+  };
 });

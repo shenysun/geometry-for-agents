@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { serializeDocument, useOpenSave } from "../io/open-save.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import LocaleSwitch from "./LocaleSwitch.vue";
 
 const { t } = useI18n();
 const documentStore = useDocumentStore();
+const { openFile, saveUrl, saveFilename } = useOpenSave();
 
 const primitiveCount = computed(() => documentStore.current.primitives.length);
 const serializedDocument = computed(() =>
-  JSON.stringify(documentStore.current, null, 2),
+  serializeDocument(documentStore.current),
 );
 </script>
 
@@ -19,8 +21,48 @@ const serializedDocument = computed(() =>
       class="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2"
     >
       <h1 class="text-base font-medium">{{ t("app.title") }}</h1>
-      <LocaleSwitch />
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="rounded border border-zinc-300 bg-white px-2 py-1 text-sm hover:bg-zinc-100"
+          @click="openFile()"
+        >
+          {{ t("file.open") }}
+        </button>
+        <a
+          class="rounded border border-zinc-300 bg-white px-2 py-1 text-sm hover:bg-zinc-100"
+          :href="saveUrl"
+          :download="saveFilename"
+        >
+          {{ t("file.save") }}
+        </a>
+        <button
+          type="button"
+          class="rounded border border-zinc-300 bg-white px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="!documentStore.canUndo"
+          @click="documentStore.undo()"
+        >
+          {{ t("history.undo") }}
+        </button>
+        <button
+          type="button"
+          class="rounded border border-zinc-300 bg-white px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="!documentStore.canRedo"
+          @click="documentStore.redo()"
+        >
+          {{ t("history.redo") }}
+        </button>
+        <LocaleSwitch />
+      </div>
     </header>
+
+    <p
+      v-if="documentStore.openError"
+      role="alert"
+      class="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800"
+    >
+      {{ t("file.openFailed") }}: {{ documentStore.openError }}
+    </p>
 
     <div class="flex min-h-0 flex-1">
       <aside
@@ -36,6 +78,15 @@ const serializedDocument = computed(() =>
         >
           {{ t("objectList.empty") }}
         </p>
+        <ul v-else class="min-h-0 flex-1 overflow-auto py-1 text-sm">
+          <li
+            v-for="primitive in documentStore.current.primitives"
+            :key="primitive.id"
+            class="px-3 py-1.5"
+          >
+            {{ primitive.type }} · {{ primitive.id }}
+          </li>
+        </ul>
       </aside>
 
       <section
