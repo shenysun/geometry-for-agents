@@ -8,6 +8,7 @@ import { useEditorStore } from "../stores/editor.ts";
 import Viewport2d from "../viewport2d/Viewport2d.vue";
 import DrawToolbar from "./DrawToolbar.vue";
 import LocaleSwitch from "./LocaleSwitch.vue";
+import UnderlayPanel from "./UnderlayPanel.vue";
 
 const { t } = useI18n();
 const documentStore = useDocumentStore();
@@ -137,6 +138,7 @@ const serializedDocument = computed(() =>
           </div>
         </dl>
         <p class="px-3 text-sm text-zinc-600">{{ t("properties.empty") }}</p>
+        <UnderlayPanel />
         <pre
           class="m-3 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-2 text-xs leading-5"
         >{{ serializedDocument }}</pre>

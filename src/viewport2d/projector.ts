@@ -7,6 +7,11 @@ import {
   type LinePolygonPreview,
 } from "./draw-primitives.ts";
 import {
+  drawUnderlay,
+  resolveUnderlayDisplay,
+  type SessionUnderlay,
+} from "./draw-underlay.ts";
+import {
   panView,
   screenToWorld,
   zoomViewAt,
@@ -24,6 +29,7 @@ export type Viewport2dProjector = {
   render: (document: GeometryDocument) => void;
   setPreview: (gesture: LinePolygonPreview | null) => void;
   setTool: (tool: ProjectorTool) => void;
+  setSessionUnderlay: (underlay: SessionUnderlay | null) => void;
   toWorld: (screen: Point2) => Point2;
   resize: (width: number, height: number) => void;
   destroy: () => void;
@@ -43,9 +49,10 @@ export function createViewport2dProjector(
     height: Math.max(1, container.clientHeight),
   });
   const gridLayer = new Konva.Layer({ listening: false });
+  const underlayLayer = new Konva.Layer({ listening: false });
   const primitiveLayer = new Konva.Layer({ listening: false });
   const previewLayer = new Konva.Layer({ listening: false });
-  stage.add(gridLayer, primitiveLayer, previewLayer);
+  stage.add(gridLayer, underlayLayer, primitiveLayer, previewLayer);
 
   let view: ViewTransform = {
     originX: stage.width() / 2,
@@ -53,9 +60,11 @@ export function createViewport2dProjector(
     scale: DEFAULT_SCALE,
   };
   let currentDocument: GeometryDocument | null = null;
+  let sessionUnderlay: SessionUnderlay | null = null;
   let lastPointer: { x: number; y: number } | null = null;
   let currentTool: ProjectorTool = "select";
   let preview: LinePolygonPreview | null = null;
+  let destroyed = false;
 
   function applyCursor(): void {
     if (currentTool === "line" || currentTool === "polygon") {
@@ -78,12 +87,23 @@ export function createViewport2dProjector(
   container.addEventListener("wheel", preventWheelScroll, { passive: false });
 
   function redraw(): void {
+    if (destroyed) return;
     drawGridAndAxes(gridLayer, view, stage.width(), stage.height());
+    drawUnderlay(
+      underlayLayer,
+      resolveUnderlayDisplay(
+        currentDocument?.underlay ?? null,
+        sessionUnderlay,
+      ),
+      view,
+      redraw,
+    );
     if (currentDocument !== null) {
       drawDocumentPrimitives(primitiveLayer, currentDocument, view);
     }
     drawLinePolygonPreview(previewLayer, preview, view);
     gridLayer.batchDraw();
+    underlayLayer.batchDraw();
     primitiveLayer.batchDraw();
     previewLayer.batchDraw();
   }
@@ -146,6 +166,10 @@ export function createViewport2dProjector(
       }
       applyCursor();
     },
+    setSessionUnderlay(underlay: SessionUnderlay | null): void {
+      sessionUnderlay = underlay;
+      redraw();
+    },
     toWorld(screen: Point2): Point2 {
       return screenToWorld(screen, view);
     },
@@ -163,6 +187,7 @@ export function createViewport2dProjector(
       redraw();
     },
     destroy(): void {
+      destroyed = true;
       container.removeEventListener("wheel", preventWheelScroll);
       stage.off("wheel", onWheel);
       stage.off("mousedown", onMouseDown);

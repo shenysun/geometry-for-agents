@@ -6,6 +6,7 @@ export type { GeometryDocument, Primitive } from "./parse-document.ts";
 export {
   addPrimitive,
   removePrimitive,
+  setUnderlay,
   updatePrimitive,
 } from "./update-document.ts";
 export type { DocumentUpdateResult } from "./update-document.ts";

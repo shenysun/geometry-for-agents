@@ -8,12 +8,14 @@ import {
   parseDocument,
   redo as redoHistory,
   removePrimitive as removePrimitiveFromDocument,
+  setUnderlay as setDocumentUnderlay,
   undo as undoHistory,
   updatePrimitive as updatePrimitiveInDocument,
   type DocumentUpdateResult,
   type GeometryDocument,
   type Primitive,
 } from "../document/index.ts";
+import { useEditorStore } from "./editor.ts";
 
 type OpenResult =
   | { success: true }
@@ -56,6 +58,7 @@ export const useDocumentStore = defineStore("document", () => {
     history.value = createHistory(parsed.document);
     openError.value = null;
     hashError.value = null;
+    useEditorStore().setSessionUnderlay(null);
     return { success: true };
   }
 
@@ -100,6 +103,15 @@ export const useDocumentStore = defineStore("document", () => {
     );
   }
 
+  function setUnderlay(
+    underlay: GeometryDocument["underlay"],
+  ): DocumentUpdateResult {
+    if (JSON.stringify(current.value.underlay) === JSON.stringify(underlay)) {
+      return { success: true, document: current.value };
+    }
+    return applyUpdate(setDocumentUnderlay(current.value, underlay));
+  }
+
   return {
     current,
     openError,
@@ -113,5 +125,6 @@ export const useDocumentStore = defineStore("document", () => {
     addPrimitive,
     removePrimitive,
     updatePrimitive,
+    setUnderlay,
   };
 });

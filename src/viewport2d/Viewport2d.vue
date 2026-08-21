@@ -88,6 +88,7 @@ onMounted(() => {
   projector = createViewport2dProjector(host);
   projector.setTool(editor.tool);
   projector.render(documentStore.current);
+  projector.setSessionUnderlay(editor.sessionUnderlay);
   const { width, height } = host.getBoundingClientRect();
   if (width > 0 && height > 0) {
     projector.resize(width, height);
@@ -119,6 +120,13 @@ watch(
   (tool) => {
     cancelPreview();
     projector?.setTool(tool);
+  },
+);
+
+watch(
+  () => editor.sessionUnderlay,
+  (underlay) => {
+    projector?.setSessionUnderlay(underlay);
   },
 );
 

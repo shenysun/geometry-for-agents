@@ -3,6 +3,7 @@ import {
   addPrimitive,
   parseDocument,
   removePrimitive,
+  setUnderlay,
   updatePrimitive,
 } from "./index.ts";
 import type { GeometryDocument, Primitive } from "./index.ts";
@@ -118,5 +119,46 @@ describe("updatePrimitive", () => {
     expect(original).toEqual(snapshot);
     expect(original.primitives[0]).toEqual(originalPrimitive);
     expect(result.document.primitives).toEqual([updated]);
+  });
+});
+
+describe("setUnderlay", () => {
+  test("writes https alignment immutably and roundtrips opacity x y scale", () => {
+    const original = empty2d();
+    const snapshot = structuredClone(original);
+    const underlay = {
+      url: "https://example.com/problem.png",
+      opacity: 0.4,
+      x: 1,
+      y: -2,
+      scale: 1.5,
+    };
+
+    const result = setUnderlay(original, underlay);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document).not.toBe(original);
+    expect(original).toEqual(snapshot);
+    expect(result.document.underlay).toEqual(underlay);
+
+    const parsed = parseDocument(JSON.stringify(result.document));
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.document.underlay).toEqual(underlay);
+  });
+
+  test("rejects a file URL so it cannot enter the 说明书", () => {
+    const original = empty2d();
+    const result = setUnderlay(original, {
+      url: "file:///tmp/problem.png",
+      opacity: 0.5,
+      x: 0,
+      y: 0,
+      scale: 1,
+    });
+
+    expect(result.success).toBe(false);
+    expect(original.underlay).toBeNull();
   });
 });

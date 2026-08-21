@@ -5,18 +5,41 @@ export type DocumentUpdateResult =
   | { success: true; document: GeometryDocument }
   | { success: false; error: string };
 
-function replacePrimitives(
+function replaceDocument(
   document: GeometryDocument,
-  primitives: Primitive[],
+  patch: {
+    underlay: GeometryDocument["underlay"];
+    primitives: Primitive[];
+  },
 ): DocumentUpdateResult {
   return parseDocument(
     structuredClone({
       version: document.version,
       space: document.space,
-      underlay: document.underlay,
-      primitives,
+      underlay: patch.underlay,
+      primitives: patch.primitives,
     }),
   );
+}
+
+function replacePrimitives(
+  document: GeometryDocument,
+  primitives: Primitive[],
+): DocumentUpdateResult {
+  return replaceDocument(document, {
+    underlay: document.underlay,
+    primitives,
+  });
+}
+
+export function setUnderlay(
+  document: GeometryDocument,
+  underlay: GeometryDocument["underlay"],
+): DocumentUpdateResult {
+  return replaceDocument(document, {
+    underlay,
+    primitives: document.primitives,
+  });
 }
 
 function missingId(id: string): DocumentUpdateResult {
