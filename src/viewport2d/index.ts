@@ -2,9 +2,13 @@ export { createViewport2dProjector } from "./projector.ts";
 export type { Viewport2dProjector } from "./projector.ts";
 export {
   clickDraw,
+  DRAW_TOOLS,
   escDraw,
   idleDrawState,
+  isDragDrawTool,
+  isDrawTool,
   moveDraw,
+  nextLabelText,
   startDraw,
   upDraw,
 } from "./draw-gesture.ts";

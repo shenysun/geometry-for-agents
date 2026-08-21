@@ -61,6 +61,11 @@ describe("editor store", () => {
     store.setGrid("off");
     expect(store.tool).toBe("polygon");
     expect(store.grid).toBe("off");
+
+    store.setTool("circle");
+    expect(store.tool).toBe("circle");
+    store.setTool("label");
+    expect(store.tool).toBe("label");
   });
 
   test("selecting a primitive by id then removePrimitive deletes it", () => {

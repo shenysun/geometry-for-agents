@@ -38,6 +38,8 @@ describe("createAppI18n", () => {
     expect(i18n.global.t("history.undo")).toBe("撤销");
     expect(i18n.global.t("tool.line")).toBe("线段");
     expect(i18n.global.t("tool.polygon")).toBe("多边形");
+    expect(i18n.global.t("tool.circle")).toBe("圆");
+    expect(i18n.global.t("fill.hatch")).toBe("阴影");
 
     i18n.global.locale.value = "en";
     expect(i18n.global.t("objectList.empty")).toMatch(/empty/i);
@@ -46,6 +48,8 @@ describe("createAppI18n", () => {
     expect(i18n.global.t("history.undo")).toBe("Undo");
     expect(i18n.global.t("tool.line")).toBe("Line");
     expect(i18n.global.t("tool.polygon")).toBe("Polygon");
+    expect(i18n.global.t("tool.circle")).toBe("Circle");
+    expect(i18n.global.t("fill.hatch")).toBe("Hatch");
     expect(i18n.global.t("tool.line")).not.toMatch(/[\u4e00-\u9fff]/);
   });
 });

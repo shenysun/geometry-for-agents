@@ -5,6 +5,7 @@ import {
   escDraw,
   idleDrawState,
   moveDraw,
+  nextLabelText,
   startDraw,
   upDraw,
   type DrawContext,
@@ -18,8 +19,9 @@ function ctx(
   point: { x: number; y: number },
   grid: DrawContext["grid"] = 1,
   id = lineId,
+  labelTexts: readonly string[] = [],
 ): DrawContext {
-  return { tool, point, grid, id };
+  return { tool, point, grid, id, labelTexts };
 }
 
 describe("draw-gesture reducer", () => {
@@ -69,13 +71,15 @@ describe("draw-gesture reducer", () => {
 
     const c = clickDraw(b.state, ctx("polygon", { x: 1, y: 2 }, 1, polygonId));
     expect(c.commit).toBeNull();
-    expect(c.preview?.type).toBe("polygon");
-    expect(c.preview?.points).toEqual([
-      { x: 0, y: 0 },
-      { x: 2, y: 0 },
-      { x: 1, y: 2 },
-      { x: 1, y: 2 },
-    ]);
+    expect(c.preview).toEqual({
+      type: "polygon",
+      points: [
+        { x: 0, y: 0 },
+        { x: 2, y: 0 },
+        { x: 1, y: 2 },
+        { x: 1, y: 2 },
+      ],
+    });
 
     const closed = clickDraw(
       c.state,
@@ -225,3 +229,253 @@ describe("draw-gesture reducer", () => {
     expect(closed.preview).not.toBeNull();
   });
 });
+
+describe("curve, label, and fill gestures", () => {
+  test("drag circle from center to radius point commits fill none", () => {
+    const started = startDraw(idleDrawState(), ctx("circle", { x: 0, y: 0 }, 1, "circle-1"));
+    expect(started.commit).toBeNull();
+    const moved = moveDraw(started.state, ctx("circle", { x: 3, y: 4 }, 1, "circle-1"));
+    expect(moved.commit).toBeNull();
+    expect(moved.preview).toEqual({ type: "circle", cx: 0, cy: 0, r: 5 });
+
+    const committed = upDraw(moved.state, ctx("circle", { x: 3, y: 4 }, 1, "circle-1"));
+    expect(committed.commit).toEqual({
+      id: "circle-1",
+      type: "circle",
+      cx: 0,
+      cy: 0,
+      r: 5,
+      fill: "none",
+    });
+    expect(committed.preview).toBeNull();
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("zero-radius circle on up does not commit", () => {
+    const started = startDraw(idleDrawState(), ctx("circle", { x: 1, y: 1 }, 1, "circle-1"));
+    const committed = upDraw(started.state, ctx("circle", { x: 1.2, y: 0.6 }, 1, "circle-1"));
+    expect(committed.commit).toBeNull();
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("ellipse drag uses an axis-aligned bbox", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("ellipse", { x: 4, y: 2 }, 1, "ellipse-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("ellipse", { x: 0, y: 0 }, 1, "ellipse-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "ellipse",
+      cx: 2,
+      cy: 1,
+      rx: 2,
+      ry: 1,
+    });
+    const committed = upDraw(
+      moved.state,
+      ctx("ellipse", { x: 0, y: 0 }, 1, "ellipse-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "ellipse-1",
+      type: "ellipse",
+      cx: 2,
+      cy: 1,
+      rx: 2,
+      ry: 1,
+      fill: "none",
+    });
+  });
+
+  test("degenerate ellipse does not commit", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("ellipse", { x: 0, y: 0 }, 1, "ellipse-1"),
+    );
+    const committed = upDraw(
+      started.state,
+      ctx("ellipse", { x: 3, y: 0 }, 1, "ellipse-1"),
+    );
+    expect(committed.commit).toBeNull();
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("ring two drags commit rInner < rOuter", () => {
+    const outerStart = startDraw(
+      idleDrawState(),
+      ctx("ring", { x: 0, y: 0 }, 1, "ring-1"),
+    );
+    const outerMoved = moveDraw(
+      outerStart.state,
+      ctx("ring", { x: 4, y: 0 }, 1, "ring-1"),
+    );
+    const afterOuter = upDraw(
+      outerMoved.state,
+      ctx("ring", { x: 4, y: 0 }, 1, "ring-1"),
+    );
+    expect(afterOuter.commit).toBeNull();
+    expect(afterOuter.preview).toEqual({
+      type: "ring",
+      cx: 0,
+      cy: 0,
+      rInner: 4,
+      rOuter: 4,
+    });
+
+    const innerMoved = moveDraw(
+      afterOuter.state,
+      ctx("ring", { x: 0, y: 2 }, 1, "ring-1"),
+    );
+    const committed = upDraw(
+      innerMoved.state,
+      ctx("ring", { x: 0, y: 2 }, 1, "ring-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "ring-1",
+      type: "ring",
+      cx: 0,
+      cy: 0,
+      rInner: 2,
+      rOuter: 4,
+      fill: "none",
+    });
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("ring with inner radius not smaller than outer does not commit", () => {
+    const outerStart = startDraw(
+      idleDrawState(),
+      ctx("ring", { x: 0, y: 0 }, 1, "ring-1"),
+    );
+    const afterOuter = upDraw(
+      moveDraw(outerStart.state, ctx("ring", { x: 3, y: 0 }, 1, "ring-1")).state,
+      ctx("ring", { x: 3, y: 0 }, 1, "ring-1"),
+    );
+    const tooBig = upDraw(
+      moveDraw(afterOuter.state, ctx("ring", { x: 5, y: 0 }, 1, "ring-1")).state,
+      ctx("ring", { x: 5, y: 0 }, 1, "ring-1"),
+    );
+    expect(tooBig.commit).toBeNull();
+    expect(tooBig.state.kind).toBe("ring");
+  });
+
+  test("sector clicks center, start angle, then end angle with Y-up degrees", () => {
+    const center = clickDraw(
+      idleDrawState(),
+      ctx("sector", { x: 0, y: 0 }, 1, "sector-1"),
+    );
+    expect(center.commit).toBeNull();
+    const start = clickDraw(
+      center.state,
+      ctx("sector", { x: 2, y: 0 }, 1, "sector-1"),
+    );
+    expect(start.commit).toBeNull();
+    const committed = clickDraw(
+      start.state,
+      ctx("sector", { x: 0, y: 4 }, 1, "sector-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "sector-1",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 90,
+      fill: "none",
+    });
+  });
+
+  test("bow commits type bow not segment", () => {
+    const center = clickDraw(idleDrawState(), ctx("bow", { x: 1, y: 1 }, 1, "bow-1"));
+    const start = clickDraw(center.state, ctx("bow", { x: 4, y: 1 }, 1, "bow-1"));
+    const committed = clickDraw(start.state, ctx("bow", { x: 1, y: 4 }, 1, "bow-1"));
+    expect(committed.commit).toEqual({
+      id: "bow-1",
+      type: "bow",
+      cx: 1,
+      cy: 1,
+      r: 3,
+      startDeg: 0,
+      endDeg: 90,
+      fill: "none",
+    });
+    expect(committed.commit).not.toHaveProperty("type", "segment");
+  });
+
+  test("arc commits without a fill field", () => {
+    const center = clickDraw(idleDrawState(), ctx("arc", { x: 0, y: 0 }, 1, "arc-1"));
+    const start = clickDraw(center.state, ctx("arc", { x: 2, y: 0 }, 1, "arc-1"));
+    const committed = clickDraw(start.state, ctx("arc", { x: 0, y: 2 }, 1, "arc-1"));
+    expect(committed.commit).toEqual({
+      id: "arc-1",
+      type: "arc",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 90,
+    });
+    expect(committed.commit).not.toHaveProperty("fill");
+  });
+
+  test("label click places the next letter on a grid point", () => {
+    const first = clickDraw(
+      idleDrawState(),
+      ctx("label", { x: 1.4, y: -1.6 }, 1, "label-1"),
+    );
+    expect(first.commit).toEqual({
+      id: "label-1",
+      type: "label",
+      x: 1,
+      y: -2,
+      text: "A",
+    });
+    expect(first.commit).not.toHaveProperty("fill");
+
+    const second = clickDraw(
+      idleDrawState(),
+      ctx("label", { x: 2, y: 0 }, 1, "label-2", ["A"]),
+    );
+    expect(second.commit).toMatchObject({ type: "label", text: "B" });
+  });
+
+  test("esc cancels circle and sweep previews without committing", () => {
+    const circle = moveDraw(
+      startDraw(idleDrawState(), ctx("circle", { x: 0, y: 0 }, 1, "circle-1")).state,
+      ctx("circle", { x: 2, y: 0 }, 1, "circle-1"),
+    );
+    expect(escDraw(circle.state).commit).toBeNull();
+    expect(escDraw(circle.state).preview).toBeNull();
+
+    const sweep = clickDraw(
+      idleDrawState(),
+      ctx("sector", { x: 0, y: 0 }, 1, "sector-1"),
+    );
+    expect(escDraw(sweep.state).commit).toBeNull();
+    expect(escDraw(sweep.state).state).toEqual(idleDrawState());
+  });
+
+  test("circle points snap to the editor grid", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("circle", { x: 0.4, y: -0.4 }, 1, "circle-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("circle", { x: 3.4, y: 3.6 }, 1, "circle-1"),
+    );
+    expect(moved.preview).toEqual({ type: "circle", cx: 0, cy: 0, r: 5 });
+  });
+});
+
+describe("nextLabelText", () => {
+  test("walks A, B, C and skips used letters", () => {
+    expect(nextLabelText([])).toBe("A");
+    expect(nextLabelText(["A"])).toBe("B");
+    expect(nextLabelText(["A", "C"])).toBe("B");
+  });
+});
+

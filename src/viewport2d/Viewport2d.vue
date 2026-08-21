@@ -12,6 +12,8 @@ import {
   clickDraw,
   escDraw,
   idleDrawState,
+  isDragDrawTool,
+  isDrawTool,
   moveDraw,
   startDraw,
   upDraw,
@@ -54,10 +56,13 @@ function drawContext(
   id = crypto.randomUUID(),
 ): DrawContext | null {
   const tool = editor.tool;
-  if (tool !== "line" && tool !== "polygon") return null;
+  if (!isDrawTool(tool)) return null;
   const point = eventWorld(event);
   if (point === null) return null;
-  return { tool, point, grid: gridForEvent(event), id };
+  const labelTexts = documentStore.current.primitives.flatMap((primitive) =>
+    primitive.type === "label" ? [primitive.text] : [],
+  );
+  return { tool, point, grid: gridForEvent(event), id, labelTexts };
 }
 
 function applyGesture(result: DrawGestureResult): void {
@@ -135,7 +140,7 @@ useEventListener(hostRef, "pointerdown", (event: PointerEvent) => {
   dragStart = { x: event.clientX, y: event.clientY };
   dragDistance = 0;
   const context = drawContext(event);
-  if (context === null || context.tool !== "line") return;
+  if (context === null || !isDragDrawTool(context.tool)) return;
   applyGesture(startDraw(gesture, context));
 });
 
@@ -154,7 +159,12 @@ useEventListener(window, "pointermove", (event: PointerEvent) => {
 
 useEventListener(window, "pointerup", (event: PointerEvent) => {
   if (event.button !== 0) return;
-  if (gesture.kind === "line") {
+  if (
+    gesture.kind === "line" ||
+    gesture.kind === "circle" ||
+    gesture.kind === "ellipse" ||
+    gesture.kind === "ring"
+  ) {
     const context = drawContext(event);
     if (context !== null) {
       applyGesture(upDraw(gesture, context));
@@ -168,7 +178,7 @@ useEventListener(hostRef, "click", (event: MouseEvent) => {
   const world = eventWorld(event);
   if (world === null) return;
 
-  if (editor.tool === "polygon") {
+  if (isDrawTool(editor.tool) && !isDragDrawTool(editor.tool)) {
     const context = drawContext(event);
     if (context !== null) {
       applyGesture(clickDraw(gesture, context));

@@ -50,6 +50,18 @@ describe("app shell", () => {
     expect(source).toContain("bg-zinc-100");
   });
 
+  test("properties panel commits fill for a selected closed primitive", () => {
+    const source = readFileSync(
+      resolve(root, "src/components/PropertiesPanel.vue"),
+      "utf8",
+    );
+
+    expect(source).toContain("withFill");
+    expect(source).toContain("updatePrimitive");
+    expect(source).toContain("FILLS");
+    expect(source).toContain('value !== "none" && value !== "solid" && value !== "hatch"');
+  });
+
   test("Pinia has only document and editor modules", () => {
     const pinia = createPinia();
     setActivePinia(pinia);

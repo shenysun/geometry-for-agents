@@ -1,5 +1,6 @@
 import Konva from "konva";
-import type { GeometryDocument, Primitive } from "../document/index.ts";
+import type { Fill, GeometryDocument, Primitive } from "../document/index.ts";
+import type { DrawPreview } from "./draw-gesture.ts";
 import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
 
 const STROKE = "#18181b";
@@ -7,7 +8,6 @@ const FILL_SOLID = "rgba(24, 24, 27, 0.14)";
 const DEG = Math.PI / 180;
 const STROKE_WIDTH = 1.5;
 
-type Fill = "none" | "solid" | "hatch";
 type Sweep = {
   cx: number;
   cy: number;
@@ -222,32 +222,96 @@ function drawPrimitive(primitive: Primitive, view: ViewTransform): Konva.Shape[]
   }
 }
 
-export type LinePolygonPreview = {
-  type: "line" | "polygon";
-  points: Point2[];
-};
+function previewPrimitive(preview: DrawPreview): Primitive | null {
+  if (preview === null || preview.type === "guide") {
+    return null;
+  }
+  if (preview.type === "line") {
+    if (preview.points.length < 2) return null;
+    return { id: "preview", type: "line", points: preview.points };
+  }
+  if (preview.type === "polygon") {
+    if (preview.points.length < 3) {
+      if (preview.points.length < 2) return null;
+      return { id: "preview", type: "line", points: preview.points };
+    }
+    return {
+      id: "preview",
+      type: "polygon",
+      points: preview.points,
+      fill: "none",
+    };
+  }
+  if (preview.type === "circle") {
+    if (preview.r <= 0) return null;
+    return { id: "preview", ...preview, fill: "none" };
+  }
+  if (preview.type === "ellipse") {
+    if (preview.rx <= 0 || preview.ry <= 0) return null;
+    return { id: "preview", ...preview, fill: "none" };
+  }
+  if (preview.type === "ring") {
+    if (preview.rOuter <= 0) return null;
+    if (preview.rInner <= 0 || preview.rInner >= preview.rOuter) {
+      return {
+        id: "preview",
+        type: "circle",
+        cx: preview.cx,
+        cy: preview.cy,
+        r: preview.rOuter,
+        fill: "none",
+      };
+    }
+    return { id: "preview", ...preview, fill: "none" };
+  }
+  if (preview.type === "label") {
+    return { id: "preview", ...preview };
+  }
+  if (preview.r <= 0) return null;
+  if (preview.type === "arc") {
+    return { id: "preview", ...preview };
+  }
+  if (preview.type === "sector") {
+    return { id: "preview", ...preview, fill: "none" };
+  }
+  return { id: "preview", ...preview, fill: "none" };
+}
 
-export function drawLinePolygonPreview(
+function previewGuidePoints(preview: DrawPreview): Point2[] {
+  if (preview === null) return [];
+  if (preview.type === "line" || preview.type === "polygon" || preview.type === "guide") {
+    return preview.points;
+  }
+  if (preview.type === "label") {
+    return [{ x: preview.x, y: preview.y }];
+  }
+  return [{ x: preview.cx, y: preview.cy }];
+}
+
+export function drawGesturePreview(
   layer: Konva.Layer,
-  preview: LinePolygonPreview | null,
+  preview: DrawPreview,
   view: ViewTransform,
 ): void {
   layer.destroyChildren();
-  if (preview === null || preview.points.length === 0) {
+  if (preview === null) {
     return;
   }
-  if (preview.points.length >= 2) {
-    const closed = preview.type === "polygon" && preview.points.length >= 3;
+  const primitive = previewPrimitive(preview);
+  if (primitive !== null) {
+    for (const node of drawPrimitive(primitive, view)) {
+      node.dash([6, 4]);
+      layer.add(node);
+    }
+  } else if (
+    (preview.type === "line" || preview.type === "polygon" || preview.type === "guide") &&
+    preview.points.length >= 2
+  ) {
     layer.add(
-      strokeLine(
-        toScreenPoints(preview.points, view),
-        closed,
-        closed ? "none" : undefined,
-        [6, 4],
-      ),
+      strokeLine(toScreenPoints(preview.points, view), false, undefined, [6, 4]),
     );
   }
-  for (const point of preview.points) {
+  for (const point of previewGuidePoints(preview)) {
     const screen = worldToScreen(point, view);
     layer.add(
       new Konva.Circle({

@@ -91,6 +91,80 @@ describe("documentToPrompt", () => {
     expect(prompt).toContain("135");
   });
 
+  test("lists circle sector arc ring ellipse and label when present", () => {
+    const document = parsed("2d", [
+      {
+        id: "circle-1",
+        type: "circle",
+        cx: 0,
+        cy: 0,
+        r: 2,
+        fill: "solid",
+      },
+      {
+        id: "sector-1",
+        type: "sector",
+        cx: 0,
+        cy: 0,
+        r: 2,
+        startDeg: 0,
+        endDeg: 90,
+        fill: "hatch",
+      },
+      {
+        id: "arc-1",
+        type: "arc",
+        cx: 1,
+        cy: 1,
+        r: 3,
+        startDeg: 10,
+        endDeg: 40,
+      },
+      {
+        id: "ring-1",
+        type: "ring",
+        cx: 0,
+        cy: 0,
+        rInner: 1,
+        rOuter: 3,
+        fill: "none",
+      },
+      {
+        id: "ellipse-1",
+        type: "ellipse",
+        cx: 2,
+        cy: 3,
+        rx: 4,
+        ry: 1,
+        fill: "solid",
+      },
+      {
+        id: "label-1",
+        type: "label",
+        x: 5,
+        y: 6,
+        text: "A",
+      },
+    ]);
+    const prompt = documentToPrompt(document);
+    for (const token of [
+      "circle-1",
+      "sector-1",
+      "arc-1",
+      "ring-1",
+      "ellipse-1",
+      "label-1",
+      '"type":"circle"',
+      '"type":"sector"',
+      '"type":"arc"',
+      '"type":"ring"',
+      '"type":"ellipse"',
+      '"type":"label"',
+    ]) {
+      expect(prompt).toContain(token);
+    }
+  });
+
   test("omits underlay urls, local file paths, and image pixels", () => {
     const document = parsed("2d", twoDPrimitives, {
       url: "https://example.com/problem.png",

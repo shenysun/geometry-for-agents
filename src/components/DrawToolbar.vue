@@ -3,8 +3,9 @@ import { ToggleGroupItem, ToggleGroupRoot } from "reka-ui";
 import { useI18n } from "vue-i18n";
 import type { GridSnap } from "../document/index.ts";
 import { useEditorStore } from "../stores/editor.ts";
+import { DRAW_TOOLS, isDrawTool } from "../viewport2d/draw-gesture.ts";
 
-const tools = ["select", "line", "polygon"] as const;
+const tools = ["select", ...DRAW_TOOLS] as const;
 const grids = [
   { value: "1", grid: 1 as const, label: "grid.unit" },
   { value: "0.5", grid: 0.5 as const, label: "grid.half" },
@@ -15,7 +16,7 @@ const editor = useEditorStore();
 const { t } = useI18n();
 
 function onToolChange(value: string | string[] | undefined): void {
-  if (value === "select" || value === "line" || value === "polygon") {
+  if (value === "select" || (typeof value === "string" && isDrawTool(value))) {
     editor.setTool(value);
   }
 }
@@ -37,7 +38,7 @@ function gridValue(grid: GridSnap): string {
     <ToggleGroupRoot
       type="single"
       :model-value="editor.tool ?? undefined"
-      class="inline-flex rounded-md border border-zinc-300 p-0.5"
+      class="inline-flex flex-wrap rounded-md border border-zinc-300 p-0.5"
       :aria-label="t('tool.select')"
       @update:model-value="onToolChange"
     >

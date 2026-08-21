@@ -161,6 +161,42 @@ describe("parseDocument", () => {
     expect(result.error.toLowerCase()).toMatch(/type|segment/);
   });
 
+  test("rejects fill on line, arc, and label", () => {
+    const withFill = (primitive: Record<string, unknown>) =>
+      parseDocument(spec("2d", [{ ...primitive, fill: "solid" }]));
+
+    expect(
+      withFill({
+        id: "line-1",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      withFill({
+        id: "arc-1",
+        type: "arc",
+        cx: 0,
+        cy: 0,
+        r: 2,
+        startDeg: 0,
+        endDeg: 90,
+      }).success,
+    ).toBe(false);
+    expect(
+      withFill({
+        id: "label-1",
+        type: "label",
+        x: 0,
+        y: 1,
+        text: "A",
+      }).success,
+    ).toBe(false);
+  });
+
   test("rejects a primitive missing required fields", () => {
     const result = parseDocument(
       spec("2d", [{ id: "circle-1", type: "circle" }]),

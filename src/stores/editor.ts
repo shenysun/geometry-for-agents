@@ -3,9 +3,10 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { GridSnap } from "../document/index.ts";
 import { localeFromLanguages, type AppLocale } from "../i18n/locale.ts";
+import type { DrawTool } from "../viewport2d/draw-gesture.ts";
 import type { SessionUnderlay } from "../viewport2d/draw-underlay.ts";
 
-export type EditorTool = "select" | "line" | "polygon" | null;
+export type EditorTool = "select" | DrawTool | null;
 
 export const useEditorStore = defineStore("editor", () => {
   const preferredLanguages = usePreferredLanguages();

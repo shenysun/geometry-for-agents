@@ -23,3 +23,5 @@ export { snap2d, snapVoxel } from "./snap.ts";
 export type { GridSnap, Point2, Point3 } from "./snap.ts";
 export { hitTest } from "./hit.ts";
 export type { HitPoint } from "./hit.ts";
+export { FILLS, withFill } from "./fill.ts";
+export type { Fill } from "./fill.ts";

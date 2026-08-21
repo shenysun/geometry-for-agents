@@ -4,9 +4,9 @@
 
 **Blocked by:** 08 — 2D 画线与多边形
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `circle` / `sector` / `bow` / `arc` / `ring` / `ellipse` 均可绘制并进入说明书
-- [ ] `label` 可放到格点上，文本如 A、B、C
-- [ ] 封闭图元支持 `fill: none | solid | hatch`；`line` / `arc` / `label` 无填充
-- [ ] 导出 Prompt（若 11 未就绪则至少模块函数）含这些图元
+- [x] `circle` / `sector` / `bow` / `arc` / `ring` / `ellipse` 均可绘制并进入说明书
+- [x] `label` 可放到格点上，文本如 A、B、C
+- [x] 封闭图元支持 `fill: none | solid | hatch`；`line` / `arc` / `label` 无填充
+- [x] 导出 Prompt（若 11 未就绪则至少模块函数）含这些图元

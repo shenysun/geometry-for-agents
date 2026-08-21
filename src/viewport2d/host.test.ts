@@ -22,7 +22,7 @@ describe("2d viewport host", () => {
     expect(source).toContain("setTool");
     expect(source).toContain("new Konva.Stage");
     expect(source).not.toMatch(/vue-konva/);
-    expect(source).toContain('currentTool === "line" || currentTool === "polygon"');
+    expect(source).toContain("crosshair");
   });
 
   test("Vue host wires draw gestures when the tool is line or polygon", () => {

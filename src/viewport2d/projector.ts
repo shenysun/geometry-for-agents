@@ -1,10 +1,10 @@
 import Konva from "konva";
 import type { GeometryDocument } from "../document/index.ts";
 import { drawGridAndAxes } from "./draw-grid.ts";
+import type { DrawPreview, DrawTool } from "./draw-gesture.ts";
 import {
   drawDocumentPrimitives,
-  drawLinePolygonPreview,
-  type LinePolygonPreview,
+  drawGesturePreview,
 } from "./draw-primitives.ts";
 import {
   drawUnderlay,
@@ -23,11 +23,11 @@ const MIN_SCALE = 4;
 const MAX_SCALE = 400;
 const DEFAULT_SCALE = 40;
 
-type ProjectorTool = "select" | "line" | "polygon" | null;
+type ProjectorTool = "select" | DrawTool | null;
 
 export type Viewport2dProjector = {
   render: (document: GeometryDocument) => void;
-  setPreview: (gesture: LinePolygonPreview | null) => void;
+  setPreview: (gesture: DrawPreview) => void;
   setTool: (tool: ProjectorTool) => void;
   setSessionUnderlay: (underlay: SessionUnderlay | null) => void;
   toWorld: (screen: Point2) => Point2;
@@ -63,11 +63,11 @@ export function createViewport2dProjector(
   let sessionUnderlay: SessionUnderlay | null = null;
   let lastPointer: { x: number; y: number } | null = null;
   let currentTool: ProjectorTool = "select";
-  let preview: LinePolygonPreview | null = null;
+  let preview: DrawPreview = null;
   let destroyed = false;
 
   function applyCursor(): void {
-    if (currentTool === "line" || currentTool === "polygon") {
+    if (currentTool !== "select" && currentTool !== null) {
       container.style.cursor = "crosshair";
       return;
     }
@@ -101,7 +101,7 @@ export function createViewport2dProjector(
     if (currentDocument !== null) {
       drawDocumentPrimitives(primitiveLayer, currentDocument, view);
     }
-    drawLinePolygonPreview(previewLayer, preview, view);
+    drawGesturePreview(previewLayer, preview, view);
     gridLayer.batchDraw();
     underlayLayer.batchDraw();
     primitiveLayer.batchDraw();
@@ -154,9 +154,9 @@ export function createViewport2dProjector(
       currentDocument = document;
       redraw();
     },
-    setPreview(gesture: LinePolygonPreview | null): void {
+    setPreview(gesture: DrawPreview): void {
       preview = gesture;
-      drawLinePolygonPreview(previewLayer, preview, view);
+      drawGesturePreview(previewLayer, preview, view);
       previewLayer.batchDraw();
     },
     setTool(tool: ProjectorTool): void {
