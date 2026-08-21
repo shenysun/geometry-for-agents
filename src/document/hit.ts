@@ -1,0 +1,250 @@
+import type { GeometryDocument, Primitive } from "./parse-document.ts";
+import type { Point2 } from "./snap.ts";
+
+const DEG = Math.PI / 180;
+
+export type HitPoint = Point2 & { z?: number };
+
+type CircleLike = { cx: number; cy: number; r: number };
+type SweepLike = CircleLike & { startDeg: number; endDeg: number };
+
+function hypot2(dx: number, dy: number): number {
+  return dx * dx + dy * dy;
+}
+
+function normalizeDeg(deg: number): number {
+  const wrapped = deg % 360;
+  return wrapped < 0 ? wrapped + 360 : wrapped;
+}
+
+function sweepDeg(startDeg: number, endDeg: number): number {
+  if (startDeg === endDeg) return 0;
+  const raw = (endDeg - startDeg) % 360;
+  const sweep = raw < 0 ? raw + 360 : raw;
+  return sweep === 0 ? 360 : sweep;
+}
+
+function angleDeg(dx: number, dy: number): number {
+  return normalizeDeg(Math.atan2(dy, dx) / DEG);
+}
+
+function inSweep(deg: number, startDeg: number, endDeg: number): boolean {
+  const sweep = sweepDeg(startDeg, endDeg);
+  if (sweep === 0) return false;
+  if (sweep >= 360) return true;
+  const angle = normalizeDeg(deg);
+  const start = normalizeDeg(startDeg);
+  const end = normalizeDeg(endDeg);
+  if (start <= end) return angle >= start && angle <= end;
+  return angle >= start || angle <= end;
+}
+
+function polar(cx: number, cy: number, r: number, deg: number): Point2 {
+  const rad = deg * DEG;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function sameSide(point: Point2, other: Point2, a: Point2, b: Point2): boolean {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const crossPoint = abx * (point.y - a.y) - aby * (point.x - a.x);
+  const crossOther = abx * (other.y - a.y) - aby * (other.x - a.x);
+  return crossPoint * crossOther >= 0;
+}
+
+function inDisk(point: Point2, circle: CircleLike): boolean {
+  return hypot2(point.x - circle.cx, point.y - circle.cy) <= circle.r * circle.r;
+}
+
+function onSegment(point: Point2, a: Point2, b: Point2): boolean {
+  return distanceToSegment(point, a, b) === 0;
+}
+
+function inEllipse(
+  point: Point2,
+  ellipse: { cx: number; cy: number; rx: number; ry: number },
+): boolean {
+  const nx = (point.x - ellipse.cx) / ellipse.rx;
+  const ny = (point.y - ellipse.cy) / ellipse.ry;
+  return nx * nx + ny * ny <= 1;
+}
+
+function inRing(
+  point: Point2,
+  ring: { cx: number; cy: number; rInner: number; rOuter: number },
+): boolean {
+  const distSq = hypot2(point.x - ring.cx, point.y - ring.cy);
+  return distSq >= ring.rInner * ring.rInner && distSq <= ring.rOuter * ring.rOuter;
+}
+
+function onPolyline(point: Point2, points: Point2[]): boolean {
+  return points.some((a, i) => {
+    const b = points[i + 1];
+    return b !== undefined && onSegment(point, a, b);
+  });
+}
+
+function onArc(point: Point2, arc: SweepLike): boolean {
+  const dist = Math.hypot(point.x - arc.cx, point.y - arc.cy);
+  if (dist !== arc.r) return false;
+  return inSweep(angleDeg(point.x - arc.cx, point.y - arc.cy), arc.startDeg, arc.endDeg);
+}
+
+function inVoxel(
+  point: HitPoint,
+  voxel: { x: number; y: number; z: number },
+): boolean {
+  if (point.z === undefined) return false;
+  return (
+    point.x >= voxel.x &&
+    point.x <= voxel.x + 1 &&
+    point.y >= voxel.y &&
+    point.y <= voxel.y + 1 &&
+    point.z >= voxel.z &&
+    point.z <= voxel.z + 1
+  );
+}
+
+function distanceToSegment(point: Point2, a: Point2, b: Point2): number {
+  const vx = b.x - a.x;
+  const vy = b.y - a.y;
+  const lengthSq = hypot2(vx, vy);
+  if (lengthSq === 0) return Math.hypot(point.x - a.x, point.y - a.y);
+  const t = Math.min(
+    1,
+    Math.max(0, ((point.x - a.x) * vx + (point.y - a.y) * vy) / lengthSq),
+  );
+  return Math.hypot(point.x - (a.x + t * vx), point.y - (a.y + t * vy));
+}
+
+function closedEdges(points: Point2[]): [Point2, Point2][] {
+  return points.flatMap((a, i) => {
+    const b = points[(i + 1) % points.length];
+    return b === undefined ? [] : [[a, b]];
+  });
+}
+
+function pointInPolygon(point: Point2, points: Point2[]): boolean {
+  const edges = closedEdges(points);
+  if (edges.some(([a, b]) => onSegment(point, a, b))) return true;
+
+  let inside = false;
+  for (const [pi, pj] of edges) {
+    const intersects =
+      pi.y > point.y !== pj.y > point.y &&
+      point.x < ((pj.x - pi.x) * (point.y - pi.y)) / (pj.y - pi.y) + pi.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function polygonArea(points: Point2[]): number {
+  const sum = closedEdges(points).reduce(
+    (total, [a, b]) => total + a.x * b.y - b.x * a.y,
+    0,
+  );
+  return Math.abs(sum) / 2;
+}
+
+function inBow(point: Point2, bow: SweepLike): boolean {
+  if (!inDisk(point, bow)) return false;
+  const sweep = sweepDeg(bow.startDeg, bow.endDeg);
+  if (sweep === 0) return false;
+  if (sweep >= 360) return true;
+  const start = polar(bow.cx, bow.cy, bow.r, bow.startDeg);
+  const end = polar(bow.cx, bow.cy, bow.r, bow.endDeg);
+  const mid = polar(bow.cx, bow.cy, bow.r, bow.startDeg + sweep / 2);
+  return sameSide(point, mid, start, end);
+}
+
+function inSector(point: Point2, sector: SweepLike): boolean {
+  if (!inDisk(point, sector)) return false;
+  const dx = point.x - sector.cx;
+  const dy = point.y - sector.cy;
+  if (dx === 0 && dy === 0) return true;
+  return inSweep(angleDeg(dx, dy), sector.startDeg, sector.endDeg);
+}
+
+function contains(primitive: Primitive, point: HitPoint): boolean {
+  switch (primitive.type) {
+    case "circle":
+      return inDisk(point, primitive);
+    case "ellipse":
+      return inEllipse(point, primitive);
+    case "ring":
+      return inRing(point, primitive);
+    case "polygon":
+      return pointInPolygon(point, primitive.points);
+    case "sector":
+      return inSector(point, primitive);
+    case "bow":
+      return inBow(point, primitive);
+    case "line":
+      return onPolyline(point, primitive.points);
+    case "arc":
+      return onArc(point, primitive);
+    case "label":
+      return point.x === primitive.x && point.y === primitive.y;
+    case "voxel":
+      return inVoxel(point, primitive);
+  }
+}
+
+const closedTypes = new Set<Primitive["type"]>([
+  "polygon",
+  "circle",
+  "sector",
+  "bow",
+  "ring",
+  "ellipse",
+  "voxel",
+]);
+
+function isClosed(primitive: Primitive): boolean {
+  return closedTypes.has(primitive.type);
+}
+
+function area(primitive: Primitive): number {
+  switch (primitive.type) {
+    case "circle":
+      return Math.PI * primitive.r * primitive.r;
+    case "ellipse":
+      return Math.PI * primitive.rx * primitive.ry;
+    case "ring":
+      return Math.PI * (primitive.rOuter ** 2 - primitive.rInner ** 2);
+    case "polygon":
+      return polygonArea(primitive.points);
+    case "sector":
+      return (sweepDeg(primitive.startDeg, primitive.endDeg) / 360) *
+        Math.PI *
+        primitive.r *
+        primitive.r;
+    case "bow": {
+      const theta = sweepDeg(primitive.startDeg, primitive.endDeg) * DEG;
+      return 0.5 * primitive.r * primitive.r * (theta - Math.sin(theta));
+    }
+    case "voxel":
+      return 1;
+    case "line":
+    case "arc":
+    case "label":
+      return Number.POSITIVE_INFINITY;
+  }
+}
+
+export function hitTest(
+  document: GeometryDocument,
+  point: HitPoint,
+): Primitive | null {
+  const hits = document.primitives.filter((primitive) =>
+    contains(primitive, point),
+  );
+  if (hits.length === 0) return null;
+
+  const closedHits = hits.filter(isClosed);
+  const candidates = closedHits.length > 0 ? closedHits : hits;
+
+  return candidates.reduce((best, candidate) =>
+    area(candidate) <= area(best) ? candidate : best,
+  );
+}

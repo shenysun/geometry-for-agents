@@ -18,3 +18,7 @@ export {
 export type { DocumentHistory } from "./history.ts";
 export { documentToPrompt } from "./prompt.ts";
 export { documentToHash, hashToDocument } from "./hash.ts";
+export { snap2d, snapVoxel } from "./snap.ts";
+export type { GridSnap, Point2, Point3 } from "./snap.ts";
+export { hitTest } from "./hit.ts";
+export type { HitPoint } from "./hit.ts";
