@@ -25,3 +25,5 @@ export { hitTest } from "./hit.ts";
 export type { HitPoint } from "./hit.ts";
 export { FILLS, withFill } from "./fill.ts";
 export type { Fill } from "./fill.ts";
+export { planSpaceChange } from "./space-change.ts";
+export type { Space, SpaceChangePlan } from "./space-change.ts";

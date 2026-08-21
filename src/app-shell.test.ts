@@ -26,6 +26,7 @@ describe("app shell", () => {
     expect(deps["reka-ui"]).toBeDefined();
     expect(deps.tailwindcss).toBeDefined();
     expect(deps["@vueuse/core"]).toBeDefined();
+    expect(deps.three).toBeDefined();
   });
 
   test("vite config exists", async () => {
@@ -48,6 +49,19 @@ describe("app shell", () => {
     expect(source).toMatch(/@click="[^"]*setSelectionId/);
     expect(source).toContain("editor.selectionId");
     expect(source).toContain("bg-zinc-100");
+  });
+
+  test("shell toggles 2d/3d and mounts the 3d viewport from 说明书 space", () => {
+    const source = readFileSync(
+      resolve(root, "src/components/EditorShell.vue"),
+      "utf8",
+    );
+
+    expect(source).toContain("requestSpaceChange");
+    expect(source).toContain("clearAndSetSpace");
+    expect(source).toContain("Viewport3d");
+    expect(source).toContain('current.space === "3d"');
+    expect(source).not.toMatch(/TresCanvas/i);
   });
 
   test("properties panel commits fill for a selected closed primitive", () => {

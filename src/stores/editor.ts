@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { GridSnap } from "../document/index.ts";
 import { localeFromLanguages, type AppLocale } from "../i18n/locale.ts";
-import type { DrawTool } from "../viewport2d/draw-gesture.ts";
+import { isDrawTool, type DrawTool } from "../viewport2d/draw-gesture.ts";
 import type { SessionUnderlay } from "../viewport2d/draw-underlay.ts";
 
 export type EditorTool = "select" | DrawTool | null;
@@ -19,6 +19,13 @@ export const useEditorStore = defineStore("editor", () => {
 
   function setLocale(next: AppLocale): void {
     locale.value = next;
+  }
+
+  function setSpace(next: "2d" | "3d"): void {
+    space.value = next;
+    if (next === "3d" && isDrawTool(tool.value)) {
+      tool.value = "select";
+    }
   }
 
   function setTool(next: EditorTool): void {
@@ -53,6 +60,7 @@ export const useEditorStore = defineStore("editor", () => {
     grid,
     sessionUnderlay,
     setLocale,
+    setSpace,
     setTool,
     setGrid,
     setSelectionId,

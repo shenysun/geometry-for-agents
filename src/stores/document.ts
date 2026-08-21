@@ -6,6 +6,7 @@ import {
   createHistory,
   hashToDocument,
   parseDocument,
+  planSpaceChange,
   redo as redoHistory,
   removePrimitive as removePrimitiveFromDocument,
   setUnderlay as setDocumentUnderlay,
@@ -14,6 +15,7 @@ import {
   type DocumentUpdateResult,
   type GeometryDocument,
   type Primitive,
+  type Space,
 } from "../document/index.ts";
 import { useEditorStore } from "./editor.ts";
 
@@ -21,10 +23,12 @@ type OpenResult =
   | { success: true }
   | { success: false; error: string };
 
-function empty2dDocument(): GeometryDocument {
+export type SpaceChangeRequest = "noop" | "applied" | "refused";
+
+function emptyDocument(space: Space): GeometryDocument {
   const parsed = parseDocument({
     version: 1,
-    space: "2d",
+    space,
     underlay: null,
     primitives: [],
   });
@@ -35,13 +39,18 @@ function empty2dDocument(): GeometryDocument {
 }
 
 export const useDocumentStore = defineStore("document", () => {
-  const history = shallowRef(createHistory(empty2dDocument()));
+  const history = shallowRef(createHistory(emptyDocument("2d")));
   const openError = ref<string | null>(null);
   const hashError = ref<string | null>(null);
 
   const current = computed(() => history.value.present);
   const canUndo = computed(() => history.value.past.length > 0);
   const canRedo = computed(() => history.value.future.length > 0);
+
+  function syncEditorSpace(space: Space): void {
+    const editor = useEditorStore();
+    editor.setSpace(space);
+  }
 
   function applyParsed(
     parsed: ReturnType<typeof parseDocument>,
@@ -58,7 +67,10 @@ export const useDocumentStore = defineStore("document", () => {
     history.value = createHistory(parsed.document);
     openError.value = null;
     hashError.value = null;
-    useEditorStore().setSessionUnderlay(null);
+    const editor = useEditorStore();
+    editor.setSessionUnderlay(null);
+    editor.setSelectionId(null);
+    syncEditorSpace(parsed.document.space);
     return { success: true };
   }
 
@@ -72,10 +84,12 @@ export const useDocumentStore = defineStore("document", () => {
 
   function undo(): void {
     history.value = undoHistory(history.value);
+    syncEditorSpace(history.value.present.space);
   }
 
   function redo(): void {
     history.value = redoHistory(history.value);
+    syncEditorSpace(history.value.present.space);
   }
 
   function applyUpdate(result: DocumentUpdateResult): DocumentUpdateResult {
@@ -112,6 +126,25 @@ export const useDocumentStore = defineStore("document", () => {
     return applyUpdate(setDocumentUnderlay(current.value, underlay));
   }
 
+  function clearAndSetSpace(next: Space): void {
+    const document = emptyDocument(next);
+    history.value = commitSnapshot(history.value, document);
+    useEditorStore().setSelectionId(null);
+    syncEditorSpace(next);
+  }
+
+  function requestSpaceChange(next: Space): SpaceChangeRequest {
+    const plan = planSpaceChange(current.value, next);
+    if (plan === "noop") {
+      return "noop";
+    }
+    if (plan === "confirm-clear") {
+      return "refused";
+    }
+    clearAndSetSpace(next);
+    return "applied";
+  }
+
   return {
     current,
     openError,
@@ -126,5 +159,7 @@ export const useDocumentStore = defineStore("document", () => {
     removePrimitive,
     updatePrimitive,
     setUnderlay,
+    requestSpaceChange,
+    clearAndSetSpace,
   };
 });

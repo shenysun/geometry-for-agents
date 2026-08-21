@@ -15,6 +15,16 @@ export const messages = {
     viewport: {
       label: "视口",
     },
+    space: {
+      label: "空间",
+      twoD: "2D",
+      threeD: "3D",
+      confirmTitle: "切换空间会清空图元",
+      confirmBody:
+        "同一份说明书不能同时放平面图元和立体图元。确认后将清空当前图元并切换空间。",
+      confirm: "清空并切换",
+      cancel: "取消",
+    },
     objectList: {
       label: "对象列表",
       empty: "空说明书，没有图元",
@@ -89,6 +99,16 @@ export const messages = {
     },
     viewport: {
       label: "Viewport",
+    },
+    space: {
+      label: "Space",
+      twoD: "2D",
+      threeD: "3D",
+      confirmTitle: "Switching space clears primitives",
+      confirmBody:
+        "A document cannot mix planar and solid primitives. Confirming clears the current primitives and switches space.",
+      confirm: "Clear and switch",
+      cancel: "Cancel",
     },
     objectList: {
       label: "Object list",

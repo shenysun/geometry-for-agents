@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { ToggleGroupItem, ToggleGroupRoot } from "reka-ui";
 import { useI18n } from "vue-i18n";
 import type { GridSnap } from "../document/index.ts";
+import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
 import { DRAW_TOOLS, isDrawTool } from "../viewport2d/draw-gesture.ts";
 
-const tools = ["select", ...DRAW_TOOLS] as const;
+const documentStore = useDocumentStore();
+const is2d = computed(() => documentStore.current.space === "2d");
+const tools = computed(() =>
+  is2d.value ? (["select", ...DRAW_TOOLS] as const) : (["select"] as const),
+);
 const grids = [
   { value: "1", grid: 1 as const, label: "grid.unit" },
   { value: "0.5", grid: 0.5 as const, label: "grid.half" },
@@ -52,6 +58,7 @@ function gridValue(grid: GridSnap): string {
       </ToggleGroupItem>
     </ToggleGroupRoot>
     <ToggleGroupRoot
+      v-if="is2d"
       type="single"
       :model-value="gridValue(editor.grid)"
       class="inline-flex rounded-md border border-zinc-300 p-0.5"

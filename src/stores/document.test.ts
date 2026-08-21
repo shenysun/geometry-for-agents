@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, test } from "vitest";
 import { parseDocument } from "../document/index.ts";
 import { useDocumentStore } from "./document.ts";
+import { useEditorStore } from "./editor.ts";
 
 function jsonKeys(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -45,5 +46,77 @@ describe("document store", () => {
     expect(keys).toEqual(
       expect.arrayContaining(["version", "space", "underlay", "primitives"]),
     );
+  });
+
+  test("requestSpaceChange applies when the 说明书 has no 图元", () => {
+    const store = useDocumentStore();
+    const editor = useEditorStore();
+
+    expect(store.requestSpaceChange("3d")).toBe("applied");
+    expect(store.current.space).toBe("3d");
+    expect(store.current.primitives).toEqual([]);
+    expect(editor.space).toBe("3d");
+  });
+
+  test("requestSpaceChange refuses when 图元 exist and does not convert them", () => {
+    const store = useDocumentStore();
+    const line = {
+      id: "line-1",
+      type: "line" as const,
+      points: [
+        { x: 0, y: 0 },
+        { x: 3, y: 1 },
+      ],
+    };
+    expect(store.addPrimitive(line).success).toBe(true);
+
+    expect(store.requestSpaceChange("3d")).toBe("refused");
+    expect(store.current.space).toBe("2d");
+    expect(store.current.primitives).toEqual([line]);
+  });
+
+  test("clearAndSetSpace empties 图元 then switches space and tools", () => {
+    const store = useDocumentStore();
+    const editor = useEditorStore();
+    editor.setTool("line");
+    expect(
+      store.addPrimitive({
+        id: "line-1",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+      }).success,
+    ).toBe(true);
+
+    store.clearAndSetSpace("3d");
+
+    expect(store.current.space).toBe("3d");
+    expect(store.current.primitives).toEqual([]);
+    expect(editor.space).toBe("3d");
+    expect(editor.tool).toBe("select");
+    expect(editor.selectionId).toBeNull();
+  });
+
+  test("opening a 3d 说明书 syncs editor space and drops 2d tools", () => {
+    const store = useDocumentStore();
+    const editor = useEditorStore();
+    editor.setTool("line");
+
+    const result = store.openFromText(
+      JSON.stringify({
+        version: 1,
+        space: "3d",
+        underlay: null,
+        primitives: [{ id: "voxel-1", type: "voxel", x: 0, y: 1, z: 0 }],
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(store.current.space).toBe("3d");
+    expect(editor.space).toBe("3d");
+    expect(editor.tool).toBe("select");
+    expect(editor.selectionId).toBeNull();
   });
 });
