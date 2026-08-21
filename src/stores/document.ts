@@ -4,6 +4,7 @@ import {
   addPrimitive as addPrimitiveToDocument,
   commitSnapshot,
   createHistory,
+  hashToDocument,
   parseDocument,
   redo as redoHistory,
   removePrimitive as removePrimitiveFromDocument,
@@ -13,6 +14,10 @@ import {
   type GeometryDocument,
   type Primitive,
 } from "../document/index.ts";
+
+type OpenResult =
+  | { success: true }
+  | { success: false; error: string };
 
 function empty2dDocument(): GeometryDocument {
   const parsed = parseDocument({
@@ -30,22 +35,36 @@ function empty2dDocument(): GeometryDocument {
 export const useDocumentStore = defineStore("document", () => {
   const history = shallowRef(createHistory(empty2dDocument()));
   const openError = ref<string | null>(null);
+  const hashError = ref<string | null>(null);
 
   const current = computed(() => history.value.present);
   const canUndo = computed(() => history.value.past.length > 0);
   const canRedo = computed(() => history.value.future.length > 0);
 
-  function openFromText(
-    text: string,
-  ): { success: true } | { success: false; error: string } {
-    const parsed = parseDocument(text);
+  function applyParsed(
+    parsed: ReturnType<typeof parseDocument>,
+    failure: "open" | "hash",
+  ): OpenResult {
     if (!parsed.success) {
-      openError.value = parsed.error;
+      if (failure === "hash") {
+        hashError.value = parsed.error;
+      } else {
+        openError.value = parsed.error;
+      }
       return parsed;
     }
     history.value = createHistory(parsed.document);
     openError.value = null;
+    hashError.value = null;
     return { success: true };
+  }
+
+  function openFromText(text: string): OpenResult {
+    return applyParsed(parseDocument(text), "open");
+  }
+
+  function openFromHash(hash: string): OpenResult {
+    return applyParsed(hashToDocument(hash), "hash");
   }
 
   function undo(): void {
@@ -84,9 +103,11 @@ export const useDocumentStore = defineStore("document", () => {
   return {
     current,
     openError,
+    hashError,
     canUndo,
     canRedo,
     openFromText,
+    openFromHash,
     undo,
     redo,
     addPrimitive,

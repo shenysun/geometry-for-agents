@@ -29,6 +29,13 @@ export const messages = {
       zh: "中文",
       en: "English",
     },
+    prompt: {
+      copy: "复制 Prompt",
+    },
+    share: {
+      copy: "复制分享链接",
+      restoreFailed: "无法从链接恢复说明书",
+    },
   },
   en: {
     app: {
@@ -59,6 +66,13 @@ export const messages = {
     locale: {
       zh: "中文",
       en: "English",
+    },
+    prompt: {
+      copy: "Copy Prompt",
+    },
+    share: {
+      copy: "Copy share link",
+      restoreFailed: "Could not restore document from link",
     },
   },
 } as const;

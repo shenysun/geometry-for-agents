@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { serializeDocument, useOpenSave } from "../io/open-save.ts";
+import PromptShareBar from "../share/PromptShareBar.vue";
 import { useDocumentStore } from "../stores/document.ts";
 import Viewport2d from "../viewport2d/Viewport2d.vue";
 import LocaleSwitch from "./LocaleSwitch.vue";
@@ -53,6 +54,7 @@ const serializedDocument = computed(() =>
         >
           {{ t("history.redo") }}
         </button>
+        <PromptShareBar />
         <LocaleSwitch />
       </div>
     </header>
