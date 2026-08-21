@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { serializeDocument, useOpenSave } from "../io/open-save.ts";
 import { useDocumentStore } from "../stores/document.ts";
+import Viewport2d from "../viewport2d/Viewport2d.vue";
 import LocaleSwitch from "./LocaleSwitch.vue";
 
 const { t } = useI18n();
@@ -96,10 +97,8 @@ const serializedDocument = computed(() =>
         <h2 class="border-b border-zinc-200 bg-white px-3 py-2 text-sm font-medium">
           {{ t("viewport.label") }}
         </h2>
-        <div
-          class="flex flex-1 items-center justify-center text-sm text-zinc-500"
-        >
-          {{ t("viewport.placeholder") }}
+        <div class="min-h-0 flex-1">
+          <Viewport2d />
         </div>
       </section>
 

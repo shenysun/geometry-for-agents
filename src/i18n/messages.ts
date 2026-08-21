@@ -14,7 +14,6 @@ export const messages = {
     },
     viewport: {
       label: "视口",
-      placeholder: "视口占位（投影器尚未接入）",
     },
     objectList: {
       label: "对象列表",
@@ -46,7 +45,6 @@ export const messages = {
     },
     viewport: {
       label: "Viewport",
-      placeholder: "Viewport placeholder (projector not wired yet)",
     },
     objectList: {
       label: "Object list",

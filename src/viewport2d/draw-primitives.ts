@@ -1,0 +1,237 @@
+import Konva from "konva";
+import type { GeometryDocument, Primitive } from "../document/index.ts";
+import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
+
+const STROKE = "#18181b";
+const FILL_SOLID = "rgba(24, 24, 27, 0.14)";
+const DEG = Math.PI / 180;
+const STROKE_WIDTH = 1.5;
+
+type Fill = "none" | "solid" | "hatch";
+type Sweep = {
+  cx: number;
+  cy: number;
+  r: number;
+  startDeg: number;
+  endDeg: number;
+};
+
+function sweepDeg(startDeg: number, endDeg: number): number {
+  if (startDeg === endDeg) return 0;
+  const raw = (endDeg - startDeg) % 360;
+  const sweep = raw < 0 ? raw + 360 : raw;
+  return sweep === 0 ? 360 : sweep;
+}
+
+function polar(cx: number, cy: number, r: number, deg: number): Point2 {
+  const rad = deg * DEG;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function arcWorldPoints(sweep: Sweep): Point2[] {
+  const span = sweepDeg(sweep.startDeg, sweep.endDeg);
+  const steps = Math.max(12, Math.ceil((span / 360) * 64));
+  return Array.from({ length: steps + 1 }, (_, i) =>
+    polar(
+      sweep.cx,
+      sweep.cy,
+      sweep.r,
+      sweep.startDeg + (span * i) / steps,
+    ),
+  );
+}
+
+function toScreenPoints(points: Point2[], view: ViewTransform): number[] {
+  return points.flatMap((point) => {
+    const screen = worldToScreen(point, view);
+    return [screen.x, screen.y];
+  });
+}
+
+function hatchCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = 8;
+  canvas.height = 8;
+  const ctx = canvas.getContext("2d");
+  if (ctx === null) return canvas;
+  ctx.strokeStyle = "rgba(24, 24, 27, 0.55)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 8);
+  ctx.lineTo(8, 0);
+  ctx.stroke();
+  return canvas;
+}
+
+let hatchImage: HTMLCanvasElement | undefined;
+
+function fillConfig(fill: Fill | undefined): Konva.ShapeConfig {
+  if (fill === "solid") {
+    return { fill: FILL_SOLID };
+  }
+  if (fill === "hatch") {
+    hatchImage ??= hatchCanvas();
+    return {
+      fillPatternImage: hatchImage as unknown as HTMLImageElement,
+      fillPatternRepeat: "repeat",
+      fillPriority: "pattern",
+    };
+  }
+  return { fillEnabled: false };
+}
+
+function strokeLine(
+  points: number[],
+  closed: boolean,
+  fill?: Fill,
+): Konva.Line {
+  return new Konva.Line({
+    points,
+    closed,
+    stroke: STROKE,
+    strokeWidth: STROKE_WIDTH,
+    lineJoin: "round",
+    lineCap: "round",
+    listening: false,
+    ...fillConfig(fill),
+  });
+}
+
+function centerScreen(
+  cx: number,
+  cy: number,
+  view: ViewTransform,
+): Point2 {
+  return worldToScreen({ x: cx, y: cy }, view);
+}
+
+function drawDisk(
+  cx: number,
+  cy: number,
+  radius: number,
+  fill: Fill,
+  view: ViewTransform,
+): Konva.Circle {
+  const center = centerScreen(cx, cy, view);
+  return new Konva.Circle({
+    x: center.x,
+    y: center.y,
+    radius: radius * view.scale,
+    stroke: STROKE,
+    strokeWidth: STROKE_WIDTH,
+    listening: false,
+    ...fillConfig(fill),
+  });
+}
+
+function drawSweepPath(
+  sweep: Sweep,
+  view: ViewTransform,
+  closed: boolean,
+  prefix: Point2[] = [],
+  fill?: Fill,
+): Konva.Line {
+  return strokeLine(
+    toScreenPoints([...prefix, ...arcWorldPoints(sweep)], view),
+    closed,
+    fill,
+  );
+}
+
+function drawPrimitive(primitive: Primitive, view: ViewTransform): Konva.Shape[] {
+  switch (primitive.type) {
+    case "voxel":
+      return [];
+    case "line":
+      return [strokeLine(toScreenPoints(primitive.points, view), false)];
+    case "polygon":
+      return [
+        strokeLine(toScreenPoints(primitive.points, view), true, primitive.fill),
+      ];
+    case "circle":
+      return [
+        drawDisk(primitive.cx, primitive.cy, primitive.r, primitive.fill, view),
+      ];
+    case "ellipse": {
+      const center = centerScreen(primitive.cx, primitive.cy, view);
+      return [
+        new Konva.Ellipse({
+          x: center.x,
+          y: center.y,
+          radiusX: primitive.rx * view.scale,
+          radiusY: primitive.ry * view.scale,
+          stroke: STROKE,
+          strokeWidth: STROKE_WIDTH,
+          listening: false,
+          ...fillConfig(primitive.fill),
+        }),
+      ];
+    }
+    case "ring": {
+      const center = centerScreen(primitive.cx, primitive.cy, view);
+      return [
+        new Konva.Ring({
+          x: center.x,
+          y: center.y,
+          innerRadius: primitive.rInner * view.scale,
+          outerRadius: primitive.rOuter * view.scale,
+          stroke: STROKE,
+          strokeWidth: STROKE_WIDTH,
+          listening: false,
+          ...fillConfig(primitive.fill),
+        }),
+      ];
+    }
+    case "arc":
+      return [drawSweepPath(primitive, view, false)];
+    case "sector":
+      return [
+        drawSweepPath(
+          primitive,
+          view,
+          true,
+          [{ x: primitive.cx, y: primitive.cy }],
+          primitive.fill,
+        ),
+      ];
+    case "bow":
+      return [drawSweepPath(primitive, view, true, [], primitive.fill)];
+    case "label": {
+      const point = worldToScreen({ x: primitive.x, y: primitive.y }, view);
+      return [
+        new Konva.Circle({
+          x: point.x,
+          y: point.y,
+          radius: 3,
+          fill: STROKE,
+          listening: false,
+        }),
+        new Konva.Text({
+          x: point.x + 6,
+          y: point.y - 16,
+          text: primitive.text,
+          fontSize: 14,
+          fontFamily: "sans-serif",
+          fill: STROKE,
+          listening: false,
+        }),
+      ];
+    }
+  }
+}
+
+export function drawDocumentPrimitives(
+  layer: Konva.Layer,
+  document: GeometryDocument,
+  view: ViewTransform,
+): void {
+  layer.destroyChildren();
+  if (document.space !== "2d") {
+    return;
+  }
+  for (const primitive of document.primitives) {
+    for (const node of drawPrimitive(primitive, view)) {
+      layer.add(node);
+    }
+  }
+}
