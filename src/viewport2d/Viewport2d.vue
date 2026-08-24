@@ -6,6 +6,7 @@ import {
   type Point2,
 } from "../document/index.ts";
 import {
+  moveControlPoint,
   rotatePrimitive,
   scalePrimitive,
   translatePrimitive,
@@ -26,6 +27,7 @@ import {
   type DrawGestureState,
   type DrawPreview,
 } from "./draw-gesture.ts";
+import { controlPoints } from "./control-points.ts";
 import {
   createViewport2dProjector,
   type Viewport2dProjector,
@@ -49,12 +51,17 @@ import {
 const HIT_TOLERANCE_PX = 6;
 /** 柄命中半径（屏幕像素）：柄方块 10px，命中圈同尺寸。 */
 const HANDLE_HIT_PX = 10;
+/** 控制点命中半径（屏幕像素）：控制点小圆 8px，命中圈略大更好抓。 */
+const CONTROL_HIT_PX = 10;
 /** 拖旋转柄/缩放柄时的光标，与柄悬停光标一致。 */
 const HANDLE_CURSORS = { rotate: "alias", scale: "ew-resize" } as const;
+/** 控制点悬停与拖动光标：与柄（alias/ew-resize）、本体（grab）三者可区分。 */
+const CONTROL_CURSOR = "move";
 
 const hostRef = ref<HTMLDivElement | null>(null);
 const rotateHandleScreen = ref<Point2 | null>(null);
 const scaleHandleScreen = ref<Point2 | null>(null);
+const controlPointScreens = ref<{ id: string; point: Point2 }[]>([]);
 const documentStore = useDocumentStore();
 const editor = useEditorStore();
 let projector: Viewport2dProjector | null = null;
@@ -98,6 +105,10 @@ function handleToleranceWorld(): number {
   return HANDLE_HIT_PX * worldPerPx();
 }
 
+function controlToleranceWorld(): number {
+  return CONTROL_HIT_PX * worldPerPx();
+}
+
 /** 从 toWorld 反解世界→屏幕：screen = (world - origin) / 每像素世界增量。 */
 function worldToScreen(point: Point2): Point2 | null {
   if (projector === null) return null;
@@ -123,10 +134,11 @@ function selectContext(event: PointerEvent | MouseEvent): SelectContext | null {
     tolerance: hitToleranceWorld(),
     selectionId: editor.selectionId,
     handleTolerance: handleToleranceWorld(),
+    controlTolerance: controlToleranceWorld(),
   };
 }
 
-/** 把一次手势的变换写进说明书：平移吃格，旋转缩放直接写角度与因子。 */
+/** 把一次手势的变换写进说明书：平移与控制点吃格，旋转缩放直接写角度与因子。 */
 function commitTransform(commit: SelectCommit, grid: GridSnap): void {
   const current = documentStore.current;
   const transformed =
@@ -134,7 +146,15 @@ function commitTransform(commit: SelectCommit, grid: GridSnap): void {
       ? translatePrimitive(current, commit.id, commit.dx, commit.dy, grid)
       : commit.kind === "rotate"
         ? rotatePrimitive(current, commit.id, commit.deg)
-        : scalePrimitive(current, commit.id, commit.factor);
+        : commit.kind === "scale"
+          ? scalePrimitive(current, commit.id, commit.factor)
+          : moveControlPoint(
+              current,
+              commit.id,
+              commit.pointId,
+              commit.point,
+              grid,
+            );
   if (!transformed.success) return;
   const moved = transformed.document.primitives.find(
     (primitive) => primitive.id === commit.id,
@@ -148,10 +168,11 @@ function selectionMark(): DrawPreview {
   return selectPreview(documentStore.current, editor.selectionId);
 }
 
-/** 柄只在选择工具、有选中、无手势时出现；位置随视图换算更新。 */
-function refreshHandles(): void {
+/** 柄与控制点只在选择工具、有选中、无手势时出现；位置随视图换算更新。 */
+function refreshOverlays(): void {
   let rotate: Point2 | null = null;
   let scale: Point2 | null = null;
+  let controls: { id: string; point: Point2 }[] = [];
   const document = documentStore.current;
   const selectionId = editor.selectionId;
   if (
@@ -171,20 +192,25 @@ function refreshHandles(): void {
           handles.rotate === null ? null : worldToScreen(handles.rotate);
         scale = worldToScreen(handles.scale);
       }
+      controls = controlPoints(primitive).flatMap((point) => {
+        const screen = worldToScreen(point.point);
+        return screen === null ? [] : [{ id: point.id, point: screen }];
+      });
     }
   }
   rotateHandleScreen.value = rotate;
   scaleHandleScreen.value = scale;
+  controlPointScreens.value = controls;
 }
 
 function refreshSelectionMark(): void {
-  refreshHandles();
+  refreshOverlays();
   if (projector === null) return;
   if (isDrawTool(editor.tool) || selectGesture.kind !== "idle") return;
   projector.setPreview(selectionMark());
 }
 
-/** 拖柄期间宿主光标保持柄语义，结束回到选择工具的 grab。 */
+/** 拖柄/控制点期间宿主光标保持控件语义，结束回到选择工具的 grab。 */
 function syncHandleCursor(): void {
   const host = hostRef.value;
   if (host === null) return;
@@ -194,6 +220,10 @@ function syncHandleCursor(): void {
   }
   if (selectGesture.kind === "scale") {
     host.style.cursor = HANDLE_CURSORS.scale;
+    return;
+  }
+  if (selectGesture.kind === "control") {
+    host.style.cursor = CONTROL_CURSOR;
     return;
   }
   host.style.cursor = "grab";
@@ -211,7 +241,7 @@ function applySelectGesture(
     commitTransform(result.commit, grid);
   }
   projector?.setPreview(result.preview ?? selectionMark());
-  refreshHandles();
+  refreshOverlays();
   syncHandleCursor();
 }
 
@@ -329,8 +359,8 @@ useEventListener(hostRef, "pointerdown", (event: PointerEvent) => {
     const context = selectContext(event);
     if (context === null) return;
     applySelectGesture(startSelect(selectGesture, context), context.grid);
-    // 拖图元本体时压制投影器的空白平移手势。
-    panSuppressed = selectGesture.kind === "drag";
+    // 任一选择手势（本体/柄/控制点）期间压制投影器的空白平移手势。
+    panSuppressed = selectGesture.kind !== "idle";
     return;
   }
   const context = drawContext(event);
@@ -454,8 +484,19 @@ onUnmounted(() => {
     class="relative h-full min-h-0 w-full overflow-hidden bg-white"
     data-viewport-2d
   >
-    <!-- 变换手柄层：容器不接事件，只有柄本身可点，不会挡住底下的视口平移。 -->
+    <!-- 控制点与变换手柄层：容器不接事件，只有控件本身可点，不会挡住底下的视口平移。 -->
     <div class="pointer-events-none absolute inset-0 z-10">
+      <div
+        v-for="control in controlPointScreens"
+        :key="control.id"
+        class="pointer-events-auto absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-zinc-700 bg-white"
+        :style="{
+          left: `${control.point.x}px`,
+          top: `${control.point.y}px`,
+          cursor: CONTROL_CURSOR,
+        }"
+        :data-control-point="control.id"
+      />
       <div
         v-show="rotateHandleScreen !== null"
         class="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-zinc-700 bg-white"

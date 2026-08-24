@@ -8,6 +8,8 @@ import {
 } from "./index.ts";
 import type { GeometryDocument, Primitive } from "./index.ts";
 import {
+  moveControlPoint,
+  moveControlPointGeometry,
   rotatePrimitive,
   rotatePrimitiveGeometry,
   scalePrimitive,
@@ -587,6 +589,292 @@ describe("rotatePrimitive / scalePrimitive", () => {
     });
     expect(rotatePrimitive(voxelDoc, "vox-1", 90).success).toBe(false);
     expect(scalePrimitive(voxelDoc, "vox-1", 2).success).toBe(false);
+  });
+});
+
+describe("moveControlPointGeometry", () => {
+  test("拖端点只改那个端点，其余顶点原样", () => {
+    const line: Primitive = {
+      id: "line-1",
+      type: "line",
+      points: [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+        { x: 8, y: 0 },
+      ],
+    };
+
+    const moved = moveControlPointGeometry(line, "vertex-1", { x: 4, y: 3 });
+
+    expect(moved).toEqual({
+      id: "line-1",
+      type: "line",
+      points: [
+        { x: 0, y: 0 },
+        { x: 4, y: 3 },
+        { x: 8, y: 0 },
+      ],
+    });
+    expect(line.points[1]).toEqual({ x: 4, y: 0 });
+  });
+
+  test("拖半径点只改半径：圆心、起止角都不动，不是整圆缩放", () => {
+    const sector: Primitive = {
+      id: "sector-1",
+      type: "sector",
+      cx: 1,
+      cy: -1,
+      r: 2,
+      startDeg: 45,
+      endDeg: 135,
+      fill: "hatch",
+    };
+
+    const moved = moveControlPointGeometry(sector, "radius", { x: 1, y: 4 });
+
+    expect(moved).toEqual({
+      id: "sector-1",
+      type: "sector",
+      cx: 1,
+      cy: -1,
+      r: 5,
+      startDeg: 45,
+      endDeg: 135,
+      fill: "hatch",
+    });
+  });
+
+  test("拖起止角点只改对应角度并归一化，半径不动", () => {
+    const arc: Primitive = {
+      id: "arc-1",
+      type: "arc",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 90,
+    };
+
+    const endMoved = moveControlPointGeometry(arc, "endDeg", { x: 0, y: -2 });
+    const startMoved = moveControlPointGeometry(arc, "startDeg", { x: -2, y: 0 });
+
+    if (endMoved.type !== "arc" || startMoved.type !== "arc") return;
+    expect(endMoved).toEqual({
+      id: "arc-1",
+      type: "arc",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 270,
+    });
+    expect(startMoved.startDeg).toBe(180);
+    expect(startMoved.endDeg).toBe(90);
+    expect(startMoved.r).toBe(2);
+  });
+
+  test("拖圆心只挪圆心，半径与角度原样", () => {
+    const circle: Primitive = {
+      id: "circle-1",
+      type: "circle",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      fill: "none",
+    };
+
+    const moved = moveControlPointGeometry(circle, "center", { x: 3, y: 4 });
+
+    expect(moved).toEqual({
+      id: "circle-1",
+      type: "circle",
+      cx: 3,
+      cy: 4,
+      r: 2,
+      fill: "none",
+    });
+  });
+
+  test("拖椭圆半轴点沿局部轴度量：改 rx 时 ry 与 rotationDeg 不动", () => {
+    const ellipse: Primitive = {
+      id: "ellipse-1",
+      type: "ellipse",
+      cx: 5,
+      cy: 5,
+      rx: 3,
+      ry: 1,
+      rotationDeg: 90,
+      fill: "none",
+    };
+
+    // 长轴被转到 +Y：把 rx 点从 (5,8) 拖到 (5,10)，局部 x 距离为 5。
+    const moved = moveControlPointGeometry(ellipse, "rx", { x: 5, y: 10 });
+
+    if (moved.type !== "ellipse") return;
+    expect(moved.rx).toBe(5);
+    expect(moved.ry).toBe(1);
+    expect(moved.rotationDeg).toBe(90);
+    expect(moved.cx).toBe(5);
+  });
+
+  test("拖环的内外半径点各改各的半径", () => {
+    const ring: Primitive = {
+      id: "ring-1",
+      type: "ring",
+      cx: 0,
+      cy: 0,
+      rInner: 1,
+      rOuter: 3,
+      fill: "none",
+    };
+
+    const inner = moveControlPointGeometry(ring, "rInner", { x: 2, y: 0 });
+    const outer = moveControlPointGeometry(ring, "rOuter", { x: 5, y: 0 });
+
+    if (inner.type !== "ring" || outer.type !== "ring") return;
+    expect(inner.rInner).toBe(2);
+    expect(inner.rOuter).toBe(3);
+    expect(outer.rOuter).toBe(5);
+    expect(outer.rInner).toBe(1);
+  });
+
+  test("未知控制点 id 是恒等变换，原对象原样返回", () => {
+    const circle: Primitive = {
+      id: "circle-1",
+      type: "circle",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      fill: "none",
+    };
+
+    expect(moveControlPointGeometry(circle, "vertex-0", { x: 1, y: 1 })).toBe(
+      circle,
+    );
+  });
+});
+
+describe("moveControlPoint", () => {
+  const circleDoc = () =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 2, fill: "none" },
+        {
+          id: "line-1",
+          type: "line",
+          points: [
+            { x: 0, y: 0 },
+            { x: 4, y: 0 },
+          ],
+        },
+      ],
+    });
+
+  test("把吸附后的目标点写进几何并保持原说明书不变", () => {
+    const original = circleDoc();
+    const snapshot = structuredClone(original);
+
+    const result = moveControlPoint(original, "circle-1", "radius", {
+      x: 0.4,
+      y: 4.6,
+    }, 1);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const circleMoved = result.document.primitives[0];
+    if (circleMoved.type !== "circle") return;
+    expect(circleMoved.r).toBe(5);
+    expect(circleMoved.cx).toBe(0);
+    expect(result.document.primitives[1]).toEqual(original.primitives[1]);
+    expect(original).toEqual(snapshot);
+  });
+
+  test("拖顶点写进对应下标且新说明书仍能通过契约解析", () => {
+    const result = moveControlPoint(circleDoc(), "line-1", "vertex-1", {
+      x: 5,
+      y: 1,
+    }, 1);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const lineMoved = result.document.primitives[1];
+    expect(lineMoved).toEqual({
+      id: "line-1",
+      type: "line",
+      points: [
+        { x: 0, y: 0 },
+        { x: 5, y: 1 },
+      ],
+    });
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+  });
+
+  test("半径拖成 0 被契约拒绝，不进说明书", () => {
+    const result = moveControlPoint(circleDoc(), "circle-1", "radius", {
+      x: 0,
+      y: 0,
+    }, "off");
+    expect(result.success).toBe(false);
+  });
+
+  test("环内半径拖到不小于外半径被契约拒绝", () => {
+    const ringDoc = mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        {
+          id: "ring-1",
+          type: "ring",
+          cx: 0,
+          cy: 0,
+          rInner: 1,
+          rOuter: 3,
+          fill: "none",
+        },
+      ],
+    });
+
+    const tooBig = moveControlPoint(ringDoc, "ring-1", "rInner", {
+      x: 3,
+      y: 0,
+    }, "off");
+    expect(tooBig.success).toBe(false);
+
+    const fine = moveControlPoint(ringDoc, "ring-1", "rInner", {
+      x: 2,
+      y: 0,
+    }, "off");
+    expect(fine.success).toBe(true);
+  });
+
+  test("吸附后与原控制点同位置返回相等说明书，缺失 id 与 3D 报错", () => {
+    const original = circleDoc();
+
+    const same = moveControlPoint(original, "circle-1", "center", {
+      x: 0.4,
+      y: -0.4,
+    }, 1);
+    expect(same.success).toBe(true);
+    if (!same.success) return;
+    expect(same.document).toEqual(original);
+
+    expect(
+      moveControlPoint(original, "ghost", "radius", { x: 1, y: 1 }, 1).success,
+    ).toBe(false);
+
+    const voxelDoc = mustParse({
+      version: 1,
+      space: "3d",
+      underlay: null,
+      primitives: [{ id: "vox-1", type: "voxel", x: 0, y: 0, z: 0 }],
+    });
+    expect(
+      moveControlPoint(voxelDoc, "vox-1", "radius", { x: 1, y: 1 }, 1).success,
+    ).toBe(false);
   });
 });
 

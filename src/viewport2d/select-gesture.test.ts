@@ -568,3 +568,272 @@ describe("select-gesture 缩放", () => {
     expect(up.commit).toEqual({ kind: "scale", id: "circle-1", factor: 2 });
   });
 });
+
+const circlePointDoc = (): GeometryDocument =>
+  doc2d([
+    { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+  ]);
+
+const sectorPointDoc = (): GeometryDocument =>
+  doc2d([
+    {
+      id: "sector-1",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 90,
+      fill: "none",
+    },
+  ]);
+
+function controlCtx(
+  point: Point2,
+  overrides: Partial<SelectContext> = {},
+): SelectContext {
+  return ctx(point, {
+    handleTolerance: 0.5,
+    controlTolerance: 0.5,
+    ...overrides,
+  });
+}
+
+describe("select-gesture 控制点命中顺序", () => {
+  test("同一位置同时命中控制点与缩放柄时控制点赢", () => {
+    const document = circlePointDoc();
+    // 半径点在 (1,0)；缩放柄在 reach(1) + 4*0.5 = (3,0)。放宽控制点
+    // 命中半径到 2.5，让指针压在缩放柄上时也够得着半径点。
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 3, y: 0 }, {
+        document,
+        selectionId: "circle-1",
+        controlTolerance: 2.5,
+      }),
+    );
+
+    expect(down.state).toEqual({
+      kind: "control",
+      id: "circle-1",
+      pointId: "radius",
+    });
+    expect(down.selectionId).toBe("circle-1");
+    expect(down.commit).toBeNull();
+  });
+
+  test("控制点赢本体：按下线段端点进入控制点手势而非拖动", () => {
+    const document = lineAndCircleDoc();
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 0, y: 0 }, { document, selectionId: "line-1" }),
+    );
+
+    expect(down.state).toEqual({
+      kind: "control",
+      id: "line-1",
+      pointId: "vertex-0",
+    });
+  });
+
+  test("柄仍赢本体：控制点容差外、柄容差内进入缩放", () => {
+    const document = circlePointDoc();
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 3, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+
+    expect(down.state.kind).toBe("scale");
+  });
+
+  test("未选中或零控制点容差时控制点不干扰本体命中", () => {
+    const document = lineAndCircleDoc();
+
+    const noSelection = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 0, y: 0 }, { document }),
+    );
+    expect(noSelection.state.kind).toBe("drag");
+
+    const noTolerance = startSelect(
+      idleSelectState(),
+      ctx({ x: 0, y: 0 }, { document, selectionId: "line-1" }),
+    );
+    expect(noTolerance.state.kind).toBe("drag");
+  });
+
+  test("单击控制点保持选中，不取消也不提交", () => {
+    const document = circlePointDoc();
+    const clicked = clickSelect(
+      idleSelectState(),
+      controlCtx({ x: 1, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+
+    expect(clicked.selectionId).toBe("circle-1");
+    expect(clicked.commit).toBeNull();
+  });
+});
+
+describe("select-gesture 拖控制点", () => {
+  test("拖半径点只改半径：预览圆心不动，说明书未变", () => {
+    const document = circlePointDoc();
+    const snapshot = structuredClone(document);
+
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 1, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+    const moved = moveSelect(
+      down.state,
+      controlCtx({ x: 0, y: 4.6 }, { document, selectionId: "circle-1" }),
+    );
+
+    expect(moved.commit).toBeNull();
+    expect(moved.preview).toEqual({
+      type: "circle",
+      cx: 0,
+      cy: 0,
+      r: 5,
+    });
+    expect(document).toEqual(snapshot);
+  });
+
+  test("拖端点只改该端点，另一端不动", () => {
+    const document = lineAndCircleDoc();
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 4, y: 0 }, { document, selectionId: "line-1" }),
+    );
+    const moved = moveSelect(
+      down.state,
+      controlCtx({ x: 5.2, y: 1.1 }, { document, selectionId: "line-1" }),
+    );
+
+    expect(moved.preview).toEqual({
+      type: "line",
+      points: [
+        { x: 0, y: 0 },
+        { x: 5, y: 1 },
+      ],
+    });
+  });
+
+  test("拖起止角点只改角度：半径与另一端角度不动", () => {
+    const document = sectorPointDoc();
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 0, y: 2 }, { document, selectionId: "sector-1" }),
+    );
+    const moved = moveSelect(
+      down.state,
+      controlCtx({ x: 0, y: -2.3 }, { document, selectionId: "sector-1" }),
+    );
+
+    expect(moved.preview).toEqual({
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 270,
+    });
+  });
+
+  test("拖圆心只挪圆心，半径角度原样", () => {
+    const document = sectorPointDoc();
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 0, y: 0 }, { document, selectionId: "sector-1" }),
+    );
+    const moved = moveSelect(
+      down.state,
+      controlCtx({ x: 1.2, y: 0.9 }, { document, selectionId: "sector-1" }),
+    );
+
+    expect(moved.preview).toEqual({
+      type: "sector",
+      cx: 1,
+      cy: 1,
+      r: 2,
+      startDeg: 0,
+      endDeg: 90,
+    });
+  });
+
+  test("松手一次提交吸附后的目标点，整串手势只有这一次 commit", () => {
+    const document = circlePointDoc();
+
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 1, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+    expect(down.commit).toBeNull();
+    for (const point of [{ x: 0, y: 2.4 }, { x: 2, y: 2 }, { x: 0, y: 4.6 }]) {
+      const moved = moveSelect(
+        down.state,
+        controlCtx(point, { document, selectionId: "circle-1" }),
+      );
+      expect(moved.commit).toBeNull();
+    }
+    const up = upSelect(
+      down.state,
+      controlCtx({ x: 0, y: 4.6 }, { document, selectionId: "circle-1" }),
+    );
+
+    expect(up.commit).toEqual({
+      kind: "controlPoint",
+      id: "circle-1",
+      pointId: "radius",
+      point: { x: 0, y: 5 },
+    });
+    expect(up.state).toEqual(idleSelectState());
+    expect(up.preview).toBeNull();
+  });
+
+  test("拖回原位（吸附后与控制点同格）不提交", () => {
+    const document = circlePointDoc();
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 1, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+    const up = upSelect(
+      down.state,
+      controlCtx({ x: 1.4, y: 0.2 }, { document, selectionId: "circle-1" }),
+    );
+
+    expect(up.commit).toBeNull();
+    expect(up.state).toEqual(idleSelectState());
+  });
+
+  test("Esc 放弃控制点拖动且不提交", () => {
+    const document = circlePointDoc();
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 1, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+    const moved = moveSelect(
+      down.state,
+      controlCtx({ x: 0, y: 4 }, { document, selectionId: "circle-1" }),
+    );
+    const cancelled = escSelect(moved.state);
+
+    expect(cancelled.commit).toBeNull();
+    expect(cancelled.state).toEqual(idleSelectState());
+  });
+
+  test("拖动中图元被删则回 idle 不再出预览", () => {
+    const document = circlePointDoc();
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 1, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+    const moved = moveSelect(
+      down.state,
+      controlCtx({ x: 0, y: 4 }, { document: doc2d([]) }),
+    );
+
+    expect(moved.state).toEqual(idleSelectState());
+    expect(moved.preview).toBeNull();
+    expect(moved.commit).toBeNull();
+  });
+});

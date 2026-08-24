@@ -1,0 +1,216 @@
+import { describe, expect, test } from "vitest";
+import { parseDocument } from "../document/index.ts";
+import type { TwoDPrimitive } from "../document/update-document.ts";
+import { controlPoints } from "./control-points.ts";
+
+function primitive2d(primitive: unknown): TwoDPrimitive {
+  const result = parseDocument({
+    version: 1,
+    space: "2d",
+    underlay: null,
+    primitives: [primitive],
+  });
+  if (!result.success) throw new Error(result.error);
+  const parsed = result.document.primitives[0];
+  if (parsed === undefined) throw new Error("missing primitive");
+  return parsed as TwoDPrimitive;
+}
+
+function expectPointCloseTo(
+  actual: { x: number; y: number },
+  expected: { x: number; y: number },
+): void {
+  expect(Math.abs(actual.x - expected.x)).toBeLessThan(1e-9);
+  expect(Math.abs(actual.y - expected.y)).toBeLessThan(1e-9);
+}
+
+function idsOf(primitive: TwoDPrimitive): string[] {
+  return controlPoints(primitive).map((point) => point.id);
+}
+
+describe("controlPoints 顶点族", () => {
+  test("折线每个顶点一个控制点，id 带下标", () => {
+    const line = primitive2d({
+      id: "line-1",
+      type: "line",
+      points: [
+        { x: 0, y: 0 },
+        { x: 4, y: 1 },
+        { x: 8, y: 0 },
+      ],
+    });
+
+    const points = controlPoints(line);
+    expect(points.map((point) => point.id)).toEqual([
+      "vertex-0",
+      "vertex-1",
+      "vertex-2",
+    ]);
+    expect(points.map((point) => point.kind)).toEqual([
+      "vertex",
+      "vertex",
+      "vertex",
+    ]);
+    expectPointCloseTo(points[1]!.point, { x: 4, y: 1 });
+  });
+
+  test("多边形顶点同样逐点列出，圆心类字段不存在", () => {
+    const polygon = primitive2d({
+      id: "poly-1",
+      type: "polygon",
+      points: [
+        { x: 0, y: 0 },
+        { x: 2, y: 0 },
+        { x: 0, y: 2 },
+      ],
+      fill: "none",
+    });
+
+    expect(idsOf(polygon)).toEqual(["vertex-0", "vertex-1", "vertex-2"]);
+  });
+});
+
+describe("controlPoints 圆族", () => {
+  test("圆露出圆心与半径点，半径点在 0° 方向的圆周上", () => {
+    const circle = primitive2d({
+      id: "circle-1",
+      type: "circle",
+      cx: 3,
+      cy: -1,
+      r: 2,
+      fill: "none",
+    });
+
+    const points = controlPoints(circle);
+    expect(points.map((point) => point.id)).toEqual(["center", "radius"]);
+    expectPointCloseTo(points[0]!.point, { x: 3, y: -1 });
+    expectPointCloseTo(points[1]!.point, { x: 5, y: -1 });
+    expect(points[1]!.kind).toBe("radius");
+  });
+
+  test("环露出圆心与内外两个半径点", () => {
+    const ring = primitive2d({
+      id: "ring-1",
+      type: "ring",
+      cx: 0,
+      cy: 0,
+      rInner: 1,
+      rOuter: 3,
+      fill: "none",
+    });
+
+    const points = controlPoints(ring);
+    expect(points.map((point) => point.id)).toEqual([
+      "center",
+      "rInner",
+      "rOuter",
+    ]);
+    expectPointCloseTo(points[1]!.point, { x: 1, y: 0 });
+    expectPointCloseTo(points[2]!.point, { x: 3, y: 0 });
+  });
+
+  test("扇形露出圆心、半径点与起止角点，角点落在圆周上", () => {
+    const sector = primitive2d({
+      id: "sector-1",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 90,
+      fill: "none",
+    });
+
+    const points = controlPoints(sector);
+    expect(points.map((point) => point.id)).toEqual([
+      "center",
+      "radius",
+      "startDeg",
+      "endDeg",
+    ]);
+    expectPointCloseTo(points[1]!.point, { x: 2, y: 0 });
+    expectPointCloseTo(points[2]!.point, { x: 2, y: 0 });
+    expectPointCloseTo(points[3]!.point, { x: 0, y: 2 });
+  });
+
+  test("弓与弧同扇形：同一套圆心/半径/起止角目录", () => {
+    const bow = primitive2d({
+      id: "bow-1",
+      type: "bow",
+      cx: 1,
+      cy: 1,
+      r: 2,
+      startDeg: 45,
+      endDeg: 135,
+      fill: "none",
+    });
+    const arc = primitive2d({
+      id: "arc-1",
+      type: "arc",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 10,
+      endDeg: 80,
+    });
+
+    expect(idsOf(bow)).toEqual(["center", "radius", "startDeg", "endDeg"]);
+    expect(idsOf(arc)).toEqual(["center", "radius", "startDeg", "endDeg"]);
+    const bowEnd = controlPoints(bow).find((point) => point.id === "endDeg");
+    expect(bowEnd).toBeDefined();
+    if (bowEnd !== undefined) {
+      expectPointCloseTo(bowEnd.point, { x: 1 - Math.SQRT2, y: 1 + Math.SQRT2 });
+    }
+  });
+});
+
+describe("controlPoints 椭圆", () => {
+  test("轴对齐时两半轴点分别落在长轴端与短轴端", () => {
+    const ellipse = primitive2d({
+      id: "ellipse-1",
+      type: "ellipse",
+      cx: 0,
+      cy: 0,
+      rx: 2,
+      ry: 1,
+      rotationDeg: 0,
+      fill: "none",
+    });
+
+    const points = controlPoints(ellipse);
+    expect(points.map((point) => point.id)).toEqual(["center", "rx", "ry"]);
+    expectPointCloseTo(points[1]!.point, { x: 2, y: 0 });
+    expectPointCloseTo(points[2]!.point, { x: 0, y: 1 });
+  });
+
+  test("带 rotationDeg 时半轴点跟随长轴方向旋转", () => {
+    const ellipse = primitive2d({
+      id: "ellipse-1",
+      type: "ellipse",
+      cx: 5,
+      cy: 5,
+      rx: 3,
+      ry: 1,
+      rotationDeg: 90,
+      fill: "none",
+    });
+
+    const points = controlPoints(ellipse);
+    // 长轴转到 +Y，短轴转到 -X。
+    expectPointCloseTo(points[1]!.point, { x: 5, y: 8 });
+    expectPointCloseTo(points[2]!.point, { x: 4, y: 5 });
+  });
+});
+
+describe("controlPoints 标签", () => {
+  test("标签没有控制点（位置靠拖本体平移）", () => {
+    const label = primitive2d({
+      id: "label-1",
+      type: "label",
+      x: 2,
+      y: 2,
+      text: "A",
+    });
+    expect(controlPoints(label)).toEqual([]);
+  });
+});

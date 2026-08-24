@@ -6,25 +6,29 @@ import {
   type Point2,
 } from "../document/index.ts";
 import {
+  moveControlPointGeometry,
   primitiveAnchor,
   rotatePrimitiveGeometry,
   scalePrimitiveGeometry,
   translatePrimitiveGeometry,
   type TwoDPrimitive,
 } from "../document/update-document.ts";
+import { controlPoints } from "./control-points.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 
 export type SelectGestureState =
   | { kind: "idle" }
   | { kind: "drag"; id: string; start: Point2 }
   | { kind: "rotate"; id: string; center: Point2; startDeg: number }
-  | { kind: "scale"; id: string; center: Point2; startRadius: number };
+  | { kind: "scale"; id: string; center: Point2; startRadius: number }
+  | { kind: "control"; id: string; pointId: string };
 
 /** 一次 pointerup 提交的原始变换量；吸附与几何写入由说明书模块负责。 */
 export type SelectCommit =
   | { kind: "translate"; id: string; dx: number; dy: number }
   | { kind: "rotate"; id: string; deg: number }
-  | { kind: "scale"; id: string; factor: number };
+  | { kind: "scale"; id: string; factor: number }
+  | { kind: "controlPoint"; id: string; pointId: string; point: Point2 };
 
 export type SelectGestureResult = {
   state: SelectGestureState;
@@ -46,6 +50,8 @@ export type SelectContext = {
   selectionId?: string | null;
   /** 世界单位的柄命中半径；缺省 0 时柄不参与命中。 */
   handleTolerance?: number;
+  /** 世界单位的控制点命中半径；缺省 0 时控制点不参与命中。 */
+  controlTolerance?: number;
 };
 
 export function idleSelectState(): SelectGestureState {
@@ -126,6 +132,32 @@ export function transformHandles(
 }
 
 type HandleHit = { handle: "rotate" | "scale"; id: string; center: Point2 };
+
+type ControlHit = { id: string; pointId: string; center: Point2 };
+
+/**
+ * 控制点命中只认当前选中的图元，重叠时取最近的；目录顺序（圆心、半径、
+ * 起止角……）作为同距并列时的次序。控制点优先于柄，柄优先于本体。
+ */
+function hitControlPoint(ctx: SelectContext): ControlHit | null {
+  const controlTolerance = ctx.controlTolerance ?? 0;
+  if (controlTolerance <= 0 || ctx.selectionId == null) return null;
+  if (ctx.document.space !== "2d") return null;
+  const primitive = ctx.document.primitives.find(
+    (item) => item.id === ctx.selectionId,
+  );
+  if (primitive === undefined) return null;
+  let best: ControlHit | null = null;
+  let bestDistance = controlTolerance;
+  for (const point of controlPoints(primitive)) {
+    const d = distance(ctx.point, point.point);
+    if (d <= bestDistance) {
+      best = { id: primitive.id, pointId: point.id, center: point.point };
+      bestDistance = d;
+    }
+  }
+  return best;
+}
 
 /** 柄命中只认当前选中的图元；柄优先于本体命中。 */
 function hitTransformHandle(ctx: SelectContext): HandleHit | null {
@@ -233,13 +265,22 @@ function snappedDelta(
   );
 }
 
-/** 按下柄先于本体：柄进入旋转/缩放手势；本体命中进入拖动；空白保持 idle。 */
+/** 按下控制点先于柄、柄先于本体：控制点手势只改那一处几何。 */
 export function startSelect(
   state: SelectGestureState,
   ctx: SelectContext,
 ): SelectGestureResult {
   if (state.kind !== "idle") {
     return { state, preview: null, commit: null };
+  }
+  const controlHit = hitControlPoint(ctx);
+  if (controlHit !== null) {
+    return {
+      state: { kind: "control", id: controlHit.id, pointId: controlHit.pointId },
+      preview: null,
+      selectionId: controlHit.id,
+      commit: null,
+    };
   }
   const handleHit = hitTransformHandle(ctx);
   if (handleHit !== null) {
@@ -283,11 +324,24 @@ export function startSelect(
   };
 }
 
-/** 拖动中只出变换预览（平移/旋转/缩放），说明书不变。 */
+/** 拖动中只出变换预览（平移/旋转/缩放/控制点），说明书不变。 */
 export function moveSelect(
   state: SelectGestureState,
   ctx: SelectContext,
 ): SelectGestureResult {
+  if (state.kind === "control") {
+    const primitive = draggedPrimitive(ctx, state.id);
+    if (primitive === null) {
+      return idleResult();
+    }
+    const target = snap2d(ctx.point, ctx.grid);
+    return hold(
+      state,
+      previewFromPrimitive(
+        moveControlPointGeometry(primitive, state.pointId, target),
+      ),
+    );
+  }
   if (state.kind === "rotate" || state.kind === "scale") {
     const primitive = draggedPrimitive(ctx, state.id);
     if (primitive === null) {
@@ -322,11 +376,32 @@ export function moveSelect(
   );
 }
 
-/** 松手一次提交：平移吸附后为零、旋转角为零、缩放因子为 1 都不提交。 */
+/** 松手一次提交：平移吸附后为零、旋转角为零、缩放因子为 1、控制点拖回原位都不提交。 */
 export function upSelect(
   state: SelectGestureState,
   ctx: SelectContext,
 ): SelectGestureResult {
+  if (state.kind === "control") {
+    const primitive = draggedPrimitive(ctx, state.id);
+    if (primitive === null) {
+      return idleResult();
+    }
+    const target = snap2d(ctx.point, ctx.grid);
+    const current = controlPoints(primitive).find(
+      (point) => point.id === state.pointId,
+    );
+    if (
+      current === undefined ||
+      (current.point.x === target.x && current.point.y === target.y)
+    ) {
+      return idleResult();
+    }
+    return {
+      state: idleSelectState(),
+      preview: null,
+      commit: { kind: "controlPoint", id: state.id, pointId: state.pointId, point: target },
+    };
+  }
   if (state.kind === "rotate") {
     const deg = pointerDeg(state.center, ctx.point) - state.startDeg;
     if (deg === 0) {
@@ -368,13 +443,17 @@ export function upSelect(
   };
 }
 
-/** 单击（无拖动）命中柄或图元则选中，单击空白则取消选中。 */
+/** 单击（无拖动）命中控制点或柄或图元则选中，单击空白则取消选中。 */
 export function clickSelect(
   state: SelectGestureState,
   ctx: SelectContext,
 ): SelectGestureResult {
   if (state.kind !== "idle") {
     return { state, preview: null, commit: null };
+  }
+  const controlHit = hitControlPoint(ctx);
+  if (controlHit !== null) {
+    return { state, preview: null, selectionId: controlHit.id, commit: null };
   }
   const handleHit = hitTransformHandle(ctx);
   if (handleHit !== null) {

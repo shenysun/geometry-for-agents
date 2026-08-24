@@ -352,3 +352,121 @@ export function scalePrimitive(
     scalePrimitiveGeometry(primitive, factor),
   );
 }
+
+/** 指针相对圆心的方位角（度，逆时针为正）。 */
+function pointDegFrom(center: Point2, world: Point2): number {
+  return (Math.atan2(world.y - center.y, world.x - center.x) * 180) / Math.PI;
+}
+
+function distanceBetween(a: Point2, b: Point2): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/** 世界点转进椭圆局部系（逆旋转 rotationDeg）后的轴上偏移。 */
+function ellipseLocalOffset(
+  primitive: Extract<TwoDPrimitive, { type: "ellipse" }>,
+  world: Point2,
+): Point2 {
+  const center = { x: primitive.cx, y: primitive.cy };
+  const local = rotatePoint(world, center, -primitive.rotationDeg);
+  return { x: local.x - center.x, y: local.y - center.y };
+}
+
+const VERTEX_ID = /^vertex-(\d+)$/;
+
+/**
+ * 拖控制点只改那一处几何（已吸附的世界坐标），不可变：端点/顶点只动
+ * 那个下标，半径点只改半径，起止角点只改角度，半轴点沿局部轴度量。
+ * pointId 与控制点目录同源（即字段名），未知 id 是恒等。
+ */
+export function moveControlPointGeometry(
+  primitive: TwoDPrimitive,
+  pointId: string,
+  world: Point2,
+): TwoDPrimitive {
+  switch (primitive.type) {
+    case "line":
+    case "polygon": {
+      const match = VERTEX_ID.exec(pointId);
+      if (match === null) return primitive;
+      const index = Number(match[1]);
+      if (index >= primitive.points.length) return primitive;
+      return {
+        ...primitive,
+        points: primitive.points.map((point, at) =>
+          at === index ? world : point,
+        ),
+      };
+    }
+    case "label":
+      return primitive;
+    case "circle": {
+      if (pointId === "center") {
+        return { ...primitive, cx: world.x, cy: world.y };
+      }
+      if (pointId === "radius") {
+        return {
+          ...primitive,
+          r: distanceBetween({ x: primitive.cx, y: primitive.cy }, world),
+        };
+      }
+      return primitive;
+    }
+    case "sector":
+    case "bow":
+    case "arc": {
+      const center = { x: primitive.cx, y: primitive.cy };
+      if (pointId === "center") {
+        return { ...primitive, cx: world.x, cy: world.y };
+      }
+      if (pointId === "radius") {
+        return { ...primitive, r: distanceBetween(center, world) };
+      }
+      const deg = normalizeDeg(pointDegFrom(center, world));
+      if (pointId === "startDeg") return { ...primitive, startDeg: deg };
+      if (pointId === "endDeg") return { ...primitive, endDeg: deg };
+      return primitive;
+    }
+    case "ring": {
+      const center = { x: primitive.cx, y: primitive.cy };
+      if (pointId === "center") {
+        return { ...primitive, cx: world.x, cy: world.y };
+      }
+      const radius = distanceBetween(center, world);
+      if (pointId === "rInner") return { ...primitive, rInner: radius };
+      if (pointId === "rOuter") return { ...primitive, rOuter: radius };
+      return primitive;
+    }
+    case "ellipse": {
+      if (pointId === "center") {
+        return { ...primitive, cx: world.x, cy: world.y };
+      }
+      if (pointId === "rx") {
+        return {
+          ...primitive,
+          rx: Math.abs(ellipseLocalOffset(primitive, world).x),
+        };
+      }
+      if (pointId === "ry") {
+        return {
+          ...primitive,
+          ry: Math.abs(ellipseLocalOffset(primitive, world).y),
+        };
+      }
+      return primitive;
+    }
+  }
+}
+
+/** 拖控制点提交：目标点先吸附到格，再只写那一处几何，非法几何被契约拒绝。 */
+export function moveControlPoint(
+  document: GeometryDocument,
+  id: string,
+  pointId: string,
+  world: Point2,
+  grid: GridSnap,
+): DocumentUpdateResult {
+  return transformPrimitive(document, id, "moveControlPoint", (primitive) =>
+    moveControlPointGeometry(primitive, pointId, snap2d(world, grid)),
+  );
+}
