@@ -45,17 +45,13 @@ export type {
 } from "./solid-control-points.ts";
 export {
   BOX_DEFAULTS,
-  boxAnchorFromWorld,
-  commitBox,
-} from "./box-commit.ts";
-export type { BoxPrimitive } from "./box-commit.ts";
-export {
   CONE_DEFAULTS,
   CYLINDER_DEFAULTS,
   SPHERE_DEFAULTS,
   PYRAMID_DEFAULTS,
   SOLID_TOOLS,
   TRIANGULAR_PRISM_DEFAULTS,
+  commitBox,
   commitCone,
   commitCylinder,
   commitSolid,
@@ -68,6 +64,7 @@ export {
   solidAnchorFromWorld,
 } from "./solid-commit.ts";
 export type {
+  BoxPrimitive,
   ConePrimitive,
   CylinderPrimitive,
   SolidPrimitive,
@@ -77,4 +74,3 @@ export type {
   TriangularPrismPrimitive,
   PrismBase,
 } from "./solid-commit.ts";
-export { snap3d } from "./snap3d.ts";

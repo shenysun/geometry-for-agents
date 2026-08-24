@@ -39,7 +39,6 @@ function baseContext(
     document: doc3d([VOXEL_A]),
     point: { x: 1.5, y: 0.5, z: 2.5 },
     grid: 1,
-    alt: false,
     selectionId: null,
     hitId: null,
     ...overrides,
@@ -164,12 +163,6 @@ describe("moveSelect3d", () => {
       baseContext({ point: { x: 2.6, y: 0.4, z: 3.6 }, grid: "off" }),
     );
     expect(offGrid.preview).toEqual(expected);
-
-    const altHeld = moveSelect3d(
-      started.state,
-      baseContext({ point: { x: 2.6, y: 0.4, z: 3.6 }, alt: true }),
-    );
-    expect(altHeld.preview).toEqual(expected);
   });
 });
 
@@ -304,7 +297,6 @@ function solidContext(
     document: doc3d([BOX_1]),
     point: { x: 0, y: 0, z: 0 },
     grid: 1,
-    alt: false,
     selectionId: null,
     hitId: null,
     ...TOLERANCE,
@@ -504,10 +496,10 @@ describe("moveSelect3d / upSelect3d 参数体平移", () => {
       anchor: { x: 0.5, y: 0, z: 0.5 },
     });
 
-    // Alt 关吸附（视口把 Alt 映射成 off）：保留原始位移
+    // 关格（Alt 由视口层折算成 off 再喂进来）：保留原始位移
     const offGrid = moveSelect3d(
       started.state,
-      solidContext({ point: moved, grid: "off", alt: true }),
+      solidContext({ point: moved, grid: "off" }),
     );
     expect(offGrid.preview).toMatchObject({
       kind: "box",

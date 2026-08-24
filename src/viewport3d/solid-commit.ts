@@ -1,12 +1,13 @@
-import type {
-  GeometryDocument,
-  GridSnap,
-  Point3,
-  Primitive,
+import {
+  snap3d,
+  type GeometryDocument,
+  type GridSnap,
+  type Point3,
+  type Primitive,
+  type SolidPrimitive,
 } from "../document/index.ts";
-import { commitBox, type BoxPrimitive } from "./box-commit.ts";
-import { snap3d } from "./snap3d.ts";
 
+export type BoxPrimitive = Extract<Primitive, { type: "box" }>;
 export type CylinderPrimitive = Extract<Primitive, { type: "cylinder" }>;
 export type ConePrimitive = Extract<Primitive, { type: "cone" }>;
 export type SpherePrimitive = Extract<Primitive, { type: "sphere" }>;
@@ -37,15 +38,14 @@ export const SOLID_TOOLS: readonly SolidToolId[] = [
   "triangularPrism",
 ];
 
-/** 参数体图元的联合：单击放置与属性面板都按这一份收窄 */
-export type SolidPrimitive =
-  | BoxPrimitive
-  | CylinderPrimitive
-  | ConePrimitive
-  | SpherePrimitive
-  | PyramidPrimitive
-  | TriangularPrismPrimitive;
+/**
+ * 参数体图元的联合：定义在说明书层（update-document，随契约推导），
+ * 单击放置与属性面板都按这一份收窄；此处转手导出，方便视口层就近引用。
+ */
+export type { SolidPrimitive };
 
+/** 单击落下的默认尺寸：长方体 1×1×1（看起来是正方体），后续靠属性面板/手柄改 */
+export const BOX_DEFAULTS = { width: 1, depth: 1, height: 1 } as const;
 /** 单击落下的默认尺寸：圆柱/圆锥 r=0.5、height=1；球 r=0.5 */
 export const CYLINDER_DEFAULTS = { r: 0.5, height: 1 } as const;
 export const CONE_DEFAULTS = { r: 0.5, height: 1 } as const;
@@ -73,6 +73,33 @@ export function solidAnchorFromWorld(point: Point3, grid: GridSnap): Point3 {
 
 function solidRotation() {
   return { rotationDegY: 0, rotationDegX: 0, rotationDegZ: 0 } as const;
+}
+
+/**
+ * 单击提交长方体：落点吸附当前格后一次生成——底面中心、1×1×1、
+ * 三欧拉角为 0；仅 3D 说明书合法。
+ */
+export function commitBox(
+  document: GeometryDocument,
+  world: Point3,
+  grid: GridSnap,
+  id: string,
+): BoxPrimitive | null {
+  if (document.space !== "3d") {
+    return null;
+  }
+  const anchor = solidAnchorFromWorld(world, grid);
+  return {
+    id,
+    type: "box",
+    x: anchor.x,
+    y: anchor.y,
+    z: anchor.z,
+    width: BOX_DEFAULTS.width,
+    depth: BOX_DEFAULTS.depth,
+    height: BOX_DEFAULTS.height,
+    ...solidRotation(),
+  };
 }
 
 /**

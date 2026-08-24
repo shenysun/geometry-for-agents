@@ -186,6 +186,8 @@ describe("app shell", () => {
     expect(drawToolbar).not.toContain("isDrawTool");
     expect(drawToolbar).not.toContain("tool.select");
     expect(drawToolbar).toContain("setGrid");
+    // 格开关两空间常驻：3D 参数体与 2D 图元吃同一套格，不能被 is2d 藏掉
+    expect(drawToolbar).not.toContain("is2d");
   });
 
   test("Pinia has only document and editor modules", () => {

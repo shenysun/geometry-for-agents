@@ -1,4 +1,5 @@
 import {
+  snap3d,
   type GeometryDocument,
   type GridSnap,
   type Point3,
@@ -15,7 +16,6 @@ import {
 } from "../document/update-document.ts";
 import { solidPlacementPreview, type PlacementPreview } from "./placement-preview.ts";
 import { solidControlPoints } from "./solid-control-points.ts";
-import { snap3d } from "./snap3d.ts";
 import type { VoxelPrimitive } from "./voxel-commit.ts";
 
 /**
@@ -105,10 +105,8 @@ export type Select3dContext = {
   document: GeometryDocument;
   /** 指针原始世界落点（未吸附）：体素与参数体平移都在水平面里度量。 */
   point: Point3;
-  /** 参数体吃 1 / 1/2 / 关；体素声明在案但不吃（永远锁整数角）。 */
+  /** 参数体吃 1 / 1/2 / 关；体素声明在案但不吃（永远锁整数角）。Alt 临时关吸附由视口层折算成 off 喂进来。 */
   grid: GridSnap;
-  /** Alt 临时关吸附：对参数体有效，对体素无效。 */
-  alt?: boolean;
   selectionId?: string | null;
   /** 左键落点命中的图元 id（Three 拾取给的，含体素与参数体）；null = 空处。 */
   hitId?: string | null;

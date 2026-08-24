@@ -2,9 +2,11 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { GeometryDocument, Point3 } from "../document/index.ts";
 import { rotateEulerYxz } from "../document/update-document.ts";
-import type { BoxPrimitive } from "./box-commit.ts";
 import type { PlacementPreview } from "./placement-preview.ts";
-import type { SolidPrimitive } from "./solid-commit.ts";
+import type {
+  BoxPrimitive,
+  SolidPrimitive,
+} from "./solid-commit.ts";
 import { voxelCornerFromWorld } from "./voxel-commit.ts";
 
 /** 底面局部 XZ 点 */

@@ -5,7 +5,13 @@ import type {
   Primitive2d,
   Primitive3d,
 } from "./parse-document.ts";
-import { snap2d, type GridSnap, type Point2, type Point3 } from "./snap.ts";
+import {
+  snap2d,
+  snap3d,
+  type GridSnap,
+  type Point2,
+  type Point3,
+} from "./snap.ts";
 
 export type DocumentUpdateResult =
   | { success: true; document: GeometryDocument }
@@ -682,21 +688,6 @@ export function moveSolidControlPointGeometry(
   }
 }
 
-/**
- * 3D 点的格吸附：与 viewport3d/snap3d 同一约定（各轴四舍五入到步长，
- * 「关」保留原值）。说明书模块自持一份，避免 document 反向依赖视口层。
- */
-function snap3dInDocument(point: Point3, grid: GridSnap): Point3 {
-  if (grid === "off") {
-    return { x: point.x, y: point.y, z: point.z };
-  }
-  return {
-    x: Math.round(point.x / grid) * grid + 0,
-    y: Math.round(point.y / grid) * grid + 0,
-    z: Math.round(point.z / grid) * grid + 0,
-  };
-}
-
 function transformSolidPrimitive(
   document: GeometryDocument,
   id: string,
@@ -744,7 +735,7 @@ export function translateSolid(
   grid: GridSnap,
 ): DocumentUpdateResult {
   return transformSolidPrimitive(document, id, "translateSolid", (solid) => {
-    const delta = snap3dInDocument({ x: dx, y: dy, z: dz }, grid);
+    const delta = snap3d({ x: dx, y: dy, z: dz }, grid);
     return translateSolidGeometry(solid, delta.x, delta.y, delta.z);
   });
 }
@@ -785,5 +776,5 @@ export function moveSolidControlPoint(
 ): DocumentUpdateResult {
   return transformSolidPrimitive(document, id, "moveSolidControlPoint", (
     solid,
-  ) => moveSolidControlPointGeometry(solid, pointId, snap3dInDocument(world, grid)));
+  ) => moveSolidControlPointGeometry(solid, pointId, snap3d(world, grid)));
 }

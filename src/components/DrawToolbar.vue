@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import type { CheckedState } from "reka-ui";
 import {
   DropdownMenuCheckboxItem,
@@ -23,7 +22,7 @@ import {
 
 // 创建工具在工具箱面板里；顶栏只留格开关、面板勾选与恢复默认布局
 const documentStore = useDocumentStore();
-const is2d = computed(() => documentStore.current.space === "2d");
+// 格开关两空间共用：2D 图元与 3D 参数体都吃同一套格（体素仍锁整数角）
 const grids = [
   { value: "1", grid: 1 as const, label: "grid.unit" },
   { value: "0.5", grid: 0.5 as const, label: "grid.half" },
@@ -61,7 +60,6 @@ function onPanelToggle(panel: ClosablePanelId, checked: CheckedState): void {
 <template>
   <div class="flex items-center gap-3" data-draw-toolbar>
     <ToggleGroupRoot
-      v-if="is2d"
       type="single"
       :model-value="gridValue(editor.grid)"
       class="inline-flex rounded-md border border-zinc-300 p-0.5"

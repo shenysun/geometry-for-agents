@@ -123,7 +123,6 @@ function selectContext(
     document: documentStore.current,
     point: world,
     grid: gridForEvent(event),
-    alt: event.altKey,
     selectionId: editor.selectionId,
     hitId: pick.kind === "voxel" || pick.kind === "solid" ? pick.id : null,
     ray: projector.rayAt(screen),

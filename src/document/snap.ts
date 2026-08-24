@@ -23,3 +23,18 @@ export function snapVoxel(point: Point3): Point3 {
     z: snapCoord(point.z, 1),
   };
 }
+
+/**
+ * 3D 参数体的落点吸附：x/y/z 各自吃同一套格（1 / 1/2 / 关）。
+ * 体素不走这里，体素永远整数格（见 snapVoxel）。
+ */
+export function snap3d(point: Point3, grid: GridSnap): Point3 {
+  if (grid === "off") {
+    return { x: point.x, y: point.y, z: point.z };
+  }
+  return {
+    x: snapCoord(point.x, grid),
+    y: snapCoord(point.y, grid),
+    z: snapCoord(point.z, grid),
+  };
+}

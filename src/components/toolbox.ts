@@ -1,5 +1,6 @@
 import type { EditorTool } from "../stores/editor.ts";
 import { DRAW_TOOLS, type DrawTool } from "../viewport2d/draw-gesture.ts";
+import { SOLID_TOOLS } from "../viewport3d/solid-commit.ts";
 
 /** 工具箱里可点选的工具 id，就是编辑器当前工具去掉「未拿工具」 */
 export type ToolboxToolId = Exclude<EditorTool, null>;
@@ -77,17 +78,8 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
 const TOOLS_PER_SPACE: Record<"2d" | "3d", readonly ToolboxToolId[]> = {
   // 2D：选择 + 第一期全部平面创建工具
   "2d": ["select", ...DRAW_TOOLS],
-  // 3D：选择 + 单位立方体 + 全部参数体（长方体、圆柱、圆锥、球、四棱锥、三棱柱）
-  "3d": [
-    "select",
-    "voxel",
-    "box",
-    "cylinder",
-    "cone",
-    "sphere",
-    "pyramid",
-    "triangularPrism",
-  ],
+  // 3D：选择 + 单位立方体 + 全部参数体（名单与放置提交共用 SOLID_TOOLS）
+  "3d": ["select", "voxel", ...SOLID_TOOLS],
 };
 
 /** 工具目录纯函数：输入空间，返回该空间工具箱应列出的工具 */

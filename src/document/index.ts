@@ -14,7 +14,10 @@ export {
   setUnderlay,
   updatePrimitive,
 } from "./update-document.ts";
-export type { DocumentUpdateResult } from "./update-document.ts";
+export type {
+  DocumentUpdateResult,
+  SolidPrimitive,
+} from "./update-document.ts";
 export {
   commitSnapshot,
   createHistory,
@@ -24,7 +27,7 @@ export {
 export type { DocumentHistory } from "./history.ts";
 export { documentToPrompt } from "./prompt.ts";
 export { documentToHash, hashToDocument } from "./hash.ts";
-export { snap2d, snapVoxel } from "./snap.ts";
+export { snap2d, snap3d, snapVoxel } from "./snap.ts";
 export type { GridSnap, Point2, Point3 } from "./snap.ts";
 export { hitTest } from "./hit.ts";
 export type { HitPoint } from "./hit.ts";

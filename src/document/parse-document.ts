@@ -267,27 +267,18 @@ export type Primitive3d = z.infer<typeof threeDPrimitiveSchema>;
 
 export type Primitive = Primitive2d | Primitive3d;
 
-const twoDTypes = new Set([
-  "line",
-  "polygon",
-  "circle",
-  "sector",
-  "bow",
-  "arc",
-  "ring",
-  "ellipse",
-  "label",
-]);
+/** 各空间允许的图元类型名单：从判别联合的 type 字面量推导，新增类型不手抄。 */
+function typeNamesOf(
+  union: typeof twoDPrimitiveSchema | typeof threeDPrimitiveSchema,
+): Set<string> {
+  return new Set<string>(
+    union.options.map((option) => option.shape.type.value),
+  );
+}
 
-const threeDTypes = new Set([
-  "voxel",
-  "box",
-  "cylinder",
-  "cone",
-  "sphere",
-  "pyramid",
-  "triangularPrism",
-]);
+const twoDTypes = typeNamesOf(twoDPrimitiveSchema);
+
+const threeDTypes = typeNamesOf(threeDPrimitiveSchema);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
