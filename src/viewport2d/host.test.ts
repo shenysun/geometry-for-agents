@@ -32,7 +32,7 @@ describe("2d viewport host", () => {
     expect(source).toContain("clickDraw");
     expect(source).toContain("escDraw");
     expect(source).toContain("addPrimitive");
-    expect(source).toContain("hitTest");
+    expect(source).toContain("startSelect");
     expect(source).toContain("removePrimitive");
     expect(source).not.toMatch(/vue-konva|v-circle|v-layer|TresCanvas/i);
   });

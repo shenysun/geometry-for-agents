@@ -227,3 +227,50 @@ describe("hitTest", () => {
     expect(hitTest(document, { x: 0.5, y: 2, z: 0.5 })).toBeNull();
   });
 });
+
+describe("hitTest 命中容差", () => {
+  test("细线在容差内可命中，零容差保持精确", () => {
+    const document = doc2d([
+      {
+        id: "line",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 4, y: 0 },
+        ],
+      },
+    ]);
+    const near = { x: 2, y: 0.3 };
+
+    expect(hitTest(document, near, 0.5)?.id).toBe("line");
+    expect(hitTest(document, near)).toBeNull();
+    expect(hitTest(document, near, 0.2)).toBeNull();
+  });
+
+  test("弧在半径容差内可命中", () => {
+    const document = doc2d([
+      {
+        id: "arc",
+        type: "arc",
+        cx: 0,
+        cy: 0,
+        r: 2,
+        startDeg: 0,
+        endDeg: 90,
+      },
+    ]);
+
+    expect(hitTest(document, { x: 2.2, y: 0 }, 0.25)?.id).toBe("arc");
+    expect(hitTest(document, { x: -2.2, y: 0 }, 0.25)).toBeNull();
+    expect(hitTest(document, { x: 4, y: 4 }, 0.25)).toBeNull();
+  });
+
+  test("标签点在容差内可命中", () => {
+    const document = doc2d([
+      { id: "label", type: "label", x: 1, y: 1, text: "A" },
+    ]);
+
+    expect(hitTest(document, { x: 1.2, y: 1 }, 0.5)?.id).toBe("label");
+    expect(hitTest(document, { x: 1.2, y: 1 })).toBeNull();
+  });
+});

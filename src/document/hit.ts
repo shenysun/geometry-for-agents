@@ -60,6 +60,27 @@ function onSegment(point: Point2, a: Point2, b: Point2): boolean {
   return distanceToSegment(point, a, b) === 0;
 }
 
+function nearPolyline(
+  point: Point2,
+  points: Point2[],
+  tolerance: number,
+): boolean {
+  return points.some((a, i) => {
+    const b = points[i + 1];
+    return b !== undefined && distanceToSegment(point, a, b) <= tolerance;
+  });
+}
+
+function nearArc(point: Point2, arc: SweepLike, tolerance: number): boolean {
+  const dist = Math.hypot(point.x - arc.cx, point.y - arc.cy);
+  if (Math.abs(dist - arc.r) > tolerance) return false;
+  return inSweep(
+    angleDeg(point.x - arc.cx, point.y - arc.cy),
+    arc.startDeg,
+    arc.endDeg,
+  );
+}
+
 function inEllipse(
   point: Point2,
   ellipse: { cx: number; cy: number; rx: number; ry: number },
@@ -75,19 +96,6 @@ function inRing(
 ): boolean {
   const distSq = hypot2(point.x - ring.cx, point.y - ring.cy);
   return distSq >= ring.rInner * ring.rInner && distSq <= ring.rOuter * ring.rOuter;
-}
-
-function onPolyline(point: Point2, points: Point2[]): boolean {
-  return points.some((a, i) => {
-    const b = points[i + 1];
-    return b !== undefined && onSegment(point, a, b);
-  });
-}
-
-function onArc(point: Point2, arc: SweepLike): boolean {
-  const dist = Math.hypot(point.x - arc.cx, point.y - arc.cy);
-  if (dist !== arc.r) return false;
-  return inSweep(angleDeg(point.x - arc.cx, point.y - arc.cy), arc.startDeg, arc.endDeg);
 }
 
 function inVoxel(
@@ -165,7 +173,11 @@ function inSector(point: Point2, sector: SweepLike): boolean {
   return inSweep(angleDeg(dx, dy), sector.startDeg, sector.endDeg);
 }
 
-function contains(primitive: Primitive, point: HitPoint): boolean {
+function contains(
+  primitive: Primitive,
+  point: HitPoint,
+  tolerance: number,
+): boolean {
   switch (primitive.type) {
     case "circle":
       return inDisk(point, primitive);
@@ -180,11 +192,11 @@ function contains(primitive: Primitive, point: HitPoint): boolean {
     case "bow":
       return inBow(point, primitive);
     case "line":
-      return onPolyline(point, primitive.points);
+      return nearPolyline(point, primitive.points, tolerance);
     case "arc":
-      return onArc(point, primitive);
+      return nearArc(point, primitive, tolerance);
     case "label":
-      return point.x === primitive.x && point.y === primitive.y;
+      return Math.hypot(point.x - primitive.x, point.y - primitive.y) <= tolerance;
     case "voxel":
       return inVoxel(point, primitive);
   }
@@ -232,12 +244,14 @@ function area(primitive: Primitive): number {
   }
 }
 
+/** 世界单位的命中容差：细线/弧/标签在容差内即视为命中；缺省 0 为精确命中。 */
 export function hitTest(
   document: GeometryDocument,
   point: HitPoint,
+  tolerance = 0,
 ): Primitive | null {
   const hits = document.primitives.filter((primitive) =>
-    contains(primitive, point),
+    contains(primitive, point, tolerance),
   );
   if (hits.length === 0) return null;
 
