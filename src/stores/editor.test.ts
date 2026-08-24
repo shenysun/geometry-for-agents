@@ -68,6 +68,25 @@ describe("editor store", () => {
     expect(store.tool).toBe("label");
   });
 
+  test("voxel 是工具；跨空间的创建工具在切换空间时退回选择", () => {
+    const store = useEditorStore();
+
+    store.setTool("voxel");
+    expect(store.tool).toBe("voxel");
+    // 3D 的单位立方体带不进 2D
+    store.setSpace("2d");
+    expect(store.tool).toBe("select");
+
+    // 2D 的创建工具带不进 3D
+    store.setTool("circle");
+    store.setSpace("3d");
+    expect(store.tool).toBe("select");
+
+    // 选择工具跨空间保持
+    store.setSpace("2d");
+    expect(store.tool).toBe("select");
+  });
+
   test("selecting a primitive by id then removePrimitive deletes it", () => {
     const document = useDocumentStore();
     const editor = useEditorStore();

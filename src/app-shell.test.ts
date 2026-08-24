@@ -126,6 +126,28 @@ describe("app shell", () => {
     expect(source).toContain('value !== "none" && value !== "solid" && value !== "hatch"');
   });
 
+  test("toolbox panel lists toolsForSpace and the top bar drops creation tools", () => {
+    const toolbox = readFileSync(
+      resolve(root, "src/components/ToolboxPanel.vue"),
+      "utf8",
+    );
+    const drawToolbar = readFileSync(
+      resolve(root, "src/components/DrawToolbar.vue"),
+      "utf8",
+    );
+
+    // 工具箱渲染目录、图标加名称，点选即切 editor.tool
+    expect(toolbox).toContain("toolsForSpace");
+    expect(toolbox).toContain("setTool");
+    expect(toolbox).toContain("editor.tool");
+    expect(toolbox).toContain("<svg");
+    // 顶栏不再放创建工具，格开关留下
+    expect(drawToolbar).not.toContain("DRAW_TOOLS");
+    expect(drawToolbar).not.toContain("isDrawTool");
+    expect(drawToolbar).not.toContain("tool.select");
+    expect(drawToolbar).toContain("setGrid");
+  });
+
   test("Pinia has only document and editor modules", () => {
     const pinia = createPinia();
     setActivePinia(pinia);

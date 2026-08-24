@@ -22,9 +22,6 @@ export const messages = {
       properties: "属性面板",
       underlay: "垫图",
     },
-    toolbox: {
-      placeholder: "工具箱即将搬来，创建工具暂时留在顶栏",
-    },
     space: {
       label: "空间",
       twoD: "2D",
@@ -56,6 +53,7 @@ export const messages = {
       ring: "圆环",
       ellipse: "椭圆",
       label: "点名",
+      voxel: "单位立方体",
     },
     fill: {
       label: "填充",
@@ -117,10 +115,6 @@ export const messages = {
       properties: "Properties",
       underlay: "Underlay",
     },
-    toolbox: {
-      placeholder:
-        "The toolbox is coming; creation tools stay in the top bar for now",
-    },
     space: {
       label: "Space",
       twoD: "2D",
@@ -152,6 +146,7 @@ export const messages = {
       ring: "Ring",
       ellipse: "Ellipse",
       label: "Label",
+      voxel: "Unit cube",
     },
     fill: {
       label: "Fill",

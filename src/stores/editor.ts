@@ -6,7 +6,7 @@ import { localeFromLanguages, type AppLocale } from "../i18n/locale.ts";
 import { isDrawTool, type DrawTool } from "../viewport2d/draw-gesture.ts";
 import type { SessionUnderlay } from "../viewport2d/draw-underlay.ts";
 
-export type EditorTool = "select" | DrawTool | null;
+export type EditorTool = "select" | DrawTool | "voxel" | null;
 
 export const useEditorStore = defineStore("editor", () => {
   const preferredLanguages = usePreferredLanguages();
@@ -23,7 +23,11 @@ export const useEditorStore = defineStore("editor", () => {
 
   function setSpace(next: "2d" | "3d"): void {
     space.value = next;
-    if (next === "3d" && isDrawTool(tool.value)) {
+    // 别的空间的创建工具带不过去：2D 创建工具进 3D、体素进 2D 都退回选择
+    const fromOtherSpace =
+      (next === "3d" && isDrawTool(tool.value)) ||
+      (next === "2d" && tool.value === "voxel");
+    if (fromOtherSpace) {
       tool.value = "select";
     }
   }
