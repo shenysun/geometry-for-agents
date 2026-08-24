@@ -4,6 +4,7 @@ import {
   type GeometryDocument,
   type GridSnap,
   type Point2,
+  type Primitive2d,
 } from "../document/index.ts";
 import {
   moveControlPointGeometry,
@@ -11,7 +12,6 @@ import {
   rotatePrimitiveGeometry,
   scalePrimitiveGeometry,
   translatePrimitiveGeometry,
-  type TwoDPrimitive,
 } from "../document/update-document.ts";
 import { controlPoints } from "./control-points.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
@@ -88,7 +88,7 @@ export type TransformHandles = {
 };
 
 /** 锚点到图元最远处的距离：柄的布放半径。 */
-function handleReach(primitive: TwoDPrimitive, center: Point2): number {
+function handleReach(primitive: Primitive2d, center: Point2): number {
   switch (primitive.type) {
     case "line":
     case "polygon":
@@ -114,7 +114,7 @@ function handleReach(primitive: TwoDPrimitive, center: Point2): number {
  * 旋转缩放锚点是同一个，柄在哪里，绕哪里转就在哪里。
  */
 export function transformHandles(
-  primitive: TwoDPrimitive,
+  primitive: Primitive2d,
   handleTolerance: number,
 ): TransformHandles | null {
   if (primitive.type === "label") return null;
@@ -182,7 +182,7 @@ function hitTransformHandle(ctx: SelectContext): HandleHit | null {
   return null;
 }
 
-function previewFromPrimitive(primitive: TwoDPrimitive): DrawPreview {
+function previewFromPrimitive(primitive: Primitive2d): DrawPreview {
   switch (primitive.type) {
     case "line":
       return { type: "line", points: primitive.points };
@@ -246,7 +246,7 @@ export function selectPreview(
 function draggedPrimitive(
   ctx: SelectContext,
   id: string,
-): TwoDPrimitive | null {
+): Primitive2d | null {
   if (ctx.document.space !== "2d") return null;
   const primitive = ctx.document.primitives.find((item) => item.id === id);
   return primitive ?? null;

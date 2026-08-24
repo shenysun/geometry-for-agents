@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { parseDocument } from "../document/index.ts";
-import type { TwoDPrimitive } from "../document/update-document.ts";
+import type { Primitive2d } from "../document/index.ts";
 import { controlPoints } from "./control-points.ts";
 
-function primitive2d(primitive: unknown): TwoDPrimitive {
+function primitive2d(primitive: unknown): Primitive2d {
   const result = parseDocument({
     version: 1,
     space: "2d",
@@ -13,7 +13,7 @@ function primitive2d(primitive: unknown): TwoDPrimitive {
   if (!result.success) throw new Error(result.error);
   const parsed = result.document.primitives[0];
   if (parsed === undefined) throw new Error("missing primitive");
-  return parsed as TwoDPrimitive;
+  return parsed as Primitive2d;
 }
 
 function expectPointCloseTo(
@@ -24,7 +24,7 @@ function expectPointCloseTo(
   expect(Math.abs(actual.y - expected.y)).toBeLessThan(1e-9);
 }
 
-function idsOf(primitive: TwoDPrimitive): string[] {
+function idsOf(primitive: Primitive2d): string[] {
   return controlPoints(primitive).map((point) => point.id);
 }
 

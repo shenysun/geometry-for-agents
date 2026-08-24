@@ -185,7 +185,14 @@ export const documentSchema = z
   );
 
 export type GeometryDocument = z.infer<typeof documentSchema>;
-export type Primitive = GeometryDocument["primitives"][number];
+
+/** 2D 说明书里的图元（折线、多边形、圆族、椭圆、标签），由 schema 推导，不手报名单。 */
+export type Primitive2d = z.infer<typeof twoDPrimitiveSchema>;
+
+/** 3D 说明书里的图元（体素、长方体等立体），由 schema 推导，不手报名单。 */
+export type Primitive3d = z.infer<typeof threeDPrimitiveSchema>;
+
+export type Primitive = Primitive2d | Primitive3d;
 
 const twoDTypes = new Set([
   "line",

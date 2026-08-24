@@ -1,5 +1,9 @@
 import Konva from "konva";
-import type { Fill, GeometryDocument, Primitive } from "../document/index.ts";
+import type {
+  Fill,
+  GeometryDocument,
+  Primitive2d,
+} from "../document/index.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
 
@@ -140,13 +144,11 @@ function drawSweepPath(
   );
 }
 
-function drawPrimitive(primitive: Primitive, view: ViewTransform): Konva.Shape[] {
+function drawPrimitive(
+  primitive: Primitive2d,
+  view: ViewTransform,
+): Konva.Shape[] {
   switch (primitive.type) {
-    case "voxel":
-      return [];
-    // 领地外穷尽 switch 跟随改动：box 只进 3D 说明书，2D 视口不画它
-    case "box":
-      return [];
     case "line":
       return [strokeLine(toScreenPoints(primitive.points, view), false)];
     case "polygon":
@@ -227,7 +229,7 @@ function drawPrimitive(primitive: Primitive, view: ViewTransform): Konva.Shape[]
   }
 }
 
-function previewPrimitive(preview: DrawPreview): Primitive | null {
+function previewPrimitive(preview: DrawPreview): Primitive2d | null {
   if (preview === null || preview.type === "guide") {
     return null;
   }

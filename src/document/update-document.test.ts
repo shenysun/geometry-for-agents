@@ -6,7 +6,7 @@ import {
   setUnderlay,
   updatePrimitive,
 } from "./index.ts";
-import type { GeometryDocument, Primitive } from "./index.ts";
+import type { GeometryDocument, Primitive, Primitive2d } from "./index.ts";
 import {
   moveControlPoint,
   moveControlPointGeometry,
@@ -16,7 +16,6 @@ import {
   scalePrimitiveGeometry,
   translatePrimitive,
   translatePrimitiveGeometry,
-  type TwoDPrimitive,
 } from "./update-document.ts";
 
 function expectCloseTo(actual: number, expected: number): void {
@@ -324,7 +323,7 @@ describe("translatePrimitive", () => {
 
 describe("rotatePrimitiveGeometry", () => {
   test("折线绕顶点质心旋转，id 不变、原对象不动", () => {
-    const line: TwoDPrimitive = {
+    const line: Primitive2d = {
       id: "line-1",
       type: "line",
       points: [
@@ -348,7 +347,7 @@ describe("rotatePrimitiveGeometry", () => {
   });
 
   test("椭圆旋转写 rotationDeg 并归一化到 [0,360)", () => {
-    const ellipse = (rotationDeg: number): TwoDPrimitive => ({
+    const ellipse = (rotationDeg: number): Primitive2d => ({
       id: "ellipse-1",
       type: "ellipse",
       cx: 0,
@@ -397,7 +396,7 @@ describe("rotatePrimitiveGeometry", () => {
   });
 
   test("圆、环、标签旋转是恒等（旋转对称或无角度字段）", () => {
-    const circlePrimitive: TwoDPrimitive = {
+    const circlePrimitive: Primitive2d = {
       id: "circle-1",
       type: "circle",
       cx: 0,
@@ -405,7 +404,7 @@ describe("rotatePrimitiveGeometry", () => {
       r: 2,
       fill: "solid",
     };
-    const ring: TwoDPrimitive = {
+    const ring: Primitive2d = {
       id: "ring-1",
       type: "ring",
       cx: 0,
@@ -414,7 +413,7 @@ describe("rotatePrimitiveGeometry", () => {
       rOuter: 3,
       fill: "solid",
     };
-    const label: TwoDPrimitive = {
+    const label: Primitive2d = {
       id: "label-1",
       type: "label",
       x: 1,
@@ -430,7 +429,7 @@ describe("rotatePrimitiveGeometry", () => {
 
 describe("scalePrimitiveGeometry", () => {
   test("圆等比缩放：半径乘因子、圆心不变", () => {
-    const circlePrimitive: TwoDPrimitive = {
+    const circlePrimitive: Primitive2d = {
       id: "circle-1",
       type: "circle",
       cx: 0,
@@ -447,7 +446,7 @@ describe("scalePrimitiveGeometry", () => {
   });
 
   test("椭圆 rx ry 同乘保持形状，rotationDeg 跟着保留", () => {
-    const ellipse: TwoDPrimitive = {
+    const ellipse: Primitive2d = {
       id: "ellipse-1",
       type: "ellipse",
       cx: 0,

@@ -2,7 +2,12 @@ export {
   documentSchema,
   parseDocument,
 } from "./parse-document.ts";
-export type { GeometryDocument, Primitive } from "./parse-document.ts";
+export type {
+  GeometryDocument,
+  Primitive,
+  Primitive2d,
+  Primitive3d,
+} from "./parse-document.ts";
 export {
   addPrimitive,
   removePrimitive,

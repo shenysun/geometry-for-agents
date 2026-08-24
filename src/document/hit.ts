@@ -1,4 +1,9 @@
-import type { GeometryDocument, Primitive } from "./parse-document.ts";
+import type {
+  GeometryDocument,
+  Primitive,
+  Primitive2d,
+  Primitive3d,
+} from "./parse-document.ts";
 import type { Point2 } from "./snap.ts";
 
 const DEG = Math.PI / 180;
@@ -174,7 +179,7 @@ function inSector(point: Point2, sector: SweepLike): boolean {
 }
 
 function contains(
-  primitive: Primitive,
+  primitive: Primitive2d,
   point: HitPoint,
   tolerance: number,
 ): boolean {
@@ -197,29 +202,23 @@ function contains(
       return nearArc(point, primitive, tolerance);
     case "label":
       return Math.hypot(point.x - primitive.x, point.y - primitive.y) <= tolerance;
-    case "voxel":
-      return inVoxel(point, primitive);
-    // 领地外穷尽 switch 跟随改动：box 只进 3D 说明书，2D 命中测试不命中它
-    case "box":
-      return false;
   }
 }
 
-const closedTypes = new Set<Primitive["type"]>([
+const closedTypes = new Set<Primitive2d["type"]>([
   "polygon",
   "circle",
   "sector",
   "bow",
   "ring",
   "ellipse",
-  "voxel",
 ]);
 
-function isClosed(primitive: Primitive): boolean {
+function isClosed(primitive: Primitive2d): boolean {
   return closedTypes.has(primitive.type);
 }
 
-function area(primitive: Primitive): number {
+function area(primitive: Primitive2d): number {
   switch (primitive.type) {
     case "circle":
       return Math.PI * primitive.r * primitive.r;
@@ -238,16 +237,26 @@ function area(primitive: Primitive): number {
       const theta = sweepDeg(primitive.startDeg, primitive.endDeg) * DEG;
       return 0.5 * primitive.r * primitive.r * (theta - Math.sin(theta));
     }
-    case "voxel":
-      return 1;
-    // 领地外穷尽 switch 跟随改动：contains 恒 false，box 不会进候选，面积不参与
-    case "box":
-      return Number.POSITIVE_INFINITY;
     case "line":
     case "arc":
     case "label":
       return Number.POSITIVE_INFINITY;
   }
+}
+
+/**
+ * 3D 说明书里只有体素做点命中（box 等参数体的拾取走 3D 视口的射线）。
+ * 体素体积恒为 1，并列命中取列表靠后者，与 2D 面积比小的并列规则一致。
+ */
+function hitVoxels(
+  primitives: Primitive3d[],
+  point: HitPoint,
+): Primitive3d | null {
+  const hits = primitives.filter(
+    (primitive) => primitive.type === "voxel" && inVoxel(point, primitive),
+  );
+  if (hits.length === 0) return null;
+  return hits.reduce((_, candidate) => candidate);
 }
 
 /** 世界单位的命中容差：细线/弧/标签在容差内即视为命中；缺省 0 为精确命中。 */
@@ -256,6 +265,9 @@ export function hitTest(
   point: HitPoint,
   tolerance = 0,
 ): Primitive | null {
+  if (document.space === "3d") {
+    return hitVoxels(document.primitives, point);
+  }
   const hits = document.primitives.filter((primitive) =>
     contains(primitive, point, tolerance),
   );

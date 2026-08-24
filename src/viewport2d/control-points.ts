@@ -1,5 +1,4 @@
-import type { Point2 } from "../document/index.ts";
-import type { TwoDPrimitive } from "../document/update-document.ts";
+import type { Point2, Primitive2d } from "../document/index.ts";
 
 /**
  * 控制点的语义分类：目录顺序即命中优先级（重叠时先列出的先赢）。
@@ -63,7 +62,7 @@ function vertexPoints(
 /**
  * 一条 2D 图元的控制点目录（世界坐标）。标签没有控制点，位置靠拖本体。
  */
-export function controlPoints(primitive: TwoDPrimitive): ControlPoint[] {
+export function controlPoints(primitive: Primitive2d): ControlPoint[] {
   switch (primitive.type) {
     case "line":
     case "polygon":

@@ -2,7 +2,7 @@ import {
   snap2d,
   type GridSnap,
   type Point2,
-  type Primitive,
+  type Primitive2d,
 } from "../document/index.ts";
 
 export const DRAW_TOOLS = [
@@ -101,7 +101,7 @@ export type DrawGestureState =
 export type DrawGestureResult = {
   state: DrawGestureState;
   preview: DrawPreview;
-  commit: Primitive | null;
+  commit: Primitive2d | null;
 };
 
 function samePoint(a: Point2, b: Point2): boolean {
@@ -213,12 +213,12 @@ function previewFrom(state: DrawGestureState): DrawPreview {
 
 function result(
   state: DrawGestureState,
-  commit: Primitive | null = null,
+  commit: Primitive2d | null = null,
 ): DrawGestureResult {
   return { state, preview: previewFrom(state), commit };
 }
 
-function commitAndIdle(commit: Primitive): DrawGestureResult {
+function commitAndIdle(commit: Primitive2d): DrawGestureResult {
   return { state: idleDrawState(), preview: null, commit };
 }
 
@@ -378,7 +378,7 @@ function commitSweep(
   start: Point2,
   end: Point2,
   id: string,
-): Primitive {
+): Primitive2d {
   const sweep = {
     id,
     cx: center.x,

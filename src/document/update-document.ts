@@ -1,5 +1,9 @@
 import { parseDocument } from "./parse-document.ts";
-import type { GeometryDocument, Primitive } from "./parse-document.ts";
+import type {
+  GeometryDocument,
+  Primitive,
+  Primitive2d,
+} from "./parse-document.ts";
 import { snap2d, type GridSnap, type Point2 } from "./snap.ts";
 
 export type DocumentUpdateResult =
@@ -83,25 +87,12 @@ export function updatePrimitive(
   );
 }
 
-type TwoDType =
-  | "line"
-  | "polygon"
-  | "circle"
-  | "sector"
-  | "bow"
-  | "arc"
-  | "ring"
-  | "ellipse"
-  | "label";
-
-export type TwoDPrimitive = Extract<Primitive, { type: TwoDType }>;
-
 /** 把已吸附的位移写进图元的几何字段（points / cx cy / x y），不可变。 */
 export function translatePrimitiveGeometry(
-  primitive: TwoDPrimitive,
+  primitive: Primitive2d,
   dx: number,
   dy: number,
-): TwoDPrimitive {
+): Primitive2d {
   switch (primitive.type) {
     case "line":
     case "polygon":
@@ -166,7 +157,7 @@ function centroid(points: readonly Point2[]): Point2 {
 }
 
 /** 图元自身锚点：折线/多边形取顶点质心，圆族取圆心，标签取其位置。 */
-export function primitiveAnchor(primitive: TwoDPrimitive): Point2 {
+export function primitiveAnchor(primitive: Primitive2d): Point2 {
   switch (primitive.type) {
     case "line":
     case "polygon":
@@ -220,9 +211,9 @@ function scalePoint(
  * rotationDeg，扇/弓/弧转 startDeg/endDeg；圆、环、标签旋转对称，恒等。
  */
 export function rotatePrimitiveGeometry(
-  primitive: TwoDPrimitive,
+  primitive: Primitive2d,
   deg: number,
-): TwoDPrimitive {
+): Primitive2d {
   switch (primitive.type) {
     case "line":
     case "polygon": {
@@ -259,9 +250,9 @@ export function rotatePrimitiveGeometry(
  * 圆只有一个半径字段，天然保持圆形。
  */
 export function scalePrimitiveGeometry(
-  primitive: TwoDPrimitive,
+  primitive: Primitive2d,
   factor: number,
-): TwoDPrimitive {
+): Primitive2d {
   switch (primitive.type) {
     case "line":
     case "polygon": {
@@ -304,7 +295,7 @@ function transformPrimitive(
   document: GeometryDocument,
   id: string,
   verb: string,
-  apply: (primitive: TwoDPrimitive) => TwoDPrimitive,
+  apply: (primitive: Primitive2d) => Primitive2d,
 ): DocumentUpdateResult {
   if (document.space !== "2d") {
     return {
@@ -364,7 +355,7 @@ function distanceBetween(a: Point2, b: Point2): number {
 
 /** 世界点转进椭圆局部系（逆旋转 rotationDeg）后的轴上偏移。 */
 function ellipseLocalOffset(
-  primitive: Extract<TwoDPrimitive, { type: "ellipse" }>,
+  primitive: Extract<Primitive2d, { type: "ellipse" }>,
   world: Point2,
 ): Point2 {
   const center = { x: primitive.cx, y: primitive.cy };
@@ -380,10 +371,10 @@ const VERTEX_ID = /^vertex-(\d+)$/;
  * pointId 与控制点目录同源（即字段名），未知 id 是恒等。
  */
 export function moveControlPointGeometry(
-  primitive: TwoDPrimitive,
+  primitive: Primitive2d,
   pointId: string,
   world: Point2,
-): TwoDPrimitive {
+): Primitive2d {
   switch (primitive.type) {
     case "line":
     case "polygon": {
