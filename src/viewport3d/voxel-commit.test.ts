@@ -1,18 +1,22 @@
 import { describe, expect, test } from "vitest";
-import { parseDocument } from "../document/index.ts";
-import { commitVoxel } from "./voxel-commit.ts";
+import { parseDocument, type GeometryDocument } from "../document/index.ts";
+import { commitVoxel, translateVoxel } from "./voxel-commit.ts";
 
-function empty3d() {
+function doc3d(primitives: unknown[]): GeometryDocument {
   const parsed = parseDocument({
     version: 1,
     space: "3d",
     underlay: null,
-    primitives: [],
+    primitives,
   });
   if (!parsed.success) {
     throw new Error(parsed.error);
   }
   return parsed.document;
+}
+
+function empty3d() {
+  return doc3d([]);
 }
 
 describe("commitVoxel", () => {
@@ -65,5 +69,97 @@ describe("commitVoxel", () => {
     }
 
     expect(commitVoxel(parsed.document, { x: 0, y: 0, z: 0 }, "voxel-1")).toBeNull();
+  });
+});
+
+describe("translateVoxel", () => {
+  test("整格平移返回新角体素，原体素对象不被改动", () => {
+    const document = doc3d([
+      { id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 },
+      { id: "voxel-2", type: "voxel", x: 5, y: 0, z: 0 },
+    ]);
+
+    const moved = translateVoxel(document, "voxel-1", { x: 2, y: 1, z: -1 });
+
+    expect(moved).toEqual({
+      id: "voxel-1",
+      type: "voxel",
+      x: 2,
+      y: 1,
+      z: -1,
+    });
+    expect(document.primitives[0]).toEqual({
+      id: "voxel-1",
+      type: "voxel",
+      x: 0,
+      y: 0,
+      z: 0,
+    });
+  });
+
+  test("非整数位移按整数格取整：格 1/2、关与 Alt 都写不出半格体素", () => {
+    const document = doc3d([
+      { id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 },
+    ]);
+
+    const moved = translateVoxel(document, "voxel-1", {
+      x: 0.4,
+      y: 0.6,
+      z: 0.5,
+    });
+
+    expect(moved).toEqual({
+      id: "voxel-1",
+      type: "voxel",
+      x: 0,
+      y: 1,
+      z: 1,
+    });
+    expect(Number.isInteger(moved?.x)).toBe(true);
+    expect(Number.isInteger(moved?.y)).toBe(true);
+    expect(Number.isInteger(moved?.z)).toBe(true);
+  });
+
+  test("目标格已被其它体素占用则拒绝", () => {
+    const document = doc3d([
+      { id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 },
+      { id: "voxel-2", type: "voxel", x: 1, y: 0, z: 0 },
+    ]);
+
+    expect(
+      translateVoxel(document, "voxel-1", { x: 1, y: 0, z: 0 }),
+    ).toBeNull();
+  });
+
+  test("平移回自己原格不算占用：零位移拒绝", () => {
+    const document = doc3d([
+      { id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 },
+    ]);
+
+    expect(
+      translateVoxel(document, "voxel-1", { x: 0, y: 0, z: 0 }),
+    ).toBeNull();
+  });
+
+  test("未知 id 与 2D 说明书都拒绝", () => {
+    const document = doc3d([
+      { id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 },
+    ]);
+    expect(
+      translateVoxel(document, "voxel-9", { x: 1, y: 0, z: 0 }),
+    ).toBeNull();
+
+    const parsed = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [],
+    });
+    if (!parsed.success) {
+      throw new Error(parsed.error);
+    }
+    expect(
+      translateVoxel(parsed.document, "voxel-1", { x: 1, y: 0, z: 0 }),
+    ).toBeNull();
   });
 });

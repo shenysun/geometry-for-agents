@@ -1,15 +1,27 @@
 <script setup lang="ts">
 import { useEventListener, useResizeObserver } from "@vueuse/core";
 import { onMounted, onUnmounted, ref, watch } from "vue";
+import type { GridSnap } from "../document/index.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
+import { commitBox } from "./box-commit.ts";
 import {
   createViewport3dProjector,
   type Viewport3dPick,
   type Viewport3dProjector,
 } from "./projector.ts";
-import { commitBox } from "./box-commit.ts";
-import { commitVoxel } from "./voxel-commit.ts";
+import {
+  clickSelect3d,
+  escSelect3d,
+  idleSelect3dState,
+  moveSelect3d,
+  startSelect3d,
+  upSelect3d,
+  type Select3dContext,
+  type Select3dResult,
+  type Select3dState,
+} from "./select-gesture-3d.ts";
+import { commitVoxel, translateVoxel } from "./voxel-commit.ts";
 
 const CLICK_PX = 4;
 
@@ -20,6 +32,25 @@ let projector: Viewport3dProjector | null = null;
 let pointerStart: { x: number; y: number; button: number } | null = null;
 let dragging = false;
 let hoverPick: Viewport3dPick = { kind: "none" };
+let selectGesture: Select3dState = idleSelect3dState();
+
+/** 选择工具的口径与 2D 一致：select 或未拿工具都走选择手势。 */
+function isSelectTool(): boolean {
+  return editor.tool === "select" || editor.tool === null;
+}
+
+/** 3D 创建工具：单位立方体与长方体（其余参数体是后面的票）。 */
+function isCreateTool(): boolean {
+  return editor.tool === "voxel" || editor.tool === "box";
+}
+
+/** 体素不吃格与 Alt：传进手势只为在纯函数里证明「被忽略」。 */
+function gridForEvent(event: PointerEvent | MouseEvent): GridSnap {
+  if (event.altKey) {
+    return "off";
+  }
+  return editor.grid;
+}
 
 function eventScreen(
   event: PointerEvent | MouseEvent,
@@ -37,9 +68,53 @@ function pickAt(event: PointerEvent | MouseEvent): Viewport3dPick {
   return projector.pick(screen);
 }
 
+/**
+ * 选择手势上下文：指针投影到高度 planeY 的水平面取世界落点——拖动全程
+ * 同一平面，位移才只会是整格。planeY 缺省取当前拾取格的高度。
+ */
+function selectContext(
+  event: PointerEvent | MouseEvent,
+  planeY?: number,
+): Select3dContext | null {
+  if (projector === null) return null;
+  const screen = eventScreen(event);
+  if (screen === null) return null;
+  const pick = projector.pick(screen);
+  const y = planeY ?? (pick.kind === "none" ? 0 : pick.place.y);
+  const point = projector.pickOnPlane(screen, y);
+  return {
+    tool: "select",
+    document: documentStore.current,
+    point: point ?? (pick.kind === "none" ? { x: 0, y: 0, z: 0 } : pick.world),
+    grid: gridForEvent(event),
+    alt: event.altKey,
+    selectionId: editor.selectionId,
+    hitId: pick.kind === "voxel" ? pick.id : null,
+  };
+}
+
+/** 套用一次 3D 选择手势结果：选中、预览、至多一次整格平移提交。 */
+function applySelectGesture3d(result: Select3dResult): void {
+  selectGesture = result.state;
+  if (result.selectionId !== undefined) {
+    editor.setSelectionId(result.selectionId);
+  }
+  projector?.setPreview(result.preview);
+  const commit = result.commit;
+  if (commit === null) return;
+  const moved = translateVoxel(documentStore.current, commit.id, {
+    x: commit.dx,
+    y: commit.dy,
+    z: commit.dz,
+  });
+  if (moved !== null) {
+    documentStore.updatePrimitive(commit.id, moved);
+  }
+}
+
 /** 预览跟随指针但不写说明书：长方体吃吸附当前格的原始落点，体素吃整数角 */
 function previewPlace(pick: Viewport3dPick): void {
-  if (pick.kind === "none") {
+  if (pick.kind === "none" || !isCreateTool()) {
     projector?.setPreview(null);
     return;
   }
@@ -82,6 +157,7 @@ onMounted(() => {
   if (host === null) return;
   projector = createViewport3dProjector(host);
   projector.render(documentStore.current);
+  projector.setSelection(editor.selectionId);
   const { width, height } = host.getBoundingClientRect();
   if (width > 0 && height > 0) {
     projector.resize(width, height);
@@ -108,17 +184,47 @@ watch(
   },
 );
 
+watch(
+  () => editor.selectionId,
+  (id) => {
+    projector?.setSelection(id);
+  },
+);
+
+watch(
+  () => editor.tool,
+  () => {
+    selectGesture = idleSelect3dState();
+    projector?.setPreview(null);
+  },
+);
+
 useEventListener(hostRef, "pointerdown", (event: PointerEvent) => {
   pointerStart = { x: event.clientX, y: event.clientY, button: event.button };
   dragging = false;
   hoverPick = pickAt(event);
-  if (event.button === 0) {
-    previewPlace(hoverPick);
+  if (event.button !== 0) return;
+  if (isSelectTool()) {
+    // 选择工具左键只选择/拖动，不放置
+    const context = selectContext(event);
+    if (context !== null) {
+      applySelectGesture3d(startSelect3d(selectGesture, context));
+    }
+    return;
   }
+  previewPlace(hoverPick);
 });
 
-useEventListener(hostRef, "pointermove", (event: PointerEvent) => {
+useEventListener(window, "pointermove", (event: PointerEvent) => {
   hoverPick = pickAt(event);
+  if (selectGesture.kind === "drag") {
+    // 拖动全程用按下时同高的平面，保证位移只会是整格
+    const context = selectContext(event, selectGesture.startWorld.y);
+    if (context !== null) {
+      applySelectGesture3d(moveSelect3d(selectGesture, context));
+    }
+    return;
+  }
   if (pointerStart !== null) {
     const distance = Math.hypot(
       event.clientX - pointerStart.x,
@@ -141,11 +247,11 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
   const button = pointerStart.button;
   pointerStart = null;
   dragging = false;
-  projector.setPreview(null);
-  if (wasDragging) return;
 
-  const pick = pickAt(event);
   if (button === 2) {
+    // 右键拖是转镜头，让路；单击删除拾取到的体素
+    if (wasDragging) return;
+    const pick = pickAt(event);
     if (pick.kind !== "voxel") return;
     const removed = documentStore.removePrimitive(pick.id);
     if (removed.success && editor.selectionId === pick.id) {
@@ -154,8 +260,31 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
     return;
   }
   if (button !== 0) return;
-  if (pick.kind === "none") return;
-  // 长方体工具：单击落点吸附当前格后一次提交；体素路径保持点格放置
+
+  // 选择工具：松手提交整格平移或单击选中/取消，绝不下放置
+  if (isSelectTool()) {
+    if (selectGesture.kind !== "idle") {
+      const planeY =
+        selectGesture.kind === "drag" ? selectGesture.startWorld.y : undefined;
+      const context = selectContext(event, planeY);
+      const result =
+        context === null
+          ? escSelect3d(selectGesture)
+          : upSelect3d(selectGesture, context);
+      applySelectGesture3d(result);
+      return;
+    }
+    const context = selectContext(event);
+    if (context !== null) {
+      applySelectGesture3d(clickSelect3d(selectGesture, context));
+    }
+    return;
+  }
+
+  // 创建工具：点格放置；拖动是转镜头，不放置
+  projector.setPreview(null);
+  const pick = pickAt(event);
+  if (wasDragging || pick.kind === "none") return;
   if (editor.tool === "box") {
     const commit = commitBox(
       documentStore.current,
@@ -188,6 +317,14 @@ useEventListener(hostRef, "contextmenu", (event: MouseEvent) => {
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   if (isTypingTarget(event.target)) return;
+
+  if (event.key === "Escape") {
+    if (selectGesture.kind !== "idle") {
+      applySelectGesture3d(escSelect3d(selectGesture));
+    }
+    return;
+  }
+
   if (event.key !== "Delete" && event.key !== "Backspace") return;
   const selected = editor.selectionId;
   if (selected !== null) {

@@ -31,8 +31,12 @@ export type Viewport3dPick =
 
 export type Viewport3dProjector = {
   render: (document: GeometryDocument) => void;
+  /** 标记当前选中的体素（高亮材质）；null 清除标记。 */
+  setSelection: (id: string | null) => void;
   setPreview: (preview: PlacementPreview) => void;
   pick: (screen: { x: number; y: number }) => Viewport3dPick;
+  /** 射线打到指定高度的水平面：体素拖动取指针世界落点用。 */
+  pickOnPlane: (screen: { x: number; y: number }, y: number) => Point3 | null;
   resize: (width: number, height: number) => void;
   destroy: () => void;
 };
@@ -83,6 +87,12 @@ export function createViewport3dProjector(
   controls.enableRotate = true;
   controls.enablePan = true;
   controls.enableZoom = true;
+  // 左键让位给编辑器手势（选择/放置）；中键/右键拖转镜头，滚轮缩放不变。
+  controls.mouseButtons = {
+    LEFT: null,
+    MIDDLE: THREE.MOUSE.ROTATE,
+    RIGHT: THREE.MOUSE.ROTATE,
+  };
   controls.target.set(0, 0, 0);
   controls.update();
 
@@ -103,6 +113,10 @@ export function createViewport3dProjector(
 
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const voxelMaterial = new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
+  // 选中体素的高亮：亮黄，与橙色放置预览区分。
+  const selectedVoxelMaterial = new THREE.MeshLambertMaterial({
+    color: 0xfacc15,
+  });
   const solidMaterial = new THREE.MeshLambertMaterial({ color: 0x10b981 });
   const previewMaterial = new THREE.MeshLambertMaterial({
     color: 0xf59e0b,
@@ -122,9 +136,14 @@ export function createViewport3dProjector(
 
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const UP = new THREE.Vector3(0, 1, 0);
+  const ground = new THREE.Plane(UP.clone(), 0);
+  // 体素拖动平面：与地面同法线、高度随按下格变化。
+  const dragPlane = new THREE.Plane(UP.clone(), 0);
   const groundHit = new THREE.Vector3();
   let destroyed = false;
+  let selectedId: string | null = null;
+  let lastDocument: GeometryDocument | null = null;
 
   function paint(): void {
     if (destroyed) return;
@@ -132,7 +151,10 @@ export function createViewport3dProjector(
   }
 
   function placeVoxelMesh(id: string, x: number, y: number, z: number): void {
-    const mesh = new THREE.Mesh(boxGeometry, voxelMaterial);
+    const mesh = new THREE.Mesh(
+      boxGeometry,
+      id === selectedId ? selectedVoxelMaterial : voxelMaterial,
+    );
     mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
     mesh.userData = { id, x, y, z } satisfies VoxelUserData;
     voxelGroup.add(mesh);
@@ -155,20 +177,31 @@ export function createViewport3dProjector(
   controls.addEventListener("change", paint);
   paint();
 
-  return {
-    render(document: GeometryDocument): void {
-      voxelGroup.clear();
-      solidGroup.clear();
-      if (document.space === "3d") {
-        for (const primitive of document.primitives) {
-          if (primitive.type === "voxel") {
-            placeVoxelMesh(primitive.id, primitive.x, primitive.y, primitive.z);
-          } else if (primitive.type === "box") {
-            placeBoxMesh(primitive);
-          }
+  function renderDocument(document: GeometryDocument): void {
+    lastDocument = document;
+    voxelGroup.clear();
+    solidGroup.clear();
+    if (document.space === "3d") {
+      for (const primitive of document.primitives) {
+        if (primitive.type === "voxel") {
+          placeVoxelMesh(primitive.id, primitive.x, primitive.y, primitive.z);
+        } else if (primitive.type === "box") {
+          placeBoxMesh(primitive);
         }
       }
-      paint();
+    }
+    paint();
+  }
+
+  return {
+    render: renderDocument,
+    setSelection(id: string | null): void {
+      if (selectedId === id) return;
+      selectedId = id;
+      // 换材质要重建 mesh：重放最近一次说明书即可。
+      if (lastDocument !== null) {
+        renderDocument(lastDocument);
+      }
     },
     setPreview(preview: PlacementPreview): void {
       if (preview === null) {
@@ -194,6 +227,16 @@ export function createViewport3dProjector(
       }
       previewMesh.visible = true;
       paint();
+    },
+    pickOnPlane(screen: { x: number; y: number }, y: number): Point3 | null {
+      const width = Math.max(1, renderer.domElement.clientWidth);
+      const height = Math.max(1, renderer.domElement.clientHeight);
+      pointer.x = (screen.x / width) * 2 - 1;
+      pointer.y = -(screen.y / height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      dragPlane.set(UP, -y);
+      const hit = raycaster.ray.intersectPlane(dragPlane, groundHit);
+      return hit === null ? null : { x: hit.x, y: hit.y, z: hit.z };
     },
     pick(screen: { x: number; y: number }): Viewport3dPick {
       const width = Math.max(1, renderer.domElement.clientWidth);
@@ -250,6 +293,7 @@ export function createViewport3dProjector(
       solidGroup.clear();
       boxGeometry.dispose();
       voxelMaterial.dispose();
+      selectedVoxelMaterial.dispose();
       solidMaterial.dispose();
       previewMaterial.dispose();
       scene.traverse((object) => {
