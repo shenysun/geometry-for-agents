@@ -67,6 +67,11 @@ export const messages = {
       half: "1/2",
       off: "关",
     },
+    layout: {
+      panels: "面板",
+      reset: "恢复默认布局",
+      closePanel: "关闭面板",
+    },
     underlay: {
       label: "垫图",
       url: "题图地址",
@@ -159,6 +164,11 @@ export const messages = {
       unit: "1",
       half: "1/2",
       off: "Off",
+    },
+    layout: {
+      panels: "Panels",
+      reset: "Reset layout",
+      closePanel: "Close panel",
     },
     underlay: {
       label: "Underlay",

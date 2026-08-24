@@ -74,10 +74,15 @@ describe("app shell", () => {
       resolve(root, "src/components/DockHost.vue"),
       "utf8",
     );
+    const layout = readFileSync(
+      resolve(root, "src/components/layout.ts"),
+      "utf8",
+    );
 
     expect(dockHost).toContain("DockviewVue");
     // 只在停靠区内并排/改大小/叠标签，无浮窗
     expect(dockHost).toContain("disable-floating-groups");
+    // 出厂五块与摆法是纯数据，宿主只负责 fromJSON 应用
     for (const id of [
       "toolbox",
       "object-list",
@@ -85,11 +90,46 @@ describe("app shell", () => {
       "properties",
       "underlay",
     ]) {
-      expect(dockHost).toContain(`id: "${id}"`);
+      expect(layout).toContain(`"${id}"`);
     }
-    // 出厂摆法：左列上工具箱下对象列表，中视口，右列上属性下垫图
-    expect(dockHost).toContain('position: { referencePanel: "toolbox", direction: "below" }');
-    expect(dockHost).toContain('position: { referencePanel: "properties", direction: "below" }');
+    expect(layout).toContain("views: [\"toolbox\", \"object-list\"]");
+    expect(layout).toContain("views: [VIEWPORT_PANEL_ID]");
+    expect(layout).toContain("views: [\"properties\", \"underlay\"]");
+    expect(dockHost).toContain("factoryLayoutSnapshot");
+    expect(dockHost).toContain("fromJSON");
+  });
+
+  test("layout persists in localStorage and the top bar can reopen panels or reset", () => {
+    const dockHost = readFileSync(
+      resolve(root, "src/components/DockHost.vue"),
+      "utf8",
+    );
+    const drawToolbar = readFileSync(
+      resolve(root, "src/components/DrawToolbar.vue"),
+      "utf8",
+    );
+    const layout = readFileSync(
+      resolve(root, "src/components/layout.ts"),
+      "utf8",
+    );
+
+    // 布局用 VueUse useLocalStorage 记本机，打开时 sanitize 后 fromJSON 恢复
+    expect(dockHost).toContain("useLocalStorage");
+    expect(dockHost).toContain("LAYOUT_STORAGE_KEY");
+    expect(dockHost).toContain("sanitizeLayoutSnapshot");
+    expect(dockHost).toContain("onDidLayoutChange");
+    expect(dockHost).toContain("toJSON");
+    // 视口永不可关：标签不渲染关闭钮，可关名单不含视口
+    expect(dockHost).toContain("VIEWPORT_PANEL_ID");
+    expect(layout).toContain("CLOSABLE_PANEL_IDS");
+    // 顶栏勾选把关掉的面板开回来，并提供恢复默认布局
+    expect(drawToolbar).toContain("DropdownMenuCheckboxItem");
+    expect(drawToolbar).toContain("CLOSABLE_PANEL_IDS");
+    expect(drawToolbar).toContain("openPanel");
+    expect(drawToolbar).toContain("closePanel");
+    expect(drawToolbar).toContain("resetLayout");
+    // 布局不进说明书、不进分享链接
+    expect(dockHost).not.toContain("useDocumentStore");
   });
 
   test("top bar stays outside the dock area and the shell drops raw JSON", () => {
