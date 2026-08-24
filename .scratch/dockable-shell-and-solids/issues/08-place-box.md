@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] 3D 工具箱有长方体；单击吸附后提交一条 `box`，默认 width/depth/height 为 1
-- [ ] 位置为底面中心；`rotationDegY/X/Z` 为 0；与体素共存于 `space: "3d"`
-- [ ] 2D 说明书拒绝 `box`；非法尺寸被 Zod 拒绝
-- [ ] 属性面板可编辑该长方体字段并写入说明书
-- [ ] Prompt 说明长方体锚点与字段；hash 往返成功
+- [x] 3D 工具箱有长方体；单击吸附后提交一条 `box`，默认 width/depth/height 为 1
+- [x] 位置为底面中心；`rotationDegY/X/Z` 为 0；与体素共存于 `space: "3d"`
+- [x] 2D 说明书拒绝 `box`；非法尺寸被 Zod 拒绝
+- [x] 属性面板可编辑该长方体字段并写入说明书
+- [x] Prompt 说明长方体锚点与字段；hash 往返成功
