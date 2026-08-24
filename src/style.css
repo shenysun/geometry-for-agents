@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "dockview-vue/dist/styles/dockview.css";
 
 html,
 body,
@@ -8,4 +9,22 @@ body,
 
 body {
   margin: 0;
+}
+
+/* dockview light 主题向 zinc 白贴近：面板头与标签用同族灰阶，分隔条微可见便于拖拽 */
+.dockview-theme-light {
+  --dv-tabs-and-actions-container-height: 32px;
+  --dv-group-view-background-color: #fafafa;
+  --dv-tabs-and-actions-container-background-color: #ffffff;
+  --dv-activegroup-visiblepanel-tab-background-color: #f4f4f5;
+  --dv-activegroup-hiddenpanel-tab-background-color: #f4f4f5;
+  --dv-inactivegroup-visiblepanel-tab-background-color: #fafafa;
+  --dv-inactivegroup-hiddenpanel-tab-background-color: #fafafa;
+  --dv-activegroup-visiblepanel-tab-color: #18181b;
+  --dv-activegroup-hiddenpanel-tab-color: #52525b;
+  --dv-inactivegroup-visiblepanel-tab-color: #52525b;
+  --dv-inactivegroup-hiddenpanel-tab-color: #a1a1aa;
+  --dv-separator-border: #e4e4e7;
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: #a1a1aa;
 }

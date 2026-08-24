@@ -37,7 +37,10 @@ function onFillChange(value: string | string[] | undefined): void {
 </script>
 
 <template>
-  <div v-if="selected !== null" class="space-y-3 px-3 py-3 text-sm">
+  <div
+    v-if="selected !== null"
+    class="h-full space-y-3 overflow-auto px-3 py-3 text-sm"
+  >
     <p class="font-medium">{{ selected.type }} · {{ selected.id }}</p>
     <div v-if="fill !== null">
       <p class="mb-1 text-zinc-500">{{ t("fill.label") }}</p>

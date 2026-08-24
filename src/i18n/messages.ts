@@ -15,6 +15,16 @@ export const messages = {
     viewport: {
       label: "视口",
     },
+    panel: {
+      toolbox: "工具箱",
+      objectList: "对象列表",
+      viewport: "视口",
+      properties: "属性面板",
+      underlay: "垫图",
+    },
+    toolbox: {
+      placeholder: "工具箱即将搬来，创建工具暂时留在顶栏",
+    },
     space: {
       label: "空间",
       twoD: "2D",
@@ -99,6 +109,17 @@ export const messages = {
     },
     viewport: {
       label: "Viewport",
+    },
+    panel: {
+      toolbox: "Toolbox",
+      objectList: "Object list",
+      viewport: "Viewport",
+      properties: "Properties",
+      underlay: "Underlay",
+    },
+    toolbox: {
+      placeholder:
+        "The toolbox is coming; creation tools stay in the top bar for now",
     },
     space: {
       label: "Space",

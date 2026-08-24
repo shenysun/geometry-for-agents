@@ -137,7 +137,7 @@ onChange((files) => {
 </script>
 
 <template>
-  <section class="space-y-3 border-t border-zinc-200 px-3 py-3 text-sm">
+  <section class="h-full space-y-3 overflow-auto px-3 py-3 text-sm">
     <h3 class="font-medium">{{ t("underlay.label") }}</h3>
     <div class="flex flex-col gap-2">
       <label class="text-zinc-500" for="underlay-url">{{ t("underlay.url") }}</label>

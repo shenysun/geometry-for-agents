@@ -24,6 +24,7 @@ describe("app shell", () => {
     expect(deps.pinia).toBeDefined();
     expect(deps["vue-i18n"]).toBeDefined();
     expect(deps["reka-ui"]).toBeDefined();
+    expect(deps["dockview-vue"]).toBeDefined();
     expect(deps.tailwindcss).toBeDefined();
     expect(deps["@vueuse/core"]).toBeDefined();
     expect(deps.three).toBeDefined();
@@ -40,9 +41,9 @@ describe("app shell", () => {
     expect(license).toMatch(/Permission is hereby granted, free of charge/);
   });
 
-  test("object list items are clickable to set selectionId", () => {
+  test("object list is its own panel component with clickable items", () => {
     const source = readFileSync(
-      resolve(root, "src/components/EditorShell.vue"),
+      resolve(root, "src/components/ObjectListPanel.vue"),
       "utf8",
     );
 
@@ -52,16 +53,65 @@ describe("app shell", () => {
   });
 
   test("shell toggles 2d/3d and mounts the 3d viewport from 说明书 space", () => {
-    const source = readFileSync(
+    const shell = readFileSync(
       resolve(root, "src/components/EditorShell.vue"),
       "utf8",
     );
+    const viewportPanel = readFileSync(
+      resolve(root, "src/components/ViewportPanel.vue"),
+      "utf8",
+    );
 
-    expect(source).toContain("requestSpaceChange");
-    expect(source).toContain("clearAndSetSpace");
-    expect(source).toContain("Viewport3d");
-    expect(source).toContain('current.space === "3d"');
-    expect(source).not.toMatch(/TresCanvas/i);
+    expect(shell).toContain("requestSpaceChange");
+    expect(shell).toContain("clearAndSetSpace");
+    expect(viewportPanel).toContain("Viewport3d");
+    expect(viewportPanel).toContain('current.space === "3d"');
+    expect(viewportPanel).not.toMatch(/TresCanvas/i);
+  });
+
+  test("dockview-vue hosts the five dockable panels in the factory layout", () => {
+    const dockHost = readFileSync(
+      resolve(root, "src/components/DockHost.vue"),
+      "utf8",
+    );
+
+    expect(dockHost).toContain("DockviewVue");
+    // 只在停靠区内并排/改大小/叠标签，无浮窗
+    expect(dockHost).toContain("disable-floating-groups");
+    for (const id of [
+      "toolbox",
+      "object-list",
+      "viewport",
+      "properties",
+      "underlay",
+    ]) {
+      expect(dockHost).toContain(`id: "${id}"`);
+    }
+    // 出厂摆法：左列上工具箱下对象列表，中视口，右列上属性下垫图
+    expect(dockHost).toContain('position: { referencePanel: "toolbox", direction: "below" }');
+    expect(dockHost).toContain('position: { referencePanel: "properties", direction: "below" }');
+  });
+
+  test("top bar stays outside the dock area and the shell drops raw JSON", () => {
+    const shell = readFileSync(
+      resolve(root, "src/components/EditorShell.vue"),
+      "utf8",
+    );
+    const dockHost = readFileSync(
+      resolve(root, "src/components/DockHost.vue"),
+      "utf8",
+    );
+
+    expect(shell).toContain("<header");
+    // dockview 装配只出现在停靠宿主里，顶栏不进停靠区
+    expect(shell).not.toContain("DockviewVue");
+    // 属性列不再内联对象列表、垫图与说明书 JSON 原文
+    expect(shell).not.toContain("UnderlayPanel");
+    expect(shell).not.toContain("serializedDocument");
+    // 垫图、属性都是停靠面板，垫图不再是属性面板的一部分
+    expect(dockHost).toContain("UnderlayPanel");
+    expect(dockHost).toContain("PropertiesPanel");
+    expect(dockHost).not.toContain("serializedDocument");
   });
 
   test("properties panel commits fill for a selected closed primitive", () => {
