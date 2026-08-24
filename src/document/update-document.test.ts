@@ -10,12 +10,23 @@ import type { GeometryDocument, Primitive, Primitive2d } from "./index.ts";
 import {
   moveControlPoint,
   moveControlPointGeometry,
+  moveSolidControlPoint,
+  moveSolidControlPointGeometry,
+  rotateEulerYxz,
   rotatePrimitive,
   rotatePrimitiveGeometry,
+  rotateSolid,
+  rotateSolidGeometry,
   scalePrimitive,
   scalePrimitiveGeometry,
+  scaleSolid,
+  scaleSolidGeometry,
   translatePrimitive,
   translatePrimitiveGeometry,
+  translateSolid,
+  translateSolidGeometry,
+  unrotateEulerYxz,
+  type SolidPrimitive,
 } from "./update-document.ts";
 
 function expectCloseTo(actual: number, expected: number): void {
@@ -1199,5 +1210,351 @@ describe("四棱锥与三棱柱参数体更新", () => {
   test("2D 说明书拒绝写入四棱锥与三棱柱", () => {
     expect(addPrimitive(empty2d(), pyramid).success).toBe(false);
     expect(addPrimitive(empty2d(), prism).success).toBe(false);
+  });
+});
+
+describe("3D 参数体变换（票 11）", () => {
+  const solidDoc = (primitive: unknown): GeometryDocument =>
+    mustParse({
+      version: 1,
+      space: "3d",
+      underlay: null,
+      primitives: [primitive],
+    });
+
+  /** 从说明书里取回已收窄的参数体：几何纯函数测试都吃它。 */
+  const solidOf = (document: GeometryDocument, id: string): SolidPrimitive => {
+    if (document.space !== "3d") {
+      throw new Error("not a 3D document");
+    }
+    const primitive = document.primitives.find((item) => item.id === id);
+    if (primitive === undefined || primitive.type === "voxel") {
+      throw new Error(`solid "${id}" not found`);
+    }
+    return primitive;
+  };
+
+  const box = {
+    id: "box-1",
+    type: "box" as const,
+    x: 0.5,
+    y: 1,
+    z: -0.5,
+    width: 1,
+    depth: 2,
+    height: 3,
+    rotationDegY: 0,
+    rotationDegX: 0,
+    rotationDegZ: 0,
+  };
+
+  const cylinder = {
+    id: "cyl-1",
+    type: "cylinder" as const,
+    x: 0,
+    y: 0,
+    z: 0,
+    r: 0.5,
+    height: 1,
+    rotationDegY: 0,
+    rotationDegX: 0,
+    rotationDegZ: 0,
+  };
+
+  const sphere = {
+    id: "sphere-1",
+    type: "sphere" as const,
+    x: 0,
+    y: 2,
+    z: 0,
+    r: 0.5,
+  };
+
+  const prism = {
+    id: "prism-1",
+    type: "triangularPrism" as const,
+    x: 1,
+    y: 0,
+    z: 1,
+    height: 2,
+    base: [
+      { x: 1, z: 0 },
+      { x: 0, z: 1 },
+      { x: -1, z: -1 },
+    ] as [
+      { x: number; z: number },
+      { x: number; z: number },
+      { x: number; z: number },
+    ],
+    rotationDegY: 0,
+    rotationDegX: 0,
+    rotationDegZ: 0,
+  };
+
+  const voxelDoc = (): GeometryDocument =>
+    mustParse({
+      version: 1,
+      space: "3d",
+      underlay: null,
+      primitives: [{ id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 }],
+    });
+
+  test("rotateEulerYxz 按 Y→X→Z 合成（矩阵 Ry·Rx·Rz，对向量先 Z 后 X 再 Y），unrotate 是它的逆", () => {
+    // 绕 Y 90°：局部 +X 转到世界 −Z
+    const aroundY = rotateEulerYxz(90, 0, 0, { x: 1, y: 0, z: 0 });
+    expectCloseTo(aroundY.x, 0);
+    expectCloseTo(aroundY.y, 0);
+    expectCloseTo(aroundY.z, -1);
+    // (Y90, X90)：对向量先 X 后 Y——与 three 内旋 'YXZ' 同一约定
+    const composed = rotateEulerYxz(90, 90, 0, { x: 0, y: 0, z: 1 });
+    expectCloseTo(composed.x, 0);
+    expectCloseTo(composed.y, -1);
+    expectCloseTo(composed.z, 0);
+    const restored = unrotateEulerYxz(90, 90, 0, composed);
+    expectCloseTo(restored.x, 0);
+    expectCloseTo(restored.y, 0);
+    expectCloseTo(restored.z, 1);
+  });
+
+  test("translateSolidGeometry 只动锚点：尺寸、欧拉角与三棱柱局部底面都不动", () => {
+    const moved = translateSolidGeometry(solidOf(solidDoc(box), "box-1"), 1.5, -1, 2.5);
+    expect(moved).toEqual({ ...box, x: 2, y: 0, z: 2 });
+
+    const prismMoved = translateSolidGeometry(
+      solidOf(solidDoc(prism), "prism-1"),
+      1,
+      0,
+      0,
+    );
+    expect(prismMoved.type).toBe("triangularPrism");
+    if (prismMoved.type !== "triangularPrism") return;
+    expect(prismMoved.x).toBe(2);
+    expect(prismMoved.base).toEqual(prism.base);
+  });
+
+  test("translateSolid 把位移吸附当前格后写入：1、1/2、关三档都仍能 parse", () => {
+    const document = solidDoc(box);
+    const cases = [
+      { grid: 1 as const, expected: { x: 1.5, y: 1, z: -1.5 } },
+      { grid: 0.5 as const, expected: { x: 1, y: 1, z: -1.5 } },
+      { grid: "off" as const, expected: { x: 1.2, y: 1, z: -1.7 } },
+    ];
+    for (const { grid, expected } of cases) {
+      const result = translateSolid(document, "box-1", 0.7, 0, -1.2, grid);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const moved = result.document.primitives[0];
+      expect(moved.type).toBe("box");
+      if (moved.type !== "box") return;
+      expect(moved.x).toBe(expected.x);
+      expect(moved.y).toBe(expected.y);
+      expect(moved.z).toBe(expected.z);
+      expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+    }
+  });
+
+  test("translateSolid 吸附后零位移返回同一份说明书；体素、2D 说明书与未知 id 报错", () => {
+    const document = solidDoc(box);
+    const zero = translateSolid(document, "box-1", 0.4, 0, 0, 1);
+    expect(zero.success).toBe(true);
+    if (zero.success) {
+      expect(zero.document).toBe(document);
+    }
+    expect(translateSolid(voxelDoc(), "voxel-1", 1, 0, 0, 1).success).toBe(false);
+    expect(translateSolid(empty2d(), "box-1", 1, 0, 0, 1).success).toBe(false);
+    expect(translateSolid(document, "nope", 1, 0, 0, 1).success).toBe(false);
+  });
+
+  test("rotateSolidGeometry 逐轴写欧拉角并归一到 [0,360)，另两轴不动", () => {
+    const base = solidDoc({ ...box, rotationDegY: 30 });
+    const rotated = rotateSolidGeometry(solidOf(base, "box-1"), "y", 40);
+    expect(rotated).toEqual({ ...box, rotationDegY: 70 });
+
+    const wrapped = rotateSolidGeometry(
+      solidOf(solidDoc({ ...box, rotationDegY: 350 }), "box-1"),
+      "y",
+      20,
+    );
+    expect(wrapped.type).toBe("box");
+    if (wrapped.type !== "box") return;
+    expect(wrapped.rotationDegY).toBe(10);
+
+    const tipped = rotateSolidGeometry(solidOf(base, "box-1"), "x", -90);
+    expect(tipped.type).toBe("box");
+    if (tipped.type !== "box") return;
+    expect(tipped.rotationDegX).toBe(270);
+    expect(tipped.rotationDegY).toBe(30);
+    expect(tipped.rotationDegZ).toBe(0);
+  });
+
+  test("rotateSolid 增量写入后说明书仍能 parse；零增量与球都是恒等", () => {
+    const document = solidDoc({ ...box, rotationDegY: 30 });
+    const result = rotateSolid(document, "box-1", "y", 40);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const rotated = result.document.primitives[0];
+    expect(rotated.type).toBe("box");
+    if (rotated.type !== "box") return;
+    expect(rotated.rotationDegY).toBe(70);
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+
+    const zero = rotateSolid(document, "box-1", "z", 0);
+    expect(zero.success).toBe(true);
+    if (zero.success) {
+      expect(zero.document).toBe(document);
+    }
+
+    const sphereResult = rotateSolid(solidDoc(sphere), "sphere-1", "y", 90);
+    expect(sphereResult.success).toBe(true);
+    if (sphereResult.success) {
+      expect(sphereResult.document.primitives[0]).toEqual(sphere);
+    }
+  });
+
+  test("scaleSolidGeometry 等比改尺寸：box 三维、cylinder r 与 height、sphere r、prism 连底面同乘", () => {
+    const scaledBox = scaleSolidGeometry(solidOf(solidDoc(box), "box-1"), 2);
+    expect(scaledBox).toEqual({ ...box, width: 2, depth: 4, height: 6 });
+
+    const scaledCylinder = scaleSolidGeometry(
+      solidOf(solidDoc(cylinder), "cyl-1"),
+      2,
+    );
+    expect(scaledCylinder).toEqual({ ...cylinder, r: 1, height: 2 });
+
+    const scaledSphere = scaleSolidGeometry(
+      solidOf(solidDoc(sphere), "sphere-1"),
+      3,
+    );
+    expect(scaledSphere).toEqual({ ...sphere, r: 1.5 });
+
+    const scaledPrism = scaleSolidGeometry(
+      solidOf(solidDoc(prism), "prism-1"),
+      2,
+    );
+    expect(scaledPrism.type).toBe("triangularPrism");
+    if (scaledPrism.type !== "triangularPrism") return;
+    expect(scaledPrism.height).toBe(4);
+    expect(scaledPrism.base).toEqual([
+      { x: 2, z: 0 },
+      { x: 0, z: 2 },
+      { x: -2, z: -2 },
+    ]);
+  });
+
+  test("scaleSolid 非正因子报错；体素与 2D 说明书拒绝", () => {
+    const document = solidDoc(box);
+    expect(scaleSolid(document, "box-1", 0).success).toBe(false);
+    expect(scaleSolid(document, "box-1", -2).success).toBe(false);
+    expect(scaleSolid(voxelDoc(), "voxel-1", 2).success).toBe(false);
+    expect(scaleSolid(empty2d(), "box-1", 2).success).toBe(false);
+  });
+
+  test("moveSolidControlPointGeometry：box 宽/深/高各只改一处，按局部轴投影取绝对值", () => {
+    const solid = solidOf(solidDoc(box), "box-1");
+    const width = moveSolidControlPointGeometry(solid, "width", {
+      x: 2,
+      y: 1,
+      z: -0.5,
+    });
+    expect(width).toEqual({ ...box, width: 3 });
+
+    const mirrored = moveSolidControlPointGeometry(solid, "width", {
+      x: -0.5,
+      y: 1,
+      z: -0.5,
+    });
+    expect(mirrored).toEqual({ ...box, width: 2 });
+
+    const depth = moveSolidControlPointGeometry(solid, "depth", {
+      x: 0.5,
+      y: 1,
+      z: 1.5,
+    });
+    expect(depth).toEqual({ ...box, depth: 4 });
+
+    const height = moveSolidControlPointGeometry(solid, "height", {
+      x: 0.5,
+      y: 5,
+      z: -0.5,
+    });
+    expect(height).toEqual({ ...box, height: 4 });
+  });
+
+  test("moveSolidControlPointGeometry：旋转过的 box 先逆旋转回局部再度量（Y 90° 时世界 −Z 即局部 +X）", () => {
+    const solid = solidOf(
+      solidDoc({ ...box, x: 0, y: 0, z: 0, rotationDegY: 90 }),
+      "box-1",
+    );
+    const width = moveSolidControlPointGeometry(solid, "width", {
+      x: 0,
+      y: 0,
+      z: -1.5,
+    });
+    expect(width).toEqual({ ...solid, width: 3 });
+  });
+
+  test("moveSolidControlPointGeometry：cylinder r 取底面径向距离、height 取局部 Y；sphere r 是到球心的距离", () => {
+    const cyl = solidOf(solidDoc(cylinder), "cyl-1");
+    const r = moveSolidControlPointGeometry(cyl, "r", { x: 0, y: 0, z: 2 });
+    expect(r).toEqual({ ...cylinder, r: 2 });
+    const height = moveSolidControlPointGeometry(cyl, "height", {
+      x: 0,
+      y: 3,
+      z: 0,
+    });
+    expect(height).toEqual({ ...cylinder, height: 3 });
+
+    const ball = solidOf(solidDoc(sphere), "sphere-1");
+    const radius = moveSolidControlPointGeometry(ball, "r", { x: 3, y: 2, z: 4 });
+    expect(radius).toEqual({ ...sphere, r: 5 });
+  });
+
+  test("moveSolidControlPointGeometry：prism 高柄改高、底面点写回局部 XZ、未知 pointId 恒等", () => {
+    const solid = solidOf(solidDoc(prism), "prism-1");
+    const height = moveSolidControlPointGeometry(solid, "height", {
+      x: 1,
+      y: 4,
+      z: 1,
+    });
+    expect(height).toEqual({ ...prism, height: 4 });
+
+    const base = moveSolidControlPointGeometry(solid, "base-1", {
+      x: 2.5,
+      y: 0,
+      z: -1,
+    });
+    expect(base.type).toBe("triangularPrism");
+    if (base.type !== "triangularPrism") return;
+    expect(base.base[1]).toEqual({ x: 1.5, z: -2 });
+    expect(base.base[0]).toEqual(prism.base[0]);
+
+    const unknown = moveSolidControlPointGeometry(solid, "nope", {
+      x: 9,
+      y: 9,
+      z: 9,
+    });
+    expect(unknown).toBe(solid);
+  });
+
+  test("moveSolidControlPoint 先吸附当前格再写那一处；体素与 2D 说明书拒绝", () => {
+    const document = solidDoc(box);
+    const snapped = moveSolidControlPoint(document, "box-1", "width", { x: 1.9, y: 1, z: -0.5 }, 1);
+    expect(snapped.success).toBe(true);
+    if (!snapped.success) return;
+    const moved = snapped.document.primitives[0];
+    expect(moved.type).toBe("box");
+    if (moved.type !== "box") return;
+    // 未吸附是 2.8，吸附到 (2,1,0) 后局部偏移 1.5 → 宽 3
+    expect(moved.width).toBe(3);
+    expect(parseDocument(JSON.stringify(snapped.document)).success).toBe(true);
+
+    expect(
+      moveSolidControlPoint(voxelDoc(), "voxel-1", "width", { x: 1, y: 0, z: 0 }, 1)
+        .success,
+    ).toBe(false);
+    expect(
+      moveSolidControlPoint(empty2d(), "box-1", "width", { x: 1, y: 0, z: 0 }, 1)
+        .success,
+    ).toBe(false);
   });
 });

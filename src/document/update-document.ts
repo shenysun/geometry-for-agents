@@ -3,8 +3,9 @@ import type {
   GeometryDocument,
   Primitive,
   Primitive2d,
+  Primitive3d,
 } from "./parse-document.ts";
-import { snap2d, type GridSnap, type Point2 } from "./snap.ts";
+import { snap2d, type GridSnap, type Point2, type Point3 } from "./snap.ts";
 
 export type DocumentUpdateResult =
   | { success: true; document: GeometryDocument }
@@ -460,4 +461,329 @@ export function moveControlPoint(
   return transformPrimitive(document, id, "moveControlPoint", (primitive) =>
     moveControlPointGeometry(primitive, pointId, snap2d(world, grid)),
   );
+}
+
+// ---- 3D 参数体变换（票 11）：变换直接写几何字段，不引入矩阵层 ----
+
+/** 参数体图元（长方体、圆柱、圆锥、球、四棱锥、三棱柱）：体素不在其列。 */
+export type SolidPrimitive = Exclude<Primitive3d, { type: "voxel" }>;
+
+/** 旋转柄对应的欧拉轴。 */
+export type SolidAxis = "x" | "y" | "z";
+
+function rotX(deg: number, v: Point3): Point3 {
+  const rad = deg * DEG;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return { x: v.x, y: v.y * cos - v.z * sin, z: v.y * sin + v.z * cos };
+}
+
+function rotY(deg: number, v: Point3): Point3 {
+  const rad = deg * DEG;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return { x: v.x * cos + v.z * sin, y: v.y, z: -v.x * sin + v.z * cos };
+}
+
+function rotZ(deg: number, v: Point3): Point3 {
+  const rad = deg * DEG;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return { x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos, z: v.z };
+}
+
+/**
+ * 参数体的欧拉旋转（合成顺序 Y→X→Z，矩阵 Ry·Rx·Rz，与渲染端 three 的
+ * 内旋 'YXZ' 同一约定）：对局部向量先作用 Z、再 X、最后 Y，得到世界向量。
+ */
+export function rotateEulerYxz(
+  degY: number,
+  degX: number,
+  degZ: number,
+  v: Point3,
+): Point3 {
+  return rotY(degY, rotX(degX, rotZ(degZ, v)));
+}
+
+/** rotateEulerYxz 的逆：把世界向量还原到参数体局部系。 */
+export function unrotateEulerYxz(
+  degY: number,
+  degX: number,
+  degZ: number,
+  v: Point3,
+): Point3 {
+  return rotZ(-degZ, rotX(-degX, rotY(-degY, v)));
+}
+
+/** 参数体锚点：站立体是底面中心，球是球心（契约里的 (x,y,z) 本体）。 */
+export function solidAnchor(solid: SolidPrimitive): Point3 {
+  return { x: solid.x, y: solid.y, z: solid.z };
+}
+
+/**
+ * 平移参数体几何：只写锚点，尺寸、欧拉角与三棱柱局部底面都不动，
+ * 不可变。吸附由调用侧（translateSolid）决定。
+ */
+export function translateSolidGeometry(
+  solid: SolidPrimitive,
+  dx: number,
+  dy: number,
+  dz: number,
+): SolidPrimitive {
+  return { ...solid, x: solid.x + dx, y: solid.y + dy, z: solid.z + dz };
+}
+
+/**
+ * 绕自身欧拉轴增量旋转：只写对应的 rotationDeg*（度）并归一到 [0,360)，
+ * 锚点不动——0 姿态即底面朝下站立。球没有旋转字段，恒等。
+ */
+export function rotateSolidGeometry(
+  solid: SolidPrimitive,
+  axis: SolidAxis,
+  deg: number,
+): SolidPrimitive {
+  if (solid.type === "sphere") {
+    return solid;
+  }
+  switch (axis) {
+    case "y":
+      return {
+        ...solid,
+        rotationDegY: normalizeDeg(solid.rotationDegY + deg),
+      };
+    case "x":
+      return {
+        ...solid,
+        rotationDegX: normalizeDeg(solid.rotationDegX + deg),
+      };
+    case "z":
+      return {
+        ...solid,
+        rotationDegZ: normalizeDeg(solid.rotationDegZ + deg),
+      };
+  }
+}
+
+/**
+ * 以锚点为不动点等比缩放：尺寸字段乘因子（cylinder/cone 的 r 与 height
+ * 独立可拉，等比时同乘），三棱柱的底面点随局部坐标一起收放。
+ */
+export function scaleSolidGeometry(
+  solid: SolidPrimitive,
+  factor: number,
+): SolidPrimitive {
+  switch (solid.type) {
+    case "box":
+    case "pyramid":
+      return {
+        ...solid,
+        width: solid.width * factor,
+        depth: solid.depth * factor,
+        height: solid.height * factor,
+      };
+    case "cylinder":
+    case "cone":
+      return {
+        ...solid,
+        r: solid.r * factor,
+        height: solid.height * factor,
+      };
+    case "sphere":
+      return { ...solid, r: solid.r * factor };
+    case "triangularPrism":
+      return {
+        ...solid,
+        height: solid.height * factor,
+        // 底面是定长三元组：逐点显式重建，保持元组类型
+        base: [
+          { x: solid.base[0].x * factor, z: solid.base[0].z * factor },
+          { x: solid.base[1].x * factor, z: solid.base[1].z * factor },
+          { x: solid.base[2].x * factor, z: solid.base[2].z * factor },
+        ],
+      };
+  }
+}
+
+/** 世界点减锚点后逆旋转回局部系的偏移：控制点度量的统一入口。 */
+function solidLocalOffset(solid: SolidPrimitive, world: Point3): Point3 {
+  const anchor = solidAnchor(solid);
+  const offset = {
+    x: world.x - anchor.x,
+    y: world.y - anchor.y,
+    z: world.z - anchor.z,
+  };
+  if (solid.type === "sphere") {
+    return offset;
+  }
+  return unrotateEulerYxz(
+    solid.rotationDegY,
+    solid.rotationDegX,
+    solid.rotationDegZ,
+    offset,
+  );
+}
+
+/**
+ * 拖控制点只改那一处尺寸（world 已吸附）：宽深按局部轴投影取绝对值、
+ * 圆族半径取底面径向距离、球半径取到球心距离、高取局部 Y；三棱柱的
+ * 底面点把世界点直接写回局部 XZ。pointId 与控制点目录同源，未知 id 恒等。
+ */
+export function moveSolidControlPointGeometry(
+  solid: SolidPrimitive,
+  pointId: string,
+  world: Point3,
+): SolidPrimitive {
+  const offset = solidLocalOffset(solid, world);
+  switch (solid.type) {
+    case "box":
+    case "pyramid":
+      if (pointId === "width") {
+        return { ...solid, width: Math.abs(offset.x) * 2 };
+      }
+      if (pointId === "depth") {
+        return { ...solid, depth: Math.abs(offset.z) * 2 };
+      }
+      if (pointId === "height") {
+        return { ...solid, height: Math.abs(offset.y) };
+      }
+      return solid;
+    case "cylinder":
+    case "cone":
+      if (pointId === "r") {
+        return { ...solid, r: Math.hypot(offset.x, offset.z) };
+      }
+      if (pointId === "height") {
+        return { ...solid, height: Math.abs(offset.y) };
+      }
+      return solid;
+    case "sphere":
+      if (pointId === "r") {
+        return {
+          ...solid,
+          r: Math.hypot(offset.x, offset.y, offset.z),
+        };
+      }
+      return solid;
+    case "triangularPrism": {
+      if (pointId === "height") {
+        return { ...solid, height: Math.abs(offset.y) };
+      }
+      const match = /^base-(\d)$/.exec(pointId);
+      if (match === null) return solid;
+      const index = Number(match[1]);
+      if (index >= solid.base.length) return solid;
+      return {
+        ...solid,
+        base: solid.base.map((point, at) =>
+          at === index ? { x: offset.x, z: offset.z } : point,
+        ) as typeof solid.base,
+      };
+    }
+  }
+}
+
+/**
+ * 3D 点的格吸附：与 viewport3d/snap3d 同一约定（各轴四舍五入到步长，
+ * 「关」保留原值）。说明书模块自持一份，避免 document 反向依赖视口层。
+ */
+function snap3dInDocument(point: Point3, grid: GridSnap): Point3 {
+  if (grid === "off") {
+    return { x: point.x, y: point.y, z: point.z };
+  }
+  return {
+    x: Math.round(point.x / grid) * grid + 0,
+    y: Math.round(point.y / grid) * grid + 0,
+    z: Math.round(point.z / grid) * grid + 0,
+  };
+}
+
+function transformSolidPrimitive(
+  document: GeometryDocument,
+  id: string,
+  verb: string,
+  apply: (solid: SolidPrimitive) => SolidPrimitive,
+): DocumentUpdateResult {
+  if (document.space !== "3d") {
+    return {
+      success: false,
+      error: `${verb} is only defined for 3D solids`,
+    };
+  }
+  const current = document.primitives.find((primitive) => primitive.id === id);
+  if (current === undefined) {
+    return missingId(id);
+  }
+  if (current.type === "voxel") {
+    return {
+      success: false,
+      error: `${verb} is only defined for 3D solids`,
+    };
+  }
+  const transformed = apply(current);
+  if (samePrimitive(current, transformed)) {
+    return { success: true, document };
+  }
+  return replacePrimitives(
+    document,
+    document.primitives.map((primitive) =>
+      primitive.id === id ? transformed : primitive,
+    ),
+  );
+}
+
+/**
+ * 平移一条参数体：世界位移先吸附当前格（体素不走这里，体素另走整格
+ * 平移），再写入锚点。吸附后零位移返回原说明书。
+ */
+export function translateSolid(
+  document: GeometryDocument,
+  id: string,
+  dx: number,
+  dy: number,
+  dz: number,
+  grid: GridSnap,
+): DocumentUpdateResult {
+  return transformSolidPrimitive(document, id, "translateSolid", (solid) => {
+    const delta = snap3dInDocument({ x: dx, y: dy, z: dz }, grid);
+    return translateSolidGeometry(solid, delta.x, delta.y, delta.z);
+  });
+}
+
+/** 旋转一条参数体：增量角度直接加进对应欧拉字段（球恒等，零增量不动）。 */
+export function rotateSolid(
+  document: GeometryDocument,
+  id: string,
+  axis: SolidAxis,
+  deg: number,
+): DocumentUpdateResult {
+  return transformSolidPrimitive(document, id, "rotateSolid", (solid) =>
+    rotateSolidGeometry(solid, axis, deg),
+  );
+}
+
+/** 缩放一条参数体：正因子等比改尺寸字段，锚点不动。 */
+export function scaleSolid(
+  document: GeometryDocument,
+  id: string,
+  factor: number,
+): DocumentUpdateResult {
+  if (factor <= 0) {
+    return { success: false, error: "scale factor must be positive" };
+  }
+  return transformSolidPrimitive(document, id, "scaleSolid", (solid) =>
+    scaleSolidGeometry(solid, factor),
+  );
+}
+
+/** 拖参数体控制点提交：目标点先吸附当前格，再只写那一处尺寸。 */
+export function moveSolidControlPoint(
+  document: GeometryDocument,
+  id: string,
+  pointId: string,
+  world: Point3,
+  grid: GridSnap,
+): DocumentUpdateResult {
+  return transformSolidPrimitive(document, id, "moveSolidControlPoint", (
+    solid,
+  ) => moveSolidControlPointGeometry(solid, pointId, snap3dInDocument(world, grid)));
 }

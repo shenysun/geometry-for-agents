@@ -1,12 +1,15 @@
 export {
   createViewport3dProjector,
-  solidPlacementPreview,
 } from "./projector.ts";
 export type {
   Viewport3dPick,
   Viewport3dProjector,
-  PlacementPreview,
+  ProjectorRay,
 } from "./projector.ts";
+export {
+  solidPlacementPreview,
+} from "./placement-preview.ts";
+export type { PlacementPreview } from "./placement-preview.ts";
 export {
   commitVoxel,
   translateVoxel,
@@ -19,16 +22,27 @@ export {
   escSelect3d,
   idleSelect3dState,
   moveSelect3d,
+  solidTransformHandles,
   startSelect3d,
   upSelect3d,
 } from "./select-gesture-3d.ts";
 export type {
+  Ray3,
   Select3dCommit,
   Select3dContext,
   Select3dPreview,
   Select3dResult,
   Select3dState,
+  SolidHandleId,
+  SolidTransformHandles,
 } from "./select-gesture-3d.ts";
+export {
+  solidControlPoints,
+} from "./solid-control-points.ts";
+export type {
+  SolidControlPoint,
+  SolidControlPointKind,
+} from "./solid-control-points.ts";
 export {
   BOX_DEFAULTS,
   boxAnchorFromWorld,

@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { GeometryDocument, Point3 } from "../document/index.ts";
+import { rotateEulerYxz } from "../document/update-document.ts";
 import type { BoxPrimitive } from "./box-commit.ts";
+import type { PlacementPreview } from "./placement-preview.ts";
 import type { SolidPrimitive } from "./solid-commit.ts";
 import { voxelCornerFromWorld } from "./voxel-commit.ts";
 
@@ -110,96 +112,39 @@ const AXIS_LABELS = [
 
 const DEG = Math.PI / 180;
 
-/** 跟随指针的放置预览：体素给最小角，参数体给锚点与尺寸 */
-export type PlacementPreview =
-  | { kind: "voxel"; corner: Point3 }
-  | {
-      kind: "box";
-      anchor: Point3;
-      width: number;
-      depth: number;
-      height: number;
-    }
-  | { kind: "cylinder" | "cone"; anchor: Point3; r: number; height: number }
-  | { kind: "sphere"; center: Point3; r: number }
-  | {
-      kind: "pyramid";
-      anchor: Point3;
-      width: number;
-      depth: number;
-      height: number;
-    }
-  | {
-      kind: "prism";
-      anchor: Point3;
-      height: number;
-      base: readonly BasePoint[];
-    }
-  | null;
-
-/** 把一条已提交形态的参数体映射成跟随指针的预览（默认尺寸、无旋转）。 */
-export function solidPlacementPreview(
-  solid: SolidPrimitive,
-): Exclude<PlacementPreview, null> {
-  switch (solid.type) {
-    case "box":
-      return {
-        kind: "box",
-        anchor: { x: solid.x, y: solid.y, z: solid.z },
-        width: solid.width,
-        depth: solid.depth,
-        height: solid.height,
-      };
-    case "cylinder":
-    case "cone":
-      return {
-        kind: solid.type,
-        anchor: { x: solid.x, y: solid.y, z: solid.z },
-        r: solid.r,
-        height: solid.height,
-      };
-    case "sphere":
-      return {
-        kind: "sphere",
-        center: { x: solid.x, y: solid.y, z: solid.z },
-        r: solid.r,
-      };
-    case "pyramid":
-      return {
-        kind: "pyramid",
-        anchor: { x: solid.x, y: solid.y, z: solid.z },
-        width: solid.width,
-        depth: solid.depth,
-        height: solid.height,
-      };
-    case "triangularPrism":
-      return {
-        kind: "prism",
-        anchor: { x: solid.x, y: solid.y, z: solid.z },
-        height: solid.height,
-        base: solid.base,
-      };
-  }
-}
-
 export type Viewport3dPick =
   | { kind: "empty"; place: Point3; world: Point3 }
   | { kind: "voxel"; id: string; place: Point3; world: Point3 }
+  | { kind: "solid"; id: string; world: Point3 }
   | { kind: "none" };
+
+/** 指针视线：世界系 origin 与单位方向，选择手势的命中与量测吃它。 */
+export type ProjectorRay = { origin: Point3; direction: Point3 };
 
 export type Viewport3dProjector = {
   render: (document: GeometryDocument) => void;
-  /** 标记当前选中的体素（高亮材质）；null 清除标记。 */
+  /** 标记当前选中的图元（体素与参数体都换高亮材质）；null 清除标记。 */
   setSelection: (id: string | null) => void;
   setPreview: (preview: PlacementPreview) => void;
   pick: (screen: { x: number; y: number }) => Viewport3dPick;
   /** 射线打到指定高度的水平面：体素拖动取指针世界落点用。 */
   pickOnPlane: (screen: { x: number; y: number }, y: number) => Point3 | null;
+  /** 指针处的视线（世界系）：参数体控制点/柄命中与旋转缩放量测用。 */
+  rayAt: (screen: { x: number; y: number }) => ProjectorRay;
+  /** 世界点投影到画布像素；相机背面（投影会镜像）返回 null。 */
+  toScreen: (world: Point3) => { x: number; y: number } | null;
+  /** 该世界点处一个屏幕像素对应的世界长度：命中容差换算用。 */
+  worldPerPixel: (world: Point3) => number;
+  /** 视图变化（轨道、渲染）后的回调：覆盖层跟随重算屏幕位置。 */
+  onViewChange: (listener: () => void) => void;
   resize: (width: number, height: number) => void;
   destroy: () => void;
 };
 
 type VoxelUserData = { id: string; x: number; y: number; z: number };
+
+/** 参数体网格的用户数据：拾取只认 id。 */
+type SolidUserData = { id: string };
 
 function axisSprite(text: string, color: string): THREE.Sprite {
   const canvas = document.createElement("canvas");
@@ -281,6 +226,10 @@ export function createViewport3dProjector(
     color: 0xfacc15,
   });
   const solidMaterial = new THREE.MeshLambertMaterial({ color: 0x10b981 });
+  // 选中参数体的高亮：与体素同一亮黄，选中态一眼可辨。
+  const selectedSolidMaterial = new THREE.MeshLambertMaterial({
+    color: 0xfacc15,
+  });
   const previewMaterial = new THREE.MeshLambertMaterial({
     color: 0xf59e0b,
     transparent: true,
@@ -313,10 +262,12 @@ export function createViewport3dProjector(
   let destroyed = false;
   let selectedId: string | null = null;
   let lastDocument: GeometryDocument | null = null;
+  let viewChangeListener: (() => void) | null = null;
 
   function paint(): void {
     if (destroyed) return;
     renderer.render(scene, camera);
+    viewChangeListener?.();
   }
 
   function placeVoxelMesh(id: string, x: number, y: number, z: number): void {
@@ -329,72 +280,117 @@ export function createViewport3dProjector(
     voxelGroup.add(mesh);
   }
 
-  function placeBoxMesh(box: BoxPrimitive): void {
-    const mesh = new THREE.Mesh(boxGeometry, solidMaterial);
-    // 底面中心定位：中心在 (x, y + height/2, z)；先沿局部轴缩放再整体旋转
-    mesh.scale.set(box.width, box.height, box.depth);
-    mesh.position.set(box.x, box.y + box.height / 2, box.z);
-    mesh.rotation.set(
-      box.rotationDegX * DEG,
-      box.rotationDegY * DEG,
-      box.rotationDegZ * DEG,
-      "YXZ",
+  /** 站立体的网格姿态：欧拉角与说明书同一约定（内旋 'YXZ' = 合成 Y→X→Z）。 */
+  function applySolidRotation(
+    mesh: THREE.Mesh,
+    yDeg: number,
+    xDeg: number,
+    zDeg: number,
+  ): void {
+    mesh.rotation.set(xDeg * DEG, yDeg * DEG, zDeg * DEG, "YXZ");
+  }
+
+  /** 选中态材质：体素与参数体同一亮黄。 */
+  function solidPaint(id: string): THREE.MeshLambertMaterial {
+    return id === selectedId ? selectedSolidMaterial : solidMaterial;
+  }
+
+  /**
+   * 站立体的中心定位：单位几何体以自身中心为原点，锚点是底面中心，
+   * 中心偏移 (0, height/2, 0) 要随欧拉角一起转——旋转绕锚点，不绕中点。
+   */
+  function standingCenter(
+    solid: Pick<SolidPrimitive, "x" | "y" | "z"> & {
+      rotationDegY: number;
+      rotationDegX: number;
+      rotationDegZ: number;
+      height: number;
+    },
+  ): THREE.Vector3 {
+    const offset = rotateEulerYxz(
+      solid.rotationDegY,
+      solid.rotationDegX,
+      solid.rotationDegZ,
+      { x: 0, y: solid.height / 2, z: 0 },
     );
+    return new THREE.Vector3(
+      solid.x + offset.x,
+      solid.y + offset.y,
+      solid.z + offset.z,
+    );
+  }
+
+  function placeBoxMesh(box: BoxPrimitive): void {
+    const mesh = new THREE.Mesh(boxGeometry, solidPaint(box.id));
+    // 先沿局部轴缩放，再整体绕底面中心旋转
+    mesh.scale.set(box.width, box.height, box.depth);
+    mesh.position.copy(standingCenter(box));
+    applySolidRotation(
+      mesh,
+      box.rotationDegY,
+      box.rotationDegX,
+      box.rotationDegZ,
+    );
+    mesh.userData = { id: box.id } satisfies SolidUserData;
     solidGroup.add(mesh);
   }
 
   function placeCylinderMesh(
     solid: Extract<SolidPrimitive, { type: "cylinder" }>,
   ): void {
-    const mesh = new THREE.Mesh(cylinderGeometry, solidMaterial);
+    const mesh = new THREE.Mesh(cylinderGeometry, solidPaint(solid.id));
     mesh.scale.set(solid.r, solid.height, solid.r);
-    mesh.position.set(solid.x, solid.y + solid.height / 2, solid.z);
-    mesh.rotation.set(
-      solid.rotationDegX * DEG,
-      solid.rotationDegY * DEG,
-      solid.rotationDegZ * DEG,
-      "YXZ",
+    mesh.position.copy(standingCenter(solid));
+    applySolidRotation(
+      mesh,
+      solid.rotationDegY,
+      solid.rotationDegX,
+      solid.rotationDegZ,
     );
+    mesh.userData = { id: solid.id } satisfies SolidUserData;
     solidGroup.add(mesh);
   }
 
   function placeConeMesh(
     solid: Extract<SolidPrimitive, { type: "cone" }>,
   ): void {
-    const mesh = new THREE.Mesh(coneGeometry, solidMaterial);
+    const mesh = new THREE.Mesh(coneGeometry, solidPaint(solid.id));
     mesh.scale.set(solid.r, solid.height, solid.r);
-    mesh.position.set(solid.x, solid.y + solid.height / 2, solid.z);
-    mesh.rotation.set(
-      solid.rotationDegX * DEG,
-      solid.rotationDegY * DEG,
-      solid.rotationDegZ * DEG,
-      "YXZ",
+    mesh.position.copy(standingCenter(solid));
+    applySolidRotation(
+      mesh,
+      solid.rotationDegY,
+      solid.rotationDegX,
+      solid.rotationDegZ,
     );
+    mesh.userData = { id: solid.id } satisfies SolidUserData;
     solidGroup.add(mesh);
   }
 
   function placeSphereMesh(
     solid: Extract<SolidPrimitive, { type: "sphere" }>,
   ): void {
-    const mesh = new THREE.Mesh(sphereGeometry, solidMaterial);
+    const mesh = new THREE.Mesh(sphereGeometry, solidPaint(solid.id));
     mesh.scale.set(solid.r, solid.r, solid.r);
     mesh.position.set(solid.x, solid.y, solid.z);
+    mesh.userData = { id: solid.id } satisfies SolidUserData;
     solidGroup.add(mesh);
   }
 
   function placePyramidMesh(
     solid: Extract<SolidPrimitive, { type: "pyramid" }>,
   ): void {
-    const mesh = new THREE.Mesh(pyramidGeometry, solidMaterial);
-    // 单位几何体底面在局部 y=0：锚点即底面中心，不再加半高偏移
+    const mesh = new THREE.Mesh(pyramidGeometry, solidPaint(solid.id));
+    // 单位几何体底面在局部 y=0：锚点即底面中心，旋转天然绕锚点
     mesh.scale.set(solid.width, solid.height, solid.depth);
     mesh.position.set(solid.x, solid.y, solid.z);
-    mesh.rotation.set(
-      solid.rotationDegX * DEG,
-      solid.rotationDegY * DEG,
-      solid.rotationDegZ * DEG,
-      "YXZ",
+    applySolidRotation(
+      mesh,
+      solid.rotationDegY,
+      solid.rotationDegX,
+      solid.rotationDegZ,
     );
+    mesh.userData = { id: solid.id } satisfies SolidUserData;
     solidGroup.add(mesh);
   }
 
@@ -402,16 +398,17 @@ export function createViewport3dProjector(
     solid: Extract<SolidPrimitive, { type: "triangularPrism" }>,
   ): void {
     const geometry = createPrismGeometry(solid.base, solid.height);
-    const mesh = new THREE.Mesh(geometry, solidMaterial);
+    const mesh = new THREE.Mesh(geometry, solidPaint(solid.id));
     mesh.position.set(solid.x, solid.y, solid.z);
-    mesh.rotation.set(
-      solid.rotationDegX * DEG,
-      solid.rotationDegY * DEG,
-      solid.rotationDegZ * DEG,
-      "YXZ",
+    applySolidRotation(
+      mesh,
+      solid.rotationDegY,
+      solid.rotationDegX,
+      solid.rotationDegZ,
     );
     // 底面任意三角形只能逐条自建几何体：换掉前先按标记释放
-    mesh.userData.ownsGeometry = true;
+    mesh.userData = { id: solid.id, ownsGeometry: true } satisfies
+      SolidUserData & { ownsGeometry: boolean };
     solidGroup.add(mesh);
   }
 
@@ -499,10 +496,22 @@ export function createViewport3dProjector(
         case "box":
           previewMesh.geometry = boxGeometry;
           previewMesh.scale.set(preview.width, preview.height, preview.depth);
-          previewMesh.position.set(
-            preview.anchor.x,
-            preview.anchor.y + preview.height / 2,
-            preview.anchor.z,
+          applySolidRotation(
+            previewMesh,
+            preview.rotationDegY,
+            preview.rotationDegX,
+            preview.rotationDegZ,
+          );
+          previewMesh.position.copy(
+            standingCenter({
+              x: preview.anchor.x,
+              y: preview.anchor.y,
+              z: preview.anchor.z,
+              height: preview.height,
+              rotationDegY: preview.rotationDegY,
+              rotationDegX: preview.rotationDegX,
+              rotationDegZ: preview.rotationDegZ,
+            }),
           );
           break;
         case "cylinder":
@@ -510,10 +519,22 @@ export function createViewport3dProjector(
           previewMesh.geometry =
             preview.kind === "cylinder" ? cylinderGeometry : coneGeometry;
           previewMesh.scale.set(preview.r, preview.height, preview.r);
-          previewMesh.position.set(
-            preview.anchor.x,
-            preview.anchor.y + preview.height / 2,
-            preview.anchor.z,
+          applySolidRotation(
+            previewMesh,
+            preview.rotationDegY,
+            preview.rotationDegX,
+            preview.rotationDegZ,
+          );
+          previewMesh.position.copy(
+            standingCenter({
+              x: preview.anchor.x,
+              y: preview.anchor.y,
+              z: preview.anchor.z,
+              height: preview.height,
+              rotationDegY: preview.rotationDegY,
+              rotationDegX: preview.rotationDegX,
+              rotationDegZ: preview.rotationDegZ,
+            }),
           );
           break;
         case "sphere":
@@ -528,6 +549,12 @@ export function createViewport3dProjector(
         case "pyramid":
           previewMesh.geometry = pyramidGeometry;
           previewMesh.scale.set(preview.width, preview.height, preview.depth);
+          applySolidRotation(
+            previewMesh,
+            preview.rotationDegY,
+            preview.rotationDegX,
+            preview.rotationDegZ,
+          );
           previewMesh.position.set(
             preview.anchor.x,
             preview.anchor.y,
@@ -540,6 +567,12 @@ export function createViewport3dProjector(
             preview.height,
           );
           previewMesh.geometry = ownedPreviewGeometry;
+          applySolidRotation(
+            previewMesh,
+            preview.rotationDegY,
+            preview.rotationDegX,
+            preview.rotationDegZ,
+          );
           previewMesh.position.set(
             preview.anchor.x,
             preview.anchor.y,
@@ -560,6 +593,43 @@ export function createViewport3dProjector(
       const hit = raycaster.ray.intersectPlane(dragPlane, groundHit);
       return hit === null ? null : { x: hit.x, y: hit.y, z: hit.z };
     },
+    rayAt(screen: { x: number; y: number }): ProjectorRay {
+      const width = Math.max(1, renderer.domElement.clientWidth);
+      const height = Math.max(1, renderer.domElement.clientHeight);
+      pointer.x = (screen.x / width) * 2 - 1;
+      pointer.y = -(screen.y / height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const { origin, direction } = raycaster.ray;
+      return {
+        origin: { x: origin.x, y: origin.y, z: origin.z },
+        direction: { x: direction.x, y: direction.y, z: direction.z },
+      };
+    },
+    toScreen(world: Point3): { x: number; y: number } | null {
+      const point = new THREE.Vector3(world.x, world.y, world.z);
+      // 相机背面的点投影会镜像：按到相机的视线方向剔除
+      camera.getWorldDirection(groundHit);
+      const towardCamera = point.clone().sub(camera.position);
+      if (towardCamera.dot(groundHit) <= 0) return null;
+      const ndc = point.project(camera);
+      const width = Math.max(1, renderer.domElement.clientWidth);
+      const height = Math.max(1, renderer.domElement.clientHeight);
+      return {
+        x: ((ndc.x + 1) / 2) * width,
+        y: ((1 - ndc.y) / 2) * height,
+      };
+    },
+    worldPerPixel(world: Point3): number {
+      const distance = camera.position.distanceTo(
+        new THREE.Vector3(world.x, world.y, world.z),
+      );
+      const vFov = (camera.fov * Math.PI) / 180;
+      const pixels = Math.max(1, renderer.domElement.clientHeight);
+      return (2 * distance * Math.tan(vFov / 2)) / pixels;
+    },
+    onViewChange(listener: () => void): void {
+      viewChangeListener = listener;
+    },
     pick(screen: { x: number; y: number }): Viewport3dPick {
       const width = Math.max(1, renderer.domElement.clientWidth);
       const height = Math.max(1, renderer.domElement.clientHeight);
@@ -567,7 +637,24 @@ export function createViewport3dProjector(
       pointer.y = -(screen.y / height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
+      // 参数体与体素都参与本体拾取，取离相机更近者；柄与控制点不进
+      // 射线拾取——它们的命中由选择手势的纯函数按视线垂距判定。
+      const solidHit = raycaster.intersectObjects(solidGroup.children, false)[0];
       const hit = raycaster.intersectObjects(voxelGroup.children, false)[0];
+      if (
+        solidHit !== undefined &&
+        (hit === undefined || solidHit.distance < hit.distance)
+      ) {
+        return {
+          kind: "solid",
+          id: (solidHit.object.userData as SolidUserData).id,
+          world: {
+            x: solidHit.point.x,
+            y: solidHit.point.y,
+            z: solidHit.point.z,
+          },
+        };
+      }
       const face = hit?.face;
       if (hit !== undefined && face !== undefined && face !== null) {
         const data = hit.object.userData as VoxelUserData;
@@ -609,6 +696,7 @@ export function createViewport3dProjector(
     },
     destroy(): void {
       destroyed = true;
+      viewChangeListener = null;
       controls.removeEventListener("change", paint);
       controls.dispose();
       voxelGroup.clear();
@@ -626,6 +714,7 @@ export function createViewport3dProjector(
       voxelMaterial.dispose();
       selectedVoxelMaterial.dispose();
       solidMaterial.dispose();
+      selectedSolidMaterial.dispose();
       previewMaterial.dispose();
       scene.traverse((object) => {
         if (!(object instanceof THREE.Sprite)) return;
