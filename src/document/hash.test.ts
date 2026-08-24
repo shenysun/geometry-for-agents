@@ -70,6 +70,54 @@ describe("document hash", () => {
     expect(decoded.document.underlay).toEqual(document.underlay);
   });
 
+  test("roundtrips an ellipse with rotationDeg and defaults a legacy one to 0", () => {
+    const rotated = parsed("2d", [
+      {
+        id: "ellipse-1",
+        type: "ellipse",
+        cx: 1,
+        cy: 2,
+        rx: 3,
+        ry: 1,
+        rotationDeg: 30,
+        fill: "solid",
+      },
+    ]);
+
+    const decoded = hashToDocument(documentToHash(rotated));
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) return;
+    expect(decoded.document).toEqual(rotated);
+
+    const legacy = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        {
+          id: "ellipse-2",
+          type: "ellipse",
+          cx: 0,
+          cy: 0,
+          rx: 2,
+          ry: 1,
+          fill: "none",
+        },
+      ],
+    });
+    expect(legacy.success).toBe(true);
+    if (!legacy.success) return;
+
+    const relegacy = hashToDocument(documentToHash(legacy.document));
+    expect(relegacy.success).toBe(true);
+    if (!relegacy.success) return;
+    expect(relegacy.document).toEqual(legacy.document);
+    const primitive = relegacy.document.primitives[0];
+    expect(primitive.type === "ellipse" && primitive.rotationDeg === 0).toBe(
+      true,
+    );
+  });
+
   test("rejects a damaged hash", () => {
     const result = hashToDocument("not-a-valid-lz-payload");
 

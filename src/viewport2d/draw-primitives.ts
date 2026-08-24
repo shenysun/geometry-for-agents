@@ -162,6 +162,8 @@ function drawPrimitive(primitive: Primitive, view: ViewTransform): Konva.Shape[]
           y: center.y,
           radiusX: primitive.rx * view.scale,
           radiusY: primitive.ry * view.scale,
+          // 世界系逆时针为正，Konva 屏幕系顺时针为正，符号取反。
+          rotation: -primitive.rotationDeg,
           stroke: STROKE,
           strokeWidth: STROKE_WIDTH,
           listening: false,

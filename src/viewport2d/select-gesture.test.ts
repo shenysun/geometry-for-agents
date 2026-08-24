@@ -7,8 +7,10 @@ import {
   idleSelectState,
   moveSelect,
   startSelect,
+  transformHandles,
   upSelect,
   type SelectContext,
+  type SelectGestureState,
 } from "./select-gesture.ts";
 
 function doc2d(primitives: unknown[]): GeometryDocument {
@@ -143,7 +145,7 @@ describe("select-gesture 拖动平移", () => {
     const moved = moveSelect(down.state, ctx({ x: 9.4, y: 0.8 }));
     const up = upSelect(moved.state, ctx({ x: 9.5, y: 0.9 }));
 
-    expect(up.commit).toEqual({ id: "circle-1", dx: 1.5, dy: 0.9 });
+    expect(up.commit).toEqual({ kind: "translate", id: "circle-1", dx: 1.5, dy: 0.9 });
     expect(up.state).toEqual(idleSelectState());
     expect(up.preview).toBeNull();
   });
@@ -156,7 +158,7 @@ describe("select-gesture 拖动平移", () => {
       expect(moved.commit).toBeNull();
     }
     const up = upSelect(down.state, ctx({ x: 10, y: 1 }));
-    expect(up.commit).toEqual({ id: "circle-1", dx: 2, dy: 1 });
+    expect(up.commit).toEqual({ kind: "translate", id: "circle-1", dx: 2, dy: 1 });
   });
 
   test("吸附后位移为零的拖动不提交", () => {
@@ -187,7 +189,7 @@ describe("select-gesture 拖动平移", () => {
       down.state,
       ctx({ x: 3, y: 1 }, { tolerance: 0.25 }),
     );
-    expect(up.commit).toEqual({ id: "line-1", dx: 1, dy: 0.9 });
+    expect(up.commit).toEqual({ kind: "translate", id: "line-1", dx: 1, dy: 0.9 });
   });
 
   test("Esc 放弃拖动且不提交", () => {
@@ -209,5 +211,360 @@ describe("select-gesture 拖动平移", () => {
     expect(moved.state).toEqual(idleSelectState());
     expect(moved.preview).toBeNull();
     expect(moved.commit).toBeNull();
+  });
+});
+
+const ellipseDoc = (): GeometryDocument =>
+  doc2d([
+    {
+      id: "ellipse-1",
+      type: "ellipse",
+      cx: 0,
+      cy: 0,
+      rx: 2,
+      ry: 1,
+      rotationDeg: 0,
+      fill: "none",
+    },
+  ]);
+
+const sectorDoc = (): GeometryDocument =>
+  doc2d([
+    {
+      id: "sector-1",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 90,
+      fill: "none",
+    },
+  ]);
+
+function primitiveOf(document: GeometryDocument, id: string) {
+  if (document.space !== "2d") throw new Error("expected a 2d document");
+  const primitive = document.primitives.find((item) => item.id === id);
+  if (primitive === undefined) throw new Error(`missing primitive ${id}`);
+  return primitive;
+}
+
+function handleCtx(
+  point: Point2,
+  overrides: Partial<SelectContext> = {},
+): SelectContext {
+  return ctx(point, { handleTolerance: 0.5, ...overrides });
+}
+
+describe("transformHandles 柄布局", () => {
+  test("椭圆有旋转柄与缩放柄，分别在锚点上方与右侧、柄距为 reach 加四倍命中半径", () => {
+    const handles = transformHandles(primitiveOf(ellipseDoc(), "ellipse-1"), 0.5);
+
+    expect(handles?.center).toEqual({ x: 0, y: 0 });
+    expect(handles?.rotate).toEqual({ x: 0, y: 4 });
+    expect(handles?.scale).toEqual({ x: 4, y: 0 });
+  });
+
+  test("圆与环只有缩放柄（旋转对称，不旋转），标签没有变换手柄", () => {
+    const document = doc2d([
+      { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+      {
+        id: "ring-1",
+        type: "ring",
+        cx: 5,
+        cy: 0,
+        rInner: 1,
+        rOuter: 2,
+        fill: "none",
+      },
+      { id: "label-1", type: "label", x: 9, y: 0, text: "A" },
+    ]);
+
+    const circle = transformHandles(primitiveOf(document, "circle-1"), 0.5);
+    expect(circle?.rotate).toBeNull();
+    expect(circle?.scale).toEqual({ x: 3, y: 0 });
+
+    const ring = transformHandles(primitiveOf(document, "ring-1"), 0.5);
+    expect(ring?.rotate).toBeNull();
+    expect(ring?.scale).toEqual({ x: 9, y: 0 });
+
+    expect(
+      transformHandles(primitiveOf(document, "label-1"), 0.5),
+    ).toBeNull();
+  });
+
+  test("扇形两柄齐备，锚点即圆心", () => {
+    const handles = transformHandles(primitiveOf(sectorDoc(), "sector-1"), 0.5);
+
+    expect(handles?.center).toEqual({ x: 0, y: 0 });
+    expect(handles?.rotate).toEqual({ x: 0, y: 4 });
+    expect(handles?.scale).toEqual({ x: 4, y: 0 });
+  });
+});
+
+describe("select-gesture 柄命中", () => {
+  test("按下旋转柄进入旋转手势并保持选中，不提交", () => {
+    const document = ellipseDoc();
+    const handles = transformHandles(
+      primitiveOf(document, "ellipse-1"),
+      0.5,
+    );
+    if (handles === null || handles.rotate === null) {
+      throw new Error("no rotate handle");
+    }
+
+    const down = startSelect(
+      idleSelectState(),
+      handleCtx(handles.rotate, { document, selectionId: "ellipse-1" }),
+    );
+
+    expect(down.state).toEqual({
+      kind: "rotate",
+      id: "ellipse-1",
+      center: { x: 0, y: 0 },
+      startDeg: 90,
+    });
+    expect(down.selectionId).toBe("ellipse-1");
+    expect(down.commit).toBeNull();
+    expect(down.preview).toBeNull();
+  });
+
+  test("按下缩放柄进入缩放手势，记下初始半径", () => {
+    const document = doc2d([
+      { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+    ]);
+    const handles = transformHandles(
+      primitiveOf(document, "circle-1"),
+      0.5,
+    );
+    if (handles?.scale === undefined) throw new Error("no scale handle");
+
+    const down = startSelect(
+      idleSelectState(),
+      handleCtx(handles.scale, { document, selectionId: "circle-1" }),
+    );
+
+    expect(down.state).toEqual({
+      kind: "scale",
+      id: "circle-1",
+      center: { x: 0, y: 0 },
+      startRadius: 3,
+    });
+  });
+
+  test("柄命中优先于下方图元的本体命中", () => {
+    const document = doc2d([
+      { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+      {
+        id: "cover-1",
+        type: "polygon",
+        points: [
+          { x: -2, y: -4 },
+          { x: 8, y: -4 },
+          { x: 8, y: 4 },
+          { x: -2, y: 4 },
+        ],
+        fill: "none",
+      },
+    ]);
+
+    const down = startSelect(
+      idleSelectState(),
+      handleCtx({ x: 3, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+
+    expect(down.state.kind).toBe("scale");
+    if (down.state.kind !== "scale") return;
+    expect(down.state.id).toBe("circle-1");
+  });
+
+  test("未选中或零柄容差时柄不干扰本体与空白命中", () => {
+    const document = doc2d([
+      { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+    ]);
+
+    const noSelection = startSelect(
+      idleSelectState(),
+      handleCtx({ x: 3, y: 0 }, { document }),
+    );
+    expect(noSelection.state.kind).toBe("idle");
+
+    const noTolerance = startSelect(
+      idleSelectState(),
+      ctx({ x: 3, y: 0 }, { document, selectionId: "circle-1" }),
+    );
+    expect(noTolerance.state.kind).toBe("idle");
+  });
+
+  test("单击柄保持选中，不取消也不提交", () => {
+    const document = ellipseDoc();
+    const handles = transformHandles(
+      primitiveOf(document, "ellipse-1"),
+      0.5,
+    );
+    if (handles === null || handles.rotate === null) {
+      throw new Error("no rotate handle");
+    }
+
+    const clicked = clickSelect(
+      idleSelectState(),
+      handleCtx(handles.rotate, { document, selectionId: "ellipse-1" }),
+    );
+
+    expect(clicked.selectionId).toBe("ellipse-1");
+    expect(clicked.commit).toBeNull();
+  });
+});
+
+describe("select-gesture 旋转", () => {
+  const rotateState = (): SelectGestureState => ({
+    kind: "rotate",
+    id: "sector-1",
+    center: { x: 0, y: 0 },
+    startDeg: 90,
+  });
+
+  test("拖旋转柄只出预览：扇形改起止角，圆心半径不动，说明书未变", () => {
+    const document = sectorDoc();
+    const snapshot = structuredClone(document);
+
+    const moved = moveSelect(
+      rotateState(),
+      handleCtx({ x: 4, y: 0 }, { document }),
+    );
+
+    expect(moved.commit).toBeNull();
+    expect(moved.preview).toEqual({
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 270,
+      endDeg: 0,
+    });
+    expect(document).toEqual(snapshot);
+  });
+
+  test("椭圆旋转的预览携带新的 rotationDeg", () => {
+    const moved = moveSelect(
+      { kind: "rotate", id: "ellipse-1", center: { x: 0, y: 0 }, startDeg: 90 },
+      handleCtx({ x: 2, y: 0 }, { document: ellipseDoc() }),
+    );
+
+    if (moved.preview === null || moved.preview.type !== "ellipse") {
+      throw new Error("expected ellipse preview");
+    }
+    expect(moved.preview.rotationDeg).toBe(270);
+    expect(moved.preview.cx).toBe(0);
+    expect(moved.preview.rx).toBe(2);
+  });
+
+  test("松手一次提交旋转角，转回原位不提交", () => {
+    const document = sectorDoc();
+
+    const up = upSelect(
+      rotateState(),
+      handleCtx({ x: 0, y: -2 }, { document }),
+    );
+    expect(up.commit).toEqual({ kind: "rotate", id: "sector-1", deg: -180 });
+    expect(up.state).toEqual(idleSelectState());
+
+    const back = upSelect(
+      rotateState(),
+      handleCtx({ x: 0, y: 4 }, { document }),
+    );
+    expect(back.commit).toBeNull();
+    expect(back.state).toEqual(idleSelectState());
+  });
+
+  test("Esc 放弃旋转且不提交", () => {
+    const moved = moveSelect(
+      rotateState(),
+      handleCtx({ x: 4, y: 0 }, { document: sectorDoc() }),
+    );
+    const cancelled = escSelect(moved.state);
+    expect(cancelled.commit).toBeNull();
+    expect(cancelled.state).toEqual(idleSelectState());
+  });
+});
+
+describe("select-gesture 缩放", () => {
+  const circleScaleDoc = (): GeometryDocument =>
+    doc2d([
+      { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+    ]);
+
+  const scaleState = (): SelectGestureState => ({
+    kind: "scale",
+    id: "circle-1",
+    center: { x: 0, y: 0 },
+    startRadius: 3,
+  });
+
+  test("拖缩放柄只出预览：圆等比缩放，圆心不动，说明书未变", () => {
+    const document = circleScaleDoc();
+    const snapshot = structuredClone(document);
+
+    const moved = moveSelect(
+      scaleState(),
+      handleCtx({ x: 1.5, y: 0 }, { document }),
+    );
+
+    expect(moved.commit).toBeNull();
+    expect(moved.preview).toEqual({
+      type: "circle",
+      cx: 0,
+      cy: 0,
+      r: 0.5,
+    });
+    expect(document).toEqual(snapshot);
+  });
+
+  test("椭圆缩放预览 rx ry 等比收放", () => {
+    const moved = moveSelect(
+      { kind: "scale", id: "ellipse-1", center: { x: 0, y: 0 }, startRadius: 4 },
+      handleCtx({ x: 2, y: 0 }, { document: ellipseDoc() }),
+    );
+
+    if (moved.preview === null || moved.preview.type !== "ellipse") {
+      throw new Error("expected ellipse preview");
+    }
+    expect(moved.preview.rx).toBe(1);
+    expect(moved.preview.ry).toBe(0.5);
+    expect(moved.preview.rotationDeg).toBe(0);
+  });
+
+  test("松手一次提交缩放因子，因子为 1 不提交", () => {
+    const document = circleScaleDoc();
+
+    const up = upSelect(
+      scaleState(),
+      handleCtx({ x: 1.5, y: 0 }, { document }),
+    );
+    expect(up.commit).toEqual({ kind: "scale", id: "circle-1", factor: 0.5 });
+    expect(up.state).toEqual(idleSelectState());
+
+    const same = upSelect(
+      scaleState(),
+      handleCtx({ x: 3, y: 0 }, { document }),
+    );
+    expect(same.commit).toBeNull();
+    expect(same.state).toEqual(idleSelectState());
+  });
+
+  test("整串缩放手势只有松手这一次 commit", () => {
+    const state = scaleState();
+    for (const point of [{ x: 2, y: 0 }, { x: 1, y: 0 }, { x: 6, y: 0 }]) {
+      const moved = moveSelect(
+        state,
+        handleCtx(point, { document: circleScaleDoc() }),
+      );
+      expect(moved.commit).toBeNull();
+    }
+    const up = upSelect(
+      state,
+      handleCtx({ x: 6, y: 0 }, { document: circleScaleDoc() }),
+    );
+    expect(up.commit).toEqual({ kind: "scale", id: "circle-1", factor: 2 });
   });
 });

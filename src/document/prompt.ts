@@ -17,7 +17,7 @@ const SYNTAX = [
   "- bow: circular segment, cx, cy, r, startDeg, endDeg, fill",
   "- arc: cx, cy, r, startDeg, endDeg",
   "- ring: cx, cy, rInner < rOuter, fill",
-  "- ellipse: axis-aligned, cx, cy, rx, ry, fill",
+  "- ellipse: cx, cy, rx, ry, rotationDeg (optional, defaults to 0 = axis-aligned; counterclockwise), fill",
   "- label: named point at x, y with text",
   "- voxel: 3D unit cube at integer min corner x, y, z",
 ].join("\n");

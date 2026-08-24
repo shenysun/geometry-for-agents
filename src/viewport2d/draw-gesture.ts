@@ -46,7 +46,14 @@ export type DrawPreview =
   | { type: "line"; points: Point2[] }
   | { type: "polygon"; points: Point2[] }
   | { type: "circle"; cx: number; cy: number; r: number }
-  | { type: "ellipse"; cx: number; cy: number; rx: number; ry: number }
+  | {
+      type: "ellipse";
+      cx: number;
+      cy: number;
+      rx: number;
+      ry: number;
+      rotationDeg: number;
+    }
   | { type: "ring"; cx: number; cy: number; rInner: number; rOuter: number }
   | {
       type: "arc";
@@ -169,7 +176,11 @@ function previewFrom(state: DrawGestureState): DrawPreview {
     };
   }
   if (state.kind === "ellipse") {
-    return { type: "ellipse", ...ellipseFromBox(state.start, state.cursor) };
+    return {
+      type: "ellipse",
+      rotationDeg: 0,
+      ...ellipseFromBox(state.start, state.cursor),
+    };
   }
   if (state.kind === "ring") {
     const outer =
@@ -345,6 +356,7 @@ export function upDraw(
       id: ctx.id,
       type: "ellipse",
       ...box,
+      rotationDeg: 0,
       fill: "none",
     });
   }

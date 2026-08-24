@@ -165,6 +165,26 @@ describe("documentToPrompt", () => {
     }
   });
 
+  test("documents ellipse rotationDeg in the syntax and projects it deterministically", () => {
+    const ellipse = {
+      id: "ellipse-1",
+      type: "ellipse",
+      cx: 2,
+      cy: 3,
+      rx: 4,
+      ry: 1,
+      rotationDeg: 30,
+      fill: "solid",
+    };
+    const document = parsed("2d", [ellipse]);
+
+    const prompt = documentToPrompt(document);
+
+    expect(prompt).toMatch(/ellipse:.*rotationDeg/);
+    expect(prompt).toContain("30");
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("omits underlay urls, local file paths, and image pixels", () => {
     const document = parsed("2d", twoDPrimitives, {
       url: "https://example.com/problem.png",

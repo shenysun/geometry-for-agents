@@ -288,6 +288,77 @@ describe("parseDocument", () => {
     expect(result.error.toLowerCase()).toMatch(/url|http/);
   });
 
+  test("opens a legacy ellipse without rotationDeg as rotation 0", () => {
+    const result = parseDocument(
+      spec("2d", [
+        {
+          id: "ellipse-1",
+          type: "ellipse",
+          cx: 0,
+          cy: 0,
+          rx: 2,
+          ry: 1,
+          fill: "none",
+        },
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual({
+      id: "ellipse-1",
+      type: "ellipse",
+      cx: 0,
+      cy: 0,
+      rx: 2,
+      ry: 1,
+      rotationDeg: 0,
+      fill: "none",
+    });
+  });
+
+  test("keeps an explicit ellipse rotationDeg", () => {
+    const result = parseDocument(
+      spec("2d", [
+        {
+          id: "ellipse-1",
+          type: "ellipse",
+          cx: 0,
+          cy: 0,
+          rx: 2,
+          ry: 1,
+          rotationDeg: 45,
+          fill: "solid",
+        },
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0].type === "ellipse").toBe(true);
+    if (result.document.primitives[0].type !== "ellipse") return;
+    expect(result.document.primitives[0].rotationDeg).toBe(45);
+  });
+
+  test("rejects a non-numeric ellipse rotationDeg", () => {
+    const result = parseDocument(
+      spec("2d", [
+        {
+          id: "ellipse-1",
+          type: "ellipse",
+          cx: 0,
+          cy: 0,
+          rx: 2,
+          ry: 1,
+          rotationDeg: "45",
+          fill: "none",
+        },
+      ]),
+    );
+
+    expect(result.success).toBe(false);
+  });
+
   test("records Y-up and voxel occupancy on the schema", () => {
     const description = documentSchema.description ?? "";
 

@@ -273,6 +273,7 @@ describe("curve, label, and fill gestures", () => {
       cy: 1,
       rx: 2,
       ry: 1,
+      rotationDeg: 0,
     });
     const committed = upDraw(
       moved.state,
@@ -285,6 +286,7 @@ describe("curve, label, and fill gestures", () => {
       cy: 1,
       rx: 2,
       ry: 1,
+      rotationDeg: 0,
       fill: "none",
     });
   });

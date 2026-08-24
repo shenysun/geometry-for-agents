@@ -80,6 +80,8 @@ const ellipseSchema = z.strictObject({
   type: z.literal("ellipse"),
   rx: z.number().positive(),
   ry: z.number().positive(),
+  // 旧说明书没有旋转角：缺省 0 即轴对齐。
+  rotationDeg: z.number().default(0),
   fill: fillSchema,
 });
 
