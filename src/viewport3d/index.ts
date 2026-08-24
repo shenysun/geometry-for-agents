@@ -1,5 +1,6 @@
 export {
   createViewport3dProjector,
+  solidPlacementPreview,
 } from "./projector.ts";
 export type {
   Viewport3dPick,
@@ -34,4 +35,23 @@ export {
   commitBox,
 } from "./box-commit.ts";
 export type { BoxPrimitive } from "./box-commit.ts";
+export {
+  CONE_DEFAULTS,
+  CYLINDER_DEFAULTS,
+  SPHERE_DEFAULTS,
+  SOLID_TOOLS,
+  commitCone,
+  commitCylinder,
+  commitSolid,
+  commitSphere,
+  isSolidTool,
+  solidAnchorFromWorld,
+} from "./solid-commit.ts";
+export type {
+  ConePrimitive,
+  CylinderPrimitive,
+  SolidPrimitive,
+  SolidToolId,
+  SpherePrimitive,
+} from "./solid-commit.ts";
 export { snap3d } from "./snap3d.ts";

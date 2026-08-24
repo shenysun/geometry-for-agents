@@ -6,8 +6,9 @@ import { localeFromLanguages, type AppLocale } from "../i18n/locale.ts";
 import { isDrawTool, type DrawTool } from "../viewport2d/draw-gesture.ts";
 import type { SessionUnderlay } from "../viewport2d/draw-underlay.ts";
 import type { ClosablePanelId } from "../components/layout.ts";
+import { SOLID_TOOLS, type SolidToolId } from "../viewport3d/solid-commit.ts";
 
-export type EditorTool = "select" | DrawTool | "voxel" | "box" | null;
+export type EditorTool = "select" | DrawTool | "voxel" | SolidToolId | null;
 
 /** 顶栏发给停靠宿主的布局指令；nonce 保证重复点同一项也触发 */
 export type LayoutCommand =
@@ -16,7 +17,10 @@ export type LayoutCommand =
   | { kind: "reset"; nonce: number };
 
 /** 只属于 3D 空间的创建工具：带进 2D 时退回选择 */
-const threeDTools: ReadonlySet<EditorTool> = new Set(["voxel", "box"]);
+const threeDTools: ReadonlySet<EditorTool> = new Set([
+  "voxel",
+  ...SOLID_TOOLS,
+]);
 
 export const useEditorStore = defineStore("editor", () => {
   const preferredLanguages = usePreferredLanguages();

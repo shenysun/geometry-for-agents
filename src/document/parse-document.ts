@@ -121,6 +121,40 @@ const boxSchema = z.strictObject({
   ...solidRotation,
 });
 
+// 圆柱与圆锥同构：底面圆心即底面中心，r 是半径，height 沿 +Y。
+const cylinderSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("cylinder"),
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+  r: z.number().positive(),
+  height: z.number().positive(),
+  ...solidRotation,
+});
+
+const coneSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("cone"),
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+  r: z.number().positive(),
+  height: z.number().positive(),
+  ...solidRotation,
+});
+
+// 球无旋转字段：strictObject 拒绝多余的 rotationDeg*。
+const sphereSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("sphere"),
+  // (x,y,z) 是球心。
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+  r: z.number().positive(),
+});
+
 const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   lineSchema,
   polygonSchema,
@@ -136,6 +170,9 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
 const threeDPrimitiveSchema = z.discriminatedUnion("type", [
   voxelSchema,
   boxSchema,
+  cylinderSchema,
+  coneSchema,
+  sphereSchema,
 ]);
 
 const underlaySchema = z
@@ -181,7 +218,7 @@ export const documentSchema = z
     }
   })
   .describe(
-    "2D coordinates are (x,y) with Y-up. 3D coordinates are (x,y,z) with Y as height and XZ as the ground. Angles are degrees, 0° at +X, counterclockwise positive. A voxel's integer (x,y,z) is the minimum corner of the unit cube occupying [x,x+1]×[y,y+1]×[z,z+1]. A box's (x,y,z) is its bottom-face center: y is the base height, height grows along +Y; rotationDegY/X/Z are euler degrees composed in Y→X→Z order, 0 = base facing down.",
+    "2D coordinates are (x,y) with Y-up. 3D coordinates are (x,y,z) with Y as height and XZ as the ground. Angles are degrees, 0° at +X, counterclockwise positive. A voxel's integer (x,y,z) is the minimum corner of the unit cube occupying [x,x+1]×[y,y+1]×[z,z+1]. Standing solids (box, cylinder, cone) are anchored at the bottom-face center: y is the base height, height grows along +Y; rotationDegY/X/Z are euler degrees composed in Y→X→Z order, 0 = base facing down. A sphere's (x,y,z) is its center.",
   );
 
 export type GeometryDocument = z.infer<typeof documentSchema>;
@@ -206,7 +243,13 @@ const twoDTypes = new Set([
   "label",
 ]);
 
-const threeDTypes = new Set(["voxel", "box"]);
+const threeDTypes = new Set([
+  "voxel",
+  "box",
+  "cylinder",
+  "cone",
+  "sphere",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

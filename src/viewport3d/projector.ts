@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { GeometryDocument, Point3 } from "../document/index.ts";
 import type { BoxPrimitive } from "./box-commit.ts";
+import type { SolidPrimitive } from "./solid-commit.ts";
 import { voxelCornerFromWorld } from "./voxel-commit.ts";
 
 const AXIS_LABELS = [
@@ -12,7 +13,7 @@ const AXIS_LABELS = [
 
 const DEG = Math.PI / 180;
 
-/** 跟随指针的放置预览：体素给最小角，长方体给底面中心与尺寸 */
+/** 跟随指针的放置预览：体素给最小角，参数体给锚点与尺寸 */
 export type PlacementPreview =
   | { kind: "voxel"; corner: Point3 }
   | {
@@ -22,7 +23,39 @@ export type PlacementPreview =
       depth: number;
       height: number;
     }
+  | { kind: "cylinder" | "cone"; anchor: Point3; r: number; height: number }
+  | { kind: "sphere"; center: Point3; r: number }
   | null;
+
+/** 把一条已提交形态的参数体映射成跟随指针的预览（默认尺寸、无旋转）。 */
+export function solidPlacementPreview(
+  solid: SolidPrimitive,
+): Exclude<PlacementPreview, null> {
+  switch (solid.type) {
+    case "box":
+      return {
+        kind: "box",
+        anchor: { x: solid.x, y: solid.y, z: solid.z },
+        width: solid.width,
+        depth: solid.depth,
+        height: solid.height,
+      };
+    case "cylinder":
+    case "cone":
+      return {
+        kind: solid.type,
+        anchor: { x: solid.x, y: solid.y, z: solid.z },
+        r: solid.r,
+        height: solid.height,
+      };
+    case "sphere":
+      return {
+        kind: "sphere",
+        center: { x: solid.x, y: solid.y, z: solid.z },
+        r: solid.r,
+      };
+  }
+}
 
 export type Viewport3dPick =
   | { kind: "empty"; place: Point3; world: Point3 }
@@ -112,6 +145,10 @@ export function createViewport3dProjector(
   }
 
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+  // 单位几何体 + 每图元 scale/rotate：圆柱/圆锥半径 1 高 1，球半径 1。
+  const cylinderGeometry = new THREE.CylinderGeometry(1, 1, 1, 32);
+  const coneGeometry = new THREE.ConeGeometry(1, 1, 32);
+  const sphereGeometry = new THREE.SphereGeometry(1, 24, 16);
   const voxelMaterial = new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
   // 选中体素的高亮：亮黄，与橙色放置预览区分。
   const selectedVoxelMaterial = new THREE.MeshLambertMaterial({
@@ -130,7 +167,11 @@ export function createViewport3dProjector(
   const solidGroup = new THREE.Group();
   scene.add(solidGroup);
 
-  const previewMesh = new THREE.Mesh(boxGeometry, previewMaterial);
+  // 预览网格换几何体不换材质：按预览种类在 box/cylinder/cone/sphere 间切换
+  const previewMesh: THREE.Mesh<THREE.BufferGeometry> = new THREE.Mesh(
+    boxGeometry,
+    previewMaterial,
+  );
   previewMesh.visible = false;
   scene.add(previewMesh);
 
@@ -174,6 +215,45 @@ export function createViewport3dProjector(
     solidGroup.add(mesh);
   }
 
+  function placeCylinderMesh(
+    solid: Extract<SolidPrimitive, { type: "cylinder" }>,
+  ): void {
+    const mesh = new THREE.Mesh(cylinderGeometry, solidMaterial);
+    mesh.scale.set(solid.r, solid.height, solid.r);
+    mesh.position.set(solid.x, solid.y + solid.height / 2, solid.z);
+    mesh.rotation.set(
+      solid.rotationDegX * DEG,
+      solid.rotationDegY * DEG,
+      solid.rotationDegZ * DEG,
+      "YXZ",
+    );
+    solidGroup.add(mesh);
+  }
+
+  function placeConeMesh(
+    solid: Extract<SolidPrimitive, { type: "cone" }>,
+  ): void {
+    const mesh = new THREE.Mesh(coneGeometry, solidMaterial);
+    mesh.scale.set(solid.r, solid.height, solid.r);
+    mesh.position.set(solid.x, solid.y + solid.height / 2, solid.z);
+    mesh.rotation.set(
+      solid.rotationDegX * DEG,
+      solid.rotationDegY * DEG,
+      solid.rotationDegZ * DEG,
+      "YXZ",
+    );
+    solidGroup.add(mesh);
+  }
+
+  function placeSphereMesh(
+    solid: Extract<SolidPrimitive, { type: "sphere" }>,
+  ): void {
+    const mesh = new THREE.Mesh(sphereGeometry, solidMaterial);
+    mesh.scale.set(solid.r, solid.r, solid.r);
+    mesh.position.set(solid.x, solid.y, solid.z);
+    solidGroup.add(mesh);
+  }
+
   controls.addEventListener("change", paint);
   paint();
 
@@ -183,10 +263,22 @@ export function createViewport3dProjector(
     solidGroup.clear();
     if (document.space === "3d") {
       for (const primitive of document.primitives) {
-        if (primitive.type === "voxel") {
-          placeVoxelMesh(primitive.id, primitive.x, primitive.y, primitive.z);
-        } else if (primitive.type === "box") {
-          placeBoxMesh(primitive);
+        switch (primitive.type) {
+          case "voxel":
+            placeVoxelMesh(primitive.id, primitive.x, primitive.y, primitive.z);
+            break;
+          case "box":
+            placeBoxMesh(primitive);
+            break;
+          case "cylinder":
+            placeCylinderMesh(primitive);
+            break;
+          case "cone":
+            placeConeMesh(primitive);
+            break;
+          case "sphere":
+            placeSphereMesh(primitive);
+            break;
         }
       }
     }
@@ -210,20 +302,41 @@ export function createViewport3dProjector(
         return;
       }
       previewMesh.rotation.set(0, 0, 0);
-      if (preview.kind === "voxel") {
-        previewMesh.scale.set(1, 1, 1);
-        previewMesh.position.set(
-          preview.corner.x + 0.5,
-          preview.corner.y + 0.5,
-          preview.corner.z + 0.5,
-        );
-      } else {
-        previewMesh.scale.set(preview.width, preview.height, preview.depth);
-        previewMesh.position.set(
-          preview.anchor.x,
-          preview.anchor.y + preview.height / 2,
-          preview.anchor.z,
-        );
+      switch (preview.kind) {
+        case "voxel":
+          previewMesh.geometry = boxGeometry;
+          previewMesh.scale.set(1, 1, 1);
+          previewMesh.position.set(
+            preview.corner.x + 0.5,
+            preview.corner.y + 0.5,
+            preview.corner.z + 0.5,
+          );
+          break;
+        case "box":
+          previewMesh.geometry = boxGeometry;
+          previewMesh.scale.set(preview.width, preview.height, preview.depth);
+          previewMesh.position.set(
+            preview.anchor.x,
+            preview.anchor.y + preview.height / 2,
+            preview.anchor.z,
+          );
+          break;
+        case "cylinder":
+        case "cone":
+          previewMesh.geometry =
+            preview.kind === "cylinder" ? cylinderGeometry : coneGeometry;
+          previewMesh.scale.set(preview.r, preview.height, preview.r);
+          previewMesh.position.set(
+            preview.anchor.x,
+            preview.anchor.y + preview.height / 2,
+            preview.anchor.z,
+          );
+          break;
+        case "sphere":
+          previewMesh.geometry = sphereGeometry;
+          previewMesh.scale.set(preview.r, preview.r, preview.r);
+          previewMesh.position.set(preview.center.x, preview.center.y, preview.center.z);
+          break;
       }
       previewMesh.visible = true;
       paint();
@@ -292,6 +405,9 @@ export function createViewport3dProjector(
       voxelGroup.clear();
       solidGroup.clear();
       boxGeometry.dispose();
+      cylinderGeometry.dispose();
+      coneGeometry.dispose();
+      sphereGeometry.dispose();
       voxelMaterial.dispose();
       selectedVoxelMaterial.dispose();
       solidMaterial.dispose();

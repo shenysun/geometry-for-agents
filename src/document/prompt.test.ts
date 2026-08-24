@@ -221,6 +221,52 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the cylinder, cone and sphere syntax and anchors and projects them deterministically", () => {
+    const document = parsed("3d", [
+      {
+        id: "cylinder-1",
+        type: "cylinder",
+        x: 1,
+        y: 0,
+        z: -2,
+        r: 0.5,
+        height: 2,
+        rotationDegY: 30,
+        rotationDegX: 0,
+        rotationDegZ: 0,
+      },
+      {
+        id: "cone-1",
+        type: "cone",
+        x: 0,
+        y: 0,
+        z: 0,
+        r: 1,
+        height: 3,
+        rotationDegY: 0,
+        rotationDegX: 90,
+        rotationDegZ: 0,
+      },
+      { id: "sphere-1", type: "sphere", x: 2, y: 1, z: 0, r: 0.5 },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法行写明锚点（圆柱/圆锥底面中心、球球心）与全部字段
+    expect(prompt).toMatch(/cylinder:.*bottom-face center/);
+    expect(prompt).toMatch(/cylinder:.*r.*height/);
+    expect(prompt).toMatch(/cylinder:.*rotationDegY, rotationDegX, rotationDegZ/);
+    expect(prompt).toMatch(/cone:.*bottom-face center/);
+    expect(prompt).toMatch(/sphere:.*center/);
+    // 球没有旋转字段，语法行不得给它列 rotationDeg
+    expect(prompt).not.toMatch(/sphere:[^\n]*rotationDeg/);
+    // 投影含三种图元且两次生成相等
+    expect(prompt).toContain("cylinder-1");
+    expect(prompt).toContain("cone-1");
+    expect(prompt).toContain("sphere-1");
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("omits underlay urls, local file paths, and image pixels", () => {
     const document = parsed("2d", twoDPrimitives, {
       url: "https://example.com/problem.png",

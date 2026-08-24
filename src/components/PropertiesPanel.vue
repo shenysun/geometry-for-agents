@@ -5,27 +5,90 @@ import { useI18n } from "vue-i18n";
 import { FILLS, withFill, type Fill, type Primitive } from "../document/index.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
+import type { SolidPrimitive } from "../viewport3d/solid-commit.ts";
 
-type BoxPrimitive = Extract<Primitive, { type: "box" }>;
-type BoxFieldKey = keyof Omit<BoxPrimitive, "id" | "type">;
+/** 参数体数字字段目录的键：位置、尺寸与三欧拉角（各类型取其子集） */
+type SolidFieldKey =
+  | "x"
+  | "y"
+  | "z"
+  | "r"
+  | "width"
+  | "depth"
+  | "height"
+  | "rotationDegY"
+  | "rotationDegX"
+  | "rotationDegZ";
 
-/** 长方体在属性面板暴露的数字字段：位置（底面中心）+ 三尺寸 + 三欧拉角 */
-const BOX_FIELDS: readonly {
-  key: BoxFieldKey;
-  labelKey: `field.${BoxFieldKey}`;
+type SolidField = {
+  key: SolidFieldKey;
+  labelKey: `field.${SolidFieldKey}`;
   step: number;
   positive: boolean;
-}[] = [
+};
+
+const POSITION_FIELDS: readonly SolidField[] = [
   { key: "x", labelKey: "field.x", step: 0.5, positive: false },
   { key: "y", labelKey: "field.y", step: 0.5, positive: false },
   { key: "z", labelKey: "field.z", step: 0.5, positive: false },
-  { key: "width", labelKey: "field.width", step: 0.5, positive: true },
-  { key: "depth", labelKey: "field.depth", step: 0.5, positive: true },
-  { key: "height", labelKey: "field.height", step: 0.5, positive: true },
+];
+
+const ROTATION_FIELDS: readonly SolidField[] = [
   { key: "rotationDegY", labelKey: "field.rotationDegY", step: 15, positive: false },
   { key: "rotationDegX", labelKey: "field.rotationDegX", step: 15, positive: false },
   { key: "rotationDegZ", labelKey: "field.rotationDegZ", step: 15, positive: false },
 ];
+
+const RADIUS_FIELD: SolidField = {
+  key: "r",
+  labelKey: "field.r",
+  step: 0.5,
+  positive: true,
+};
+
+const HEIGHT_FIELD: SolidField = {
+  key: "height",
+  labelKey: "field.height",
+  step: 0.5,
+  positive: true,
+};
+
+/** 按类型穷尽的字段目录：长方体三尺寸，圆柱/圆锥 r+height+旋转，球只有位置和 r */
+function solidFields(type: SolidPrimitive["type"]): readonly SolidField[] {
+  switch (type) {
+    case "box":
+      return [
+        ...POSITION_FIELDS,
+        { key: "width", labelKey: "field.width", step: 0.5, positive: true },
+        { key: "depth", labelKey: "field.depth", step: 0.5, positive: true },
+        HEIGHT_FIELD,
+        ...ROTATION_FIELDS,
+      ];
+    case "cylinder":
+    case "cone":
+      return [...POSITION_FIELDS, RADIUS_FIELD, HEIGHT_FIELD, ...ROTATION_FIELDS];
+    case "sphere":
+      return [...POSITION_FIELDS, RADIUS_FIELD];
+  }
+}
+
+/** 联合上按键读数字字段：字段目录按类型穷尽，读不到该键返回 null */
+function numericFieldOf(
+  primitive: SolidPrimitive,
+  key: SolidFieldKey,
+): number | null {
+  const value = (primitive as Record<string, unknown>)[key];
+  return typeof value === "number" ? value : null;
+}
+
+/** 字段目录按类型穷尽，键与数字值成对出现；联合上收窄交给这一处 */
+function withNumericField(
+  primitive: SolidPrimitive,
+  key: SolidFieldKey,
+  value: number,
+): SolidPrimitive {
+  return { ...primitive, [key]: value };
+}
 
 const documentStore = useDocumentStore();
 const editor = useEditorStore();
@@ -40,28 +103,42 @@ const selected = computed(() => {
   );
 });
 
-const box = computed(() => {
+const solid = computed<SolidPrimitive | null>(() => {
   const primitive = selected.value;
-  return primitive !== null && primitive.type === "box" ? primitive : null;
+  if (primitive === null) return null;
+  return (
+    primitive.type === "box" ||
+    primitive.type === "cylinder" ||
+    primitive.type === "cone" ||
+    primitive.type === "sphere"
+      ? primitive
+      : null
+  );
 });
 
+const solidFieldList = computed(() =>
+  solid.value === null ? [] : solidFields(solid.value.type),
+);
+
 /** 非数字或非法尺寸不写说明书，输入框回退为当前值 */
-function onBoxFieldChange(key: BoxFieldKey, event: Event): void {
-  const current = box.value;
+function onSolidFieldChange(key: SolidFieldKey, event: Event): void {
+  const current = solid.value;
   if (current === null) return;
+  const present = numericFieldOf(current, key);
+  if (present === null) return;
   const input = event.target as HTMLInputElement;
   const value = Number(input.value);
-  const field = BOX_FIELDS.find((entry) => entry.key === key);
+  const field = solidFieldList.value.find((entry) => entry.key === key);
   const valid =
     Number.isFinite(value) && (field === undefined || !field.positive || value > 0);
-  if (!valid || current[key] === value) {
-    input.value = String(current[key]);
+  if (!valid || present === value) {
+    input.value = String(present);
     return;
   }
-  const next: BoxPrimitive = { ...current, [key]: value };
+  const next = withNumericField(current, key, value);
   const result = documentStore.updatePrimitive(next.id, next);
   if (!result.success) {
-    input.value = String(current[key]);
+    input.value = String(present);
   }
 }
 
@@ -88,16 +165,16 @@ function onFillChange(value: string | string[] | undefined): void {
     class="h-full space-y-3 overflow-auto px-3 py-3 text-sm"
   >
     <p class="font-medium">{{ selected.type }} · {{ selected.id }}</p>
-    <div v-if="box !== null" class="grid grid-cols-2 gap-2">
-      <label v-for="field in BOX_FIELDS" :key="field.key" class="space-y-1">
+    <div v-if="solid !== null" class="grid grid-cols-2 gap-2">
+      <label v-for="field in solidFieldList" :key="field.key" class="space-y-1">
         <span class="block text-zinc-500">{{ t(field.labelKey) }}</span>
         <input
           type="number"
           :step="field.step"
-          :value="box[field.key]"
+          :value="numericFieldOf(solid, field.key) ?? 0"
           :aria-label="t(field.labelKey)"
           class="w-full rounded border border-zinc-300 px-2 py-1"
-          @change="onBoxFieldChange(field.key, $event)"
+          @change="onSolidFieldChange(field.key, $event)"
         />
       </label>
     </div>

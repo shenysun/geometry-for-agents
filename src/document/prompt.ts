@@ -23,6 +23,9 @@ const SYNTAX = [
   "- label: named point at x, y with text",
   "- voxel: 3D unit cube at integer min corner x, y, z",
   "- box: 3D cuboid anchored at the bottom-face center x, y, z; width (X), depth (Z), height (Y) along +Y; rotationDegY, rotationDegX, rotationDegZ",
+  "- cylinder: 3D cylinder anchored at the bottom-face center x, y, z; r (radius), height along +Y; rotationDegY, rotationDegX, rotationDegZ",
+  "- cone: 3D cone anchored at the bottom-face center x, y, z; r (base radius), height along +Y; rotationDegY, rotationDegX, rotationDegZ",
+  "- sphere: 3D sphere centered at x, y, z with radius r (no rotation fields)",
 ].join("\n");
 
 function compareId(left: string, right: string): number {

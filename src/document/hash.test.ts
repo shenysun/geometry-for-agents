@@ -147,6 +147,43 @@ describe("document hash", () => {
     expect(reparsed.document).toEqual(document);
   });
 
+  test("roundtrips a 3d document with cylinder, cone and sphere alongside voxel and box", () => {
+    const document = parsed("3d", [
+      {
+        id: "cylinder-1",
+        type: "cylinder",
+        x: 1,
+        y: 0,
+        z: -2,
+        r: 0.5,
+        height: 2,
+        rotationDegY: 30,
+        rotationDegX: 0,
+        rotationDegZ: 0,
+      },
+      {
+        id: "cone-1",
+        type: "cone",
+        x: 0,
+        y: 0,
+        z: 0,
+        r: 1,
+        height: 3,
+        rotationDegY: 0,
+        rotationDegX: 90,
+        rotationDegZ: 0,
+      },
+      { id: "sphere-1", type: "sphere", x: 2, y: 1, z: 0, r: 0.5 },
+      { id: "box-1", type: "box", x: 0, y: 0, z: 0, width: 1, depth: 1, height: 1, rotationDegY: 0, rotationDegX: 0, rotationDegZ: 0 },
+      { id: "voxel-1", type: "voxel", x: 0, y: 2, z: -1 },
+    ]);
+
+    const decoded = hashToDocument(documentToHash(document));
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) return;
+    expect(decoded.document).toEqual(document);
+  });
+
   test("rejects a damaged hash", () => {
     const result = hashToDocument("not-a-valid-lz-payload");
 

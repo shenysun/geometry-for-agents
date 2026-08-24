@@ -434,3 +434,121 @@ describe("parseDocument", () => {
     expect(description).toContain("Y→X→Z");
   });
 });
+
+const validCylinder = {
+  id: "cylinder-1",
+  type: "cylinder",
+  x: 1,
+  y: 0,
+  z: -2,
+  r: 0.5,
+  height: 1,
+  rotationDegY: 0,
+  rotationDegX: 30,
+  rotationDegZ: 0,
+};
+
+const validCone = {
+  id: "cone-1",
+  type: "cone",
+  x: 0,
+  y: 0.5,
+  z: 0,
+  r: 2,
+  height: 3,
+  rotationDegY: 90,
+  rotationDegX: 0,
+  rotationDegZ: -15,
+};
+
+const validSphere = {
+  id: "sphere-1",
+  type: "sphere",
+  x: 0,
+  y: 1,
+  z: 0,
+  r: 0.5,
+};
+
+describe("parseDocument 参数体：圆柱、圆锥、球", () => {
+  test("parses a 3d document where cylinder, cone and sphere coexist with voxel and box", () => {
+    const result = parseDocument(
+      spec("3d", [
+        validCylinder,
+        validCone,
+        validSphere,
+        validBox,
+        { id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 },
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.type)).toEqual([
+      "cylinder",
+      "cone",
+      "sphere",
+      "box",
+      "voxel",
+    ]);
+  });
+
+  test("rejects a cylinder or cone with non-positive r or height", () => {
+    for (const primitive of [validCylinder, validCone]) {
+      for (const field of ["r", "height"] as const) {
+        expect(
+          parseDocument(spec("3d", [{ ...primitive, [field]: 0 }])).success,
+          `${primitive.type} ${field}`,
+        ).toBe(false);
+      }
+    }
+    expect(
+      parseDocument(spec("3d", [{ ...validCylinder, r: -0.5 }])).success,
+    ).toBe(false);
+  });
+
+  test("rejects a cylinder missing a rotation field", () => {
+    const { rotationDegX: _omitted, ...withoutRotation } = validCylinder;
+    const result = parseDocument(spec("3d", [withoutRotation]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toMatch(/rotationDegX/);
+  });
+
+  test("rejects a sphere with any rotation field（球无旋转）", () => {
+    for (const field of [
+      "rotationDegY",
+      "rotationDegX",
+      "rotationDegZ",
+    ] as const) {
+      const result = parseDocument(spec("3d", [{ ...validSphere, [field]: 0 }]));
+      expect(result.success, field).toBe(false);
+    }
+  });
+
+  test("rejects a sphere with non-positive r", () => {
+    expect(
+      parseDocument(spec("3d", [{ ...validSphere, r: 0 }])).success,
+    ).toBe(false);
+  });
+
+  test("rejects cylinder, cone and sphere in space 2d", () => {
+    for (const primitive of [validCylinder, validCone, validSphere]) {
+      const result = parseDocument(spec("2d", [primitive]));
+      expect(result.success, primitive.type).toBe(false);
+      if (result.success) continue;
+      expect(result.error).toContain(
+        `type "${primitive.type}" is not allowed in space "2d"`,
+      );
+    }
+  });
+
+  test("records the cylinder bottom-face-center and sphere-center anchors on the schema", () => {
+    const description = documentSchema.description ?? "";
+
+    expect(description).toContain("cylinder");
+    expect(description).toContain("cone");
+    expect(description).toMatch(/sphere[^\n]{0,60}center/i);
+  });
+});

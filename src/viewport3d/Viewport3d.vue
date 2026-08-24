@@ -4,12 +4,13 @@ import { onMounted, onUnmounted, ref, watch } from "vue";
 import type { GridSnap } from "../document/index.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
-import { commitBox } from "./box-commit.ts";
 import {
   createViewport3dProjector,
+  solidPlacementPreview,
   type Viewport3dPick,
   type Viewport3dProjector,
 } from "./projector.ts";
+import { commitSolid, isSolidTool } from "./solid-commit.ts";
 import {
   clickSelect3d,
   escSelect3d,
@@ -39,9 +40,9 @@ function isSelectTool(): boolean {
   return editor.tool === "select" || editor.tool === null;
 }
 
-/** 3D 创建工具：单位立方体与长方体（其余参数体是后面的票）。 */
+/** 3D 创建工具：单位立方体与参数体（长方体、圆柱、圆锥、球）。 */
 function isCreateTool(): boolean {
-  return editor.tool === "voxel" || editor.tool === "box";
+  return editor.tool === "voxel" || isSolidTool(editor.tool);
 }
 
 /** 体素不吃格与 Alt：传进手势只为在纯函数里证明「被忽略」。 */
@@ -112,29 +113,23 @@ function applySelectGesture3d(result: Select3dResult): void {
   }
 }
 
-/** 预览跟随指针但不写说明书：长方体吃吸附当前格的原始落点，体素吃整数角 */
+/** 预览跟随指针但不写说明书：参数体吃吸附当前格的原始落点，体素吃整数角 */
 function previewPlace(pick: Viewport3dPick): void {
   if (pick.kind === "none" || !isCreateTool()) {
     projector?.setPreview(null);
     return;
   }
-  if (editor.tool === "box") {
-    const commit = commitBox(
+  const tool = editor.tool;
+  if (isSolidTool(tool)) {
+    const solid = commitSolid(
       documentStore.current,
+      tool,
       pick.world,
       editor.grid,
       "preview",
     );
     projector?.setPreview(
-      commit === null
-        ? null
-        : {
-            kind: "box",
-            anchor: { x: commit.x, y: commit.y, z: commit.z },
-            width: commit.width,
-            depth: commit.depth,
-            height: commit.height,
-          },
+      solid === null ? null : solidPlacementPreview(solid),
     );
     return;
   }
@@ -285,17 +280,19 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
   projector.setPreview(null);
   const pick = pickAt(event);
   if (wasDragging || pick.kind === "none") return;
-  if (editor.tool === "box") {
-    const commit = commitBox(
+  const tool = editor.tool;
+  if (isSolidTool(tool)) {
+    const solid = commitSolid(
       documentStore.current,
+      tool,
       pick.world,
       editor.grid,
       crypto.randomUUID(),
     );
-    if (commit === null) return;
-    const placed = documentStore.addPrimitive(commit);
+    if (solid === null) return;
+    const placed = documentStore.addPrimitive(solid);
     if (placed.success) {
-      editor.setSelectionId(commit.id);
+      editor.setSelectionId(solid.id);
     }
     return;
   }
