@@ -8,6 +8,7 @@ import {
   type Viewport3dPick,
   type Viewport3dProjector,
 } from "./projector.ts";
+import { commitBox } from "./box-commit.ts";
 import { commitVoxel } from "./voxel-commit.ts";
 
 const CLICK_PX = 4;
@@ -36,13 +37,36 @@ function pickAt(event: PointerEvent | MouseEvent): Viewport3dPick {
   return projector.pick(screen);
 }
 
+/** 预览跟随指针但不写说明书：长方体吃吸附当前格的原始落点，体素吃整数角 */
 function previewPlace(pick: Viewport3dPick): void {
   if (pick.kind === "none") {
     projector?.setPreview(null);
     return;
   }
+  if (editor.tool === "box") {
+    const commit = commitBox(
+      documentStore.current,
+      pick.world,
+      editor.grid,
+      "preview",
+    );
+    projector?.setPreview(
+      commit === null
+        ? null
+        : {
+            kind: "box",
+            anchor: { x: commit.x, y: commit.y, z: commit.z },
+            width: commit.width,
+            depth: commit.depth,
+            height: commit.height,
+          },
+    );
+    return;
+  }
   const commit = commitVoxel(documentStore.current, pick.place, "preview");
-  projector?.setPreview(commit);
+  projector?.setPreview(
+    commit === null ? null : { kind: "voxel", corner: commit },
+  );
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -131,6 +155,21 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
   }
   if (button !== 0) return;
   if (pick.kind === "none") return;
+  // 长方体工具：单击落点吸附当前格后一次提交；体素路径保持点格放置
+  if (editor.tool === "box") {
+    const commit = commitBox(
+      documentStore.current,
+      pick.world,
+      editor.grid,
+      crypto.randomUUID(),
+    );
+    if (commit === null) return;
+    const placed = documentStore.addPrimitive(commit);
+    if (placed.success) {
+      editor.setSelectionId(commit.id);
+    }
+    return;
+  }
   const commit = commitVoxel(
     documentStore.current,
     pick.place,

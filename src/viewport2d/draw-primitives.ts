@@ -144,6 +144,9 @@ function drawPrimitive(primitive: Primitive, view: ViewTransform): Konva.Shape[]
   switch (primitive.type) {
     case "voxel":
       return [];
+    // 领地外穷尽 switch 跟随改动：box 只进 3D 说明书，2D 视口不画它
+    case "box":
+      return [];
     case "line":
       return [strokeLine(toScreenPoints(primitive.points, view), false)];
     case "polygon":

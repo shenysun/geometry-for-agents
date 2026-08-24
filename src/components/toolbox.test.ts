@@ -8,16 +8,17 @@ describe("toolsForSpace", () => {
     expect(ids).toEqual(["select", ...DRAW_TOOLS]);
   });
 
-  test("3D 目录 = 选择 + 单位立方体，参数体留给后面的票", () => {
+  test("3D 目录 = 选择 + 单位立方体 + 长方体；圆柱等参数体留给后面的票", () => {
     const ids = toolsForSpace("3d").map((tool) => tool.id);
-    expect(ids).toEqual(["select", "voxel"]);
+    expect(ids).toEqual(["select", "voxel", "box"]);
   });
 
-  test("2D 不含 voxel；3D 不含 2D 创建工具；都含 select", () => {
+  test("2D 不含 voxel 与 box；3D 不含 2D 创建工具；都含 select", () => {
     const planar = toolsForSpace("2d").map((tool) => tool.id);
     const solid = toolsForSpace("3d").map((tool) => tool.id);
 
     expect(planar).not.toContain("voxel");
+    expect(planar).not.toContain("box");
     for (const drawTool of DRAW_TOOLS) {
       expect(solid).not.toContain(drawTool);
     }

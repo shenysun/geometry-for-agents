@@ -93,6 +93,20 @@ const closed2dPrimitives = [
   },
 ];
 
+const validBox = {
+  id: "box-1",
+  type: "box",
+  x: 1,
+  y: 0,
+  z: -2,
+  width: 2,
+  depth: 3,
+  height: 0.5,
+  rotationDegY: 30,
+  rotationDegX: 0,
+  rotationDegZ: -10,
+};
+
 describe("parseDocument", () => {
   test("parses a valid empty 2d document", () => {
     const input = spec("2d");
@@ -367,5 +381,56 @@ describe("parseDocument", () => {
     expect(description).toContain("[x,x+1]");
     expect(description).toContain("[y,y+1]");
     expect(description).toContain("[z,z+1]");
+  });
+
+  test("parses a 3d document where box and voxel coexist", () => {
+    const result = parseDocument(
+      spec("3d", [
+        validBox,
+        { id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 },
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.type)).toEqual([
+      "box",
+      "voxel",
+    ]);
+  });
+
+  test("rejects a box in space 2d", () => {
+    const result = parseDocument(spec("2d", [validBox]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain('type "box" is not allowed in space "2d"');
+  });
+
+  test("rejects a box with non-positive width, depth, or height", () => {
+    for (const field of ["width", "depth", "height"] as const) {
+      const result = parseDocument(spec("3d", [{ ...validBox, [field]: 0 }]));
+      expect(result.success, `field ${field}`).toBe(false);
+    }
+    expect(
+      parseDocument(spec("3d", [{ ...validBox, height: -1 }])).success,
+    ).toBe(false);
+  });
+
+  test("rejects a box missing a rotation field", () => {
+    const { rotationDegY: _omitted, ...withoutRotation } = validBox;
+    const result = parseDocument(spec("3d", [withoutRotation]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toMatch(/rotationDegY/);
+  });
+
+  test("records the box bottom-face-center anchor on the schema", () => {
+    const description = documentSchema.description ?? "";
+
+    expect(description).toContain("box");
+    expect(description).toMatch(/bottom[^\n]{0,60}center/i);
+    expect(description).toContain("Y→X→Z");
   });
 });

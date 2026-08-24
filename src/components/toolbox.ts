@@ -40,14 +40,17 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
   voxel: {
     paths: ["M8 2l5 2.8v6.4L8 14l-5-2.8V4.8z", "M3 4.8L8 7.6l5-2.8", "M8 7.6V14"],
   },
+  box: {
+    paths: ["M2 6.5L10 3.5L14 5L6 8z", "M2 6.5V11.5L6 13.5V8", "M14 5V10L6 13.5"],
+  },
 };
 
 /** 每个空间列出的工具次序：选择永远第一，创建工具跟在后面 */
 const TOOLS_PER_SPACE: Record<"2d" | "3d", readonly ToolboxToolId[]> = {
   // 2D：选择 + 第一期全部平面创建工具
   "2d": ["select", ...DRAW_TOOLS],
-  // 3D：选择 + 单位立方体；参数体是后面的票
-  "3d": ["select", "voxel"],
+  // 3D：选择 + 单位立方体 + 长方体；圆柱/圆锥/球/棱锥/棱柱是后面的票
+  "3d": ["select", "voxel", "box"],
 };
 
 /** 工具目录纯函数：输入空间，返回该空间工具箱应列出的工具 */

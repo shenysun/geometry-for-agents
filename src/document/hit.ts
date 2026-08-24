@@ -199,6 +199,9 @@ function contains(
       return Math.hypot(point.x - primitive.x, point.y - primitive.y) <= tolerance;
     case "voxel":
       return inVoxel(point, primitive);
+    // 领地外穷尽 switch 跟随改动：box 只进 3D 说明书，2D 命中测试不命中它
+    case "box":
+      return false;
   }
 }
 
@@ -237,6 +240,9 @@ function area(primitive: Primitive): number {
     }
     case "voxel":
       return 1;
+    // 领地外穷尽 switch 跟随改动：contains 恒 false，box 不会进候选，面积不参与
+    case "box":
+      return Number.POSITIVE_INFINITY;
     case "line":
     case "arc":
     case "label":

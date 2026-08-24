@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { GeometryDocument, Point3 } from "../document/index.ts";
+import type { BoxPrimitive } from "./box-commit.ts";
 import { voxelCornerFromWorld } from "./voxel-commit.ts";
 
 const AXIS_LABELS = [
@@ -9,16 +10,28 @@ const AXIS_LABELS = [
   { text: "Z", color: "#2563eb", position: [0, 0, 6] as const },
 ] as const;
 
-export type VoxelPreview = Point3 | null;
+const DEG = Math.PI / 180;
+
+/** 跟随指针的放置预览：体素给最小角，长方体给底面中心与尺寸 */
+export type PlacementPreview =
+  | { kind: "voxel"; corner: Point3 }
+  | {
+      kind: "box";
+      anchor: Point3;
+      width: number;
+      depth: number;
+      height: number;
+    }
+  | null;
 
 export type Viewport3dPick =
-  | { kind: "empty"; place: Point3 }
-  | { kind: "voxel"; id: string; place: Point3 }
+  | { kind: "empty"; place: Point3; world: Point3 }
+  | { kind: "voxel"; id: string; place: Point3; world: Point3 }
   | { kind: "none" };
 
 export type Viewport3dProjector = {
   render: (document: GeometryDocument) => void;
-  setPreview: (gesture: VoxelPreview) => void;
+  setPreview: (preview: PlacementPreview) => void;
   pick: (screen: { x: number; y: number }) => Viewport3dPick;
   resize: (width: number, height: number) => void;
   destroy: () => void;
@@ -90,6 +103,7 @@ export function createViewport3dProjector(
 
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const voxelMaterial = new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
+  const solidMaterial = new THREE.MeshLambertMaterial({ color: 0x10b981 });
   const previewMaterial = new THREE.MeshLambertMaterial({
     color: 0xf59e0b,
     transparent: true,
@@ -98,6 +112,9 @@ export function createViewport3dProjector(
   });
   const voxelGroup = new THREE.Group();
   scene.add(voxelGroup);
+  // 参数体与体素分开挂：体素组兼任拾取面，参数体渲染互不干扰
+  const solidGroup = new THREE.Group();
+  scene.add(solidGroup);
 
   const previewMesh = new THREE.Mesh(boxGeometry, previewMaterial);
   previewMesh.visible = false;
@@ -121,32 +138,60 @@ export function createViewport3dProjector(
     voxelGroup.add(mesh);
   }
 
+  function placeBoxMesh(box: BoxPrimitive): void {
+    const mesh = new THREE.Mesh(boxGeometry, solidMaterial);
+    // 底面中心定位：中心在 (x, y + height/2, z)；先沿局部轴缩放再整体旋转
+    mesh.scale.set(box.width, box.height, box.depth);
+    mesh.position.set(box.x, box.y + box.height / 2, box.z);
+    mesh.rotation.set(
+      box.rotationDegX * DEG,
+      box.rotationDegY * DEG,
+      box.rotationDegZ * DEG,
+      "YXZ",
+    );
+    solidGroup.add(mesh);
+  }
+
   controls.addEventListener("change", paint);
   paint();
 
   return {
     render(document: GeometryDocument): void {
       voxelGroup.clear();
+      solidGroup.clear();
       if (document.space === "3d") {
         for (const primitive of document.primitives) {
           if (primitive.type === "voxel") {
             placeVoxelMesh(primitive.id, primitive.x, primitive.y, primitive.z);
+          } else if (primitive.type === "box") {
+            placeBoxMesh(primitive);
           }
         }
       }
       paint();
     },
-    setPreview(gesture: VoxelPreview): void {
-      if (gesture === null) {
+    setPreview(preview: PlacementPreview): void {
+      if (preview === null) {
         previewMesh.visible = false;
         paint();
         return;
       }
-      previewMesh.position.set(
-        gesture.x + 0.5,
-        gesture.y + 0.5,
-        gesture.z + 0.5,
-      );
+      previewMesh.rotation.set(0, 0, 0);
+      if (preview.kind === "voxel") {
+        previewMesh.scale.set(1, 1, 1);
+        previewMesh.position.set(
+          preview.corner.x + 0.5,
+          preview.corner.y + 0.5,
+          preview.corner.z + 0.5,
+        );
+      } else {
+        previewMesh.scale.set(preview.width, preview.height, preview.depth);
+        previewMesh.position.set(
+          preview.anchor.x,
+          preview.anchor.y + preview.height / 2,
+          preview.anchor.z,
+        );
+      }
       previewMesh.visible = true;
       paint();
     },
@@ -171,6 +216,8 @@ export function createViewport3dProjector(
             y: data.y + Math.round(normal.y),
             z: data.z + Math.round(normal.z),
           },
+          // 指针在体素面上的原始世界落点：参数体吃它，不吃整数角
+          world: { x: hit.point.x, y: hit.point.y, z: hit.point.z },
         };
       }
 
@@ -184,6 +231,7 @@ export function createViewport3dProjector(
           y: 0,
           z: groundHit.z,
         }),
+        world: { x: groundHit.x, y: 0, z: groundHit.z },
       };
     },
     resize(width: number, height: number): void {
@@ -199,8 +247,10 @@ export function createViewport3dProjector(
       controls.removeEventListener("change", paint);
       controls.dispose();
       voxelGroup.clear();
+      solidGroup.clear();
       boxGeometry.dispose();
       voxelMaterial.dispose();
+      solidMaterial.dispose();
       previewMaterial.dispose();
       scene.traverse((object) => {
         if (!(object instanceof THREE.Sprite)) return;

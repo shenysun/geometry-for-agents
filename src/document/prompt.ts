@@ -6,6 +6,8 @@ const CONVENTIONS = [
   "- Angles are in degrees; 0° is at +X, counterclockwise positive.",
   "- In 3D, Y is height and the ground is the XZ plane.",
   "- A voxel occupies the unit cube [x,x+1]×[y,y+1]×[z,z+1]; the integer (x,y,z) is the minimum corner.",
+  "- Standing solids are anchored at the bottom-face center: y is the base height and the solid grows along +Y.",
+  "- Solid rotations are euler degrees in fields rotationDegY, rotationDegX, rotationDegZ composed in Y→X→Z order; 0/0/0 = base facing down.",
 ].join("\n");
 
 const SYNTAX = [
@@ -20,6 +22,7 @@ const SYNTAX = [
   "- ellipse: cx, cy, rx, ry, rotationDeg (optional, defaults to 0 = axis-aligned; counterclockwise), fill",
   "- label: named point at x, y with text",
   "- voxel: 3D unit cube at integer min corner x, y, z",
+  "- box: 3D cuboid anchored at the bottom-face center x, y, z; width (X), depth (Z), height (Y) along +Y; rotationDegY, rotationDegX, rotationDegZ",
 ].join("\n");
 
 function compareId(left: string, right: string): number {

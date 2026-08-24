@@ -185,6 +185,42 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the box anchor and every field in the syntax and projects it deterministically", () => {
+    const box = {
+      id: "box-1",
+      type: "box",
+      x: 1,
+      y: 0,
+      z: -2,
+      width: 2,
+      depth: 3,
+      height: 0.5,
+      rotationDegY: 30,
+      rotationDegX: 0,
+      rotationDegZ: -10,
+    };
+    const document = parsed("3d", [
+      box,
+      { id: "voxel-1", type: "voxel", x: 0, y: 2, z: -1 },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法行写明锚点（底面中心）与全部字段
+    expect(prompt).toMatch(/box:.*bottom-face center/);
+    expect(prompt).toMatch(/box:.*width.*depth.*height/);
+    expect(prompt).toMatch(/box:.*rotationDegY.*rotationDegX.*rotationDegZ/);
+    // 约定行写明高沿 +Y 与欧拉角合成顺序 Y→X→Z
+    expect(prompt).toMatch(/\+Y/);
+    expect(prompt).toContain("Y→X→Z");
+    // 投影含该长方体且两次生成相等
+    expect(prompt).toContain("box-1");
+    expect(prompt).toContain("voxel-1");
+    expect(prompt).toContain("30");
+    expect(prompt).toContain("-10");
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("omits underlay urls, local file paths, and image pixels", () => {
     const document = parsed("2d", twoDPrimitives, {
       url: "https://example.com/problem.png",

@@ -7,13 +7,16 @@ import { isDrawTool, type DrawTool } from "../viewport2d/draw-gesture.ts";
 import type { SessionUnderlay } from "../viewport2d/draw-underlay.ts";
 import type { ClosablePanelId } from "../components/layout.ts";
 
-export type EditorTool = "select" | DrawTool | "voxel" | null;
+export type EditorTool = "select" | DrawTool | "voxel" | "box" | null;
 
 /** 顶栏发给停靠宿主的布局指令；nonce 保证重复点同一项也触发 */
 export type LayoutCommand =
   | { kind: "open"; panel: ClosablePanelId; nonce: number }
   | { kind: "close"; panel: ClosablePanelId; nonce: number }
   | { kind: "reset"; nonce: number };
+
+/** 只属于 3D 空间的创建工具：带进 2D 时退回选择 */
+const threeDTools: ReadonlySet<EditorTool> = new Set(["voxel", "box"]);
 
 export const useEditorStore = defineStore("editor", () => {
   const preferredLanguages = usePreferredLanguages();
@@ -33,10 +36,10 @@ export const useEditorStore = defineStore("editor", () => {
 
   function setSpace(next: "2d" | "3d"): void {
     space.value = next;
-    // 别的空间的创建工具带不过去：2D 创建工具进 3D、体素进 2D 都退回选择
+    // 别的空间的创建工具带不过去：2D 创建工具进 3D、3D 工具进 2D 都退回选择
     const fromOtherSpace =
       (next === "3d" && isDrawTool(tool.value)) ||
-      (next === "2d" && tool.value === "voxel");
+      (next === "2d" && threeDTools.has(tool.value));
     if (fromOtherSpace) {
       tool.value = "select";
     }

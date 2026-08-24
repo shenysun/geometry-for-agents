@@ -630,3 +630,65 @@ describe("setUnderlay", () => {
     expect(original.underlay).toBeNull();
   });
 });
+
+describe("box 参数体更新", () => {
+  const empty3d = (): GeometryDocument =>
+    mustParse({ version: 1, space: "3d", underlay: null, primitives: [] });
+
+  const box = {
+    id: "box-1",
+    type: "box" as const,
+    x: 0,
+    y: 0,
+    z: 0,
+    width: 1,
+    depth: 1,
+    height: 1,
+    rotationDegY: 0,
+    rotationDegX: 0,
+    rotationDegZ: 0,
+  };
+
+  test("addPrimitive 把长方体写进 3D 说明书且仍能通过契约解析", () => {
+    const original = empty3d();
+    const result = addPrimitive(original, box);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives).toEqual([box]);
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+  });
+
+  test("updatePrimitive 改尺寸与旋转不可变且仍能通过契约解析", () => {
+    const original = mustParse({
+      version: 1,
+      space: "3d",
+      underlay: null,
+      primitives: [box],
+    });
+    const snapshot = structuredClone(original);
+
+    const result = updatePrimitive(original, "box-1", {
+      ...box,
+      width: 4,
+      height: 2,
+      rotationDegY: 90,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(original).toEqual(snapshot);
+    expect(result.document.primitives[0]).toEqual({
+      ...box,
+      width: 4,
+      height: 2,
+      rotationDegY: 90,
+    });
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+  });
+
+  test("2D 说明书拒绝写入长方体", () => {
+    const result = addPrimitive(empty2d(), box);
+    expect(result.success).toBe(false);
+  });
+});

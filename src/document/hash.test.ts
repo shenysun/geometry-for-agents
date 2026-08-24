@@ -118,6 +118,35 @@ describe("document hash", () => {
     );
   });
 
+  test("roundtrips a 3d document mixing box and voxel", () => {
+    const document = parsed("3d", [
+      {
+        id: "box-1",
+        type: "box",
+        x: 1,
+        y: 0,
+        z: -2,
+        width: 2,
+        depth: 3,
+        height: 0.5,
+        rotationDegY: 30,
+        rotationDegX: 0,
+        rotationDegZ: -10,
+      },
+      { id: "voxel-1", type: "voxel", x: 0, y: 2, z: -1 },
+    ]);
+
+    const decoded = hashToDocument(documentToHash(document));
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) return;
+    expect(decoded.document).toEqual(document);
+
+    const reparsed = parseDocument(JSON.stringify(decoded.document));
+    expect(reparsed.success).toBe(true);
+    if (!reparsed.success) return;
+    expect(reparsed.document).toEqual(document);
+  });
+
   test("rejects a damaged hash", () => {
     const result = hashToDocument("not-a-valid-lz-payload");
 

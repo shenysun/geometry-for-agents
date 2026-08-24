@@ -87,6 +87,23 @@ describe("editor store", () => {
     expect(store.tool).toBe("select");
   });
 
+  test("box 是 3D 创建工具；带不进 2D，留在 3D 保持", () => {
+    const store = useEditorStore();
+
+    store.setTool("box");
+    expect(store.tool).toBe("box");
+
+    // 3D 的长方体工具带不进 2D
+    store.setSpace("2d");
+    expect(store.tool).toBe("select");
+
+    // 回到 3D 重新拿起长方体，同空间切换保持
+    store.setSpace("3d");
+    store.setTool("box");
+    store.setSpace("3d");
+    expect(store.tool).toBe("box");
+  });
+
   test("selecting a primitive by id then removePrimitive deletes it", () => {
     const document = useDocumentStore();
     const editor = useEditorStore();

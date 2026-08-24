@@ -4,7 +4,14 @@ export {
 export type {
   Viewport3dPick,
   Viewport3dProjector,
-  VoxelPreview,
+  PlacementPreview,
 } from "./projector.ts";
 export { commitVoxel, voxelCornerFromWorld } from "./voxel-commit.ts";
 export type { VoxelPrimitive } from "./voxel-commit.ts";
+export {
+  BOX_DEFAULTS,
+  boxAnchorFromWorld,
+  commitBox,
+} from "./box-commit.ts";
+export type { BoxPrimitive } from "./box-commit.ts";
+export { snap3d } from "./snap3d.ts";

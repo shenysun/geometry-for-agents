@@ -101,6 +101,26 @@ const voxelSchema = z.strictObject({
   z: z.int(),
 });
 
+// 站立参数体的三个欧拉角（度），合成顺序 Y→X→Z；0 = 底面朝下。
+const solidRotation = {
+  rotationDegY: z.number(),
+  rotationDegX: z.number(),
+  rotationDegZ: z.number(),
+};
+
+const boxSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("box"),
+  // (x,y,z) 是底面中心：y 为底面高度，height 沿 +Y。
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+  width: z.number().positive(),
+  depth: z.number().positive(),
+  height: z.number().positive(),
+  ...solidRotation,
+});
+
 const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   lineSchema,
   polygonSchema,
@@ -111,6 +131,11 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   ringSchema,
   ellipseSchema,
   labelSchema,
+]);
+
+const threeDPrimitiveSchema = z.discriminatedUnion("type", [
+  voxelSchema,
+  boxSchema,
 ]);
 
 const underlaySchema = z
@@ -137,7 +162,7 @@ const document2dSchema = z.strictObject({
 const document3dSchema = z.strictObject({
   ...documentFields,
   space: z.literal("3d"),
-  primitives: z.array(voxelSchema),
+  primitives: z.array(threeDPrimitiveSchema),
 });
 
 export const documentSchema = z
@@ -156,7 +181,7 @@ export const documentSchema = z
     }
   })
   .describe(
-    "2D coordinates are (x,y) with Y-up. 3D coordinates are (x,y,z) with Y as height and XZ as the ground. Angles are degrees, 0° at +X, counterclockwise positive. A voxel's integer (x,y,z) is the minimum corner of the unit cube occupying [x,x+1]×[y,y+1]×[z,z+1].",
+    "2D coordinates are (x,y) with Y-up. 3D coordinates are (x,y,z) with Y as height and XZ as the ground. Angles are degrees, 0° at +X, counterclockwise positive. A voxel's integer (x,y,z) is the minimum corner of the unit cube occupying [x,x+1]×[y,y+1]×[z,z+1]. A box's (x,y,z) is its bottom-face center: y is the base height, height grows along +Y; rotationDegY/X/Z are euler degrees composed in Y→X→Z order, 0 = base facing down.",
   );
 
 export type GeometryDocument = z.infer<typeof documentSchema>;
@@ -174,6 +199,8 @@ const twoDTypes = new Set([
   "label",
 ]);
 
+const threeDTypes = new Set(["voxel", "box"]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -184,7 +211,7 @@ function spaceMismatchError(input: unknown): string | undefined {
   if ((space !== "2d" && space !== "3d") || !Array.isArray(primitives)) {
     return undefined;
   }
-  const allowed = space === "2d" ? twoDTypes : new Set(["voxel"]);
+  const allowed = space === "2d" ? twoDTypes : threeDTypes;
   for (const [index, primitive] of primitives.entries()) {
     if (!isRecord(primitive) || typeof primitive.type !== "string") continue;
     if (!allowed.has(primitive.type)) {
