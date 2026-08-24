@@ -1088,3 +1088,116 @@ describe("圆柱圆锥球参数体更新", () => {
     expect(addPrimitive(empty2d(), sphere).success).toBe(false);
   });
 });
+
+describe("四棱锥与三棱柱参数体更新", () => {
+  const empty3d = (): GeometryDocument =>
+    mustParse({ version: 1, space: "3d", underlay: null, primitives: [] });
+
+  const pyramid = {
+    id: "pyramid-1",
+    type: "pyramid" as const,
+    x: 0,
+    y: 0,
+    z: 0,
+    width: 1,
+    depth: 1,
+    height: 1,
+    rotationDegY: 0,
+    rotationDegX: 0,
+    rotationDegZ: 0,
+  };
+
+  // 底面三点是定长三元组：用带元组类型的工厂避免被推宽成数组
+  const prismBase = (): [
+    { x: number; z: number },
+    { x: number; z: number },
+    { x: number; z: number },
+  ] => [
+    { x: 0, z: Math.sqrt(3) / 3 },
+    { x: -0.5, z: -Math.sqrt(3) / 6 },
+    { x: 0.5, z: -Math.sqrt(3) / 6 },
+  ];
+
+  const prism = {
+    id: "prism-1",
+    type: "triangularPrism" as const,
+    x: 0,
+    y: 0,
+    z: 0,
+    height: 1,
+    base: prismBase(),
+    rotationDegY: 0,
+    rotationDegX: 0,
+    rotationDegZ: 0,
+  };
+
+  test("addPrimitive 写入两种图元且仍能通过契约解析", () => {
+    const withPyramid = addPrimitive(empty3d(), pyramid);
+    expect(withPyramid.success).toBe(true);
+    if (!withPyramid.success) return;
+    const withPrism = addPrimitive(withPyramid.document, prism);
+    expect(withPrism.success).toBe(true);
+    if (!withPrism.success) return;
+
+    expect(withPrism.document.primitives.map((p) => p.type)).toEqual([
+      "pyramid",
+      "triangularPrism",
+    ]);
+    expect(
+      parseDocument(JSON.stringify(withPrism.document)).success,
+    ).toBe(true);
+  });
+
+  test("updatePrimitive 把正方形底拉开成长方形底且仍能通过契约解析", () => {
+    const original = mustParse({
+      version: 1,
+      space: "3d",
+      underlay: null,
+      primitives: [pyramid],
+    });
+    const snapshot = structuredClone(original);
+
+    const result = updatePrimitive(original, "pyramid-1", {
+      ...pyramid,
+      width: 3,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(original).toEqual(snapshot);
+    expect(result.document.primitives[0]).toEqual({ ...pyramid, width: 3 });
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+  });
+
+  test("updatePrimitive 把正三角底拉开成一般三角形且仍能通过契约解析", () => {
+    const original = mustParse({
+      version: 1,
+      space: "3d",
+      underlay: null,
+      primitives: [prism],
+    });
+
+    const skewedBase: typeof prism.base = [
+      prism.base[0],
+      prism.base[1],
+      { x: 1.5, z: -0.2 },
+    ];
+    const result = updatePrimitive(original, "prism-1", {
+      ...prism,
+      base: skewedBase,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0].type).toBe("triangularPrism");
+    const updated = result.document.primitives[0];
+    if (updated.type !== "triangularPrism") return;
+    expect(updated.base).toEqual(skewedBase);
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+  });
+
+  test("2D 说明书拒绝写入四棱锥与三棱柱", () => {
+    expect(addPrimitive(empty2d(), pyramid).success).toBe(false);
+    expect(addPrimitive(empty2d(), prism).success).toBe(false);
+  });
+});

@@ -2,10 +2,13 @@
 import { computed } from "vue";
 import { ToggleGroupItem, ToggleGroupRoot } from "reka-ui";
 import { useI18n } from "vue-i18n";
-import { FILLS, withFill, type Fill, type Primitive } from "../document/index.ts";
+import { FILLS, withFill, type Fill } from "../document/index.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
-import type { SolidPrimitive } from "../viewport3d/solid-commit.ts";
+import {
+  isSolidPrimitive,
+  type SolidPrimitive,
+} from "../viewport3d/solid-commit.ts";
 
 /** 参数体数字字段目录的键：位置、尺寸与三欧拉角（各类型取其子集） */
 type SolidFieldKey =
@@ -53,10 +56,12 @@ const HEIGHT_FIELD: SolidField = {
   positive: true,
 };
 
-/** 按类型穷尽的字段目录：长方体三尺寸，圆柱/圆锥 r+height+旋转，球只有位置和 r */
+/** 按类型穷尽的字段目录：长方体/四棱锥三尺寸，圆柱/圆锥 r+height+旋转，
+ * 三棱柱 base 三点单独一节，球只有位置和 r */
 function solidFields(type: SolidPrimitive["type"]): readonly SolidField[] {
   switch (type) {
     case "box":
+    case "pyramid":
       return [
         ...POSITION_FIELDS,
         { key: "width", labelKey: "field.width", step: 0.5, positive: true },
@@ -69,6 +74,8 @@ function solidFields(type: SolidPrimitive["type"]): readonly SolidField[] {
       return [...POSITION_FIELDS, RADIUS_FIELD, HEIGHT_FIELD, ...ROTATION_FIELDS];
     case "sphere":
       return [...POSITION_FIELDS, RADIUS_FIELD];
+    case "triangularPrism":
+      return [...POSITION_FIELDS, HEIGHT_FIELD, ...ROTATION_FIELDS];
   }
 }
 
@@ -103,22 +110,48 @@ const selected = computed(() => {
   );
 });
 
-const solid = computed<SolidPrimitive | null>(() => {
+const solid = computed(() => {
   const primitive = selected.value;
-  if (primitive === null) return null;
-  return (
-    primitive.type === "box" ||
-    primitive.type === "cylinder" ||
-    primitive.type === "cone" ||
-    primitive.type === "sphere"
-      ? primitive
-      : null
-  );
+  return primitive !== null && isSolidPrimitive(primitive) ? primitive : null;
 });
 
 const solidFieldList = computed(() =>
   solid.value === null ? [] : solidFields(solid.value.type),
 );
+
+const prism = computed(() => {
+  const primitive = solid.value;
+  return primitive !== null && primitive.type === "triangularPrism"
+    ? primitive
+    : null;
+});
+
+/** 拖开底面三点可把正三角底变成一般三角形：只动那一处几何，不可变 */
+function onBasePointChange(
+  index: 0 | 1 | 2,
+  axis: "x" | "z",
+  event: Event,
+): void {
+  const current = prism.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const value = Number(input.value);
+  const present = current.base[index][axis];
+  if (!Number.isFinite(value) || present === value) {
+    input.value = String(present);
+    return;
+  }
+  const next = {
+    ...current,
+    base: current.base.map((point, at) =>
+      at === index ? { ...point, [axis]: value } : point,
+    ),
+  };
+  const result = documentStore.updatePrimitive(next.id, next);
+  if (!result.success) {
+    input.value = String(present);
+  }
+}
 
 /** 非数字或非法尺寸不写说明书，输入框回退为当前值 */
 function onSolidFieldChange(key: SolidFieldKey, event: Event): void {
@@ -177,6 +210,29 @@ function onFillChange(value: string | string[] | undefined): void {
           @change="onSolidFieldChange(field.key, $event)"
         />
       </label>
+    </div>
+    <div v-if="prism !== null" class="space-y-2">
+      <p class="text-zinc-500">{{ t("field.base") }}</p>
+      <div
+        v-for="(point, index) in prism.base"
+        :key="index"
+        class="grid grid-cols-2 gap-2"
+      >
+        <span class="col-span-2 text-zinc-400">
+          {{ t("field.basePoint") }} {{ index + 1 }}
+        </span>
+        <label v-for="axis in ['x', 'z'] as const" :key="axis" class="space-y-1">
+          <span class="block text-zinc-500">{{ t(`field.${axis}`) }}</span>
+          <input
+            type="number"
+            step="0.1"
+            :value="point[axis]"
+            :aria-label="`${t('field.basePoint')} ${index + 1} ${t(`field.${axis}`)}`"
+            class="w-full rounded border border-zinc-300 px-2 py-1"
+            @change="onBasePointChange(index as 0 | 1 | 2, axis, $event)"
+          />
+        </label>
+      </div>
     </div>
     <div v-if="fill !== null">
       <p class="mb-1 text-zinc-500">{{ t("fill.label") }}</p>

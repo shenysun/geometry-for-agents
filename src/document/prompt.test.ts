@@ -267,6 +267,56 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the pyramid and triangularPrism syntax and anchors and projects them deterministically", () => {
+    const document = parsed("3d", [
+      {
+        id: "pyramid-1",
+        type: "pyramid",
+        x: 0,
+        y: 0,
+        z: 0,
+        width: 2,
+        depth: 1,
+        height: 1.5,
+        rotationDegY: 45,
+        rotationDegX: 0,
+        rotationDegZ: 0,
+      },
+      {
+        id: "prism-1",
+        type: "triangularPrism",
+        x: 1,
+        y: 0,
+        z: -1,
+        height: 1,
+        base: [
+          { x: 0, z: Math.sqrt(3) / 3 },
+          { x: -0.5, z: -Math.sqrt(3) / 6 },
+          { x: 0.5, z: -Math.sqrt(3) / 6 },
+        ],
+        rotationDegY: 0,
+        rotationDegX: 0,
+        rotationDegZ: 90,
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法行写明锚点（底面中心/底面局部原点）与全部字段
+    expect(prompt).toMatch(/pyramid:.*bottom-face center/);
+    expect(prompt).toMatch(/pyramid:.*width \(X\), depth \(Z\), height \(Y\)/);
+    expect(prompt).toMatch(
+      /triangularPrism:.*bottom-face center x, y, z/,
+    );
+    expect(prompt).toMatch(/triangularPrism:.*height along \+Y/);
+    expect(prompt).toMatch(/triangularPrism:.*3 local \{x,z\} points/);
+    expect(prompt).toMatch(/triangularPrism:.*rotationDegY, rotationDegX, rotationDegZ/);
+    // 投影含两种图元且两次生成相等
+    expect(prompt).toContain("pyramid-1");
+    expect(prompt).toContain("prism-1");
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("omits underlay urls, local file paths, and image pixels", () => {
     const document = parsed("2d", twoDPrimitives, {
       url: "https://example.com/problem.png",

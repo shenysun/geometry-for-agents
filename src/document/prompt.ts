@@ -26,6 +26,8 @@ const SYNTAX = [
   "- cylinder: 3D cylinder anchored at the bottom-face center x, y, z; r (radius), height along +Y; rotationDegY, rotationDegX, rotationDegZ",
   "- cone: 3D cone anchored at the bottom-face center x, y, z; r (base radius), height along +Y; rotationDegY, rotationDegX, rotationDegZ",
   "- sphere: 3D sphere centered at x, y, z with radius r (no rotation fields)",
+  "- pyramid: 3D rectangular pyramid anchored at the bottom-face center x, y, z; width (X), depth (Z), height (Y) along +Y; rotationDegY, rotationDegX, rotationDegZ",
+  "- triangularPrism: 3D prism anchored at the bottom-face center x, y, z; height along +Y; base = 3 local {x,z} points (default equilateral triangle of side 1, centroid at the local origin); rotationDegY, rotationDegX, rotationDegZ",
 ].join("\n");
 
 function compareId(left: string, right: string): number {

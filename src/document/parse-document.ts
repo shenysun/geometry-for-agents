@@ -155,6 +155,40 @@ const sphereSchema = z.strictObject({
   r: z.number().positive(),
 });
 
+// 四棱锥：底面是 width×depth 的矩形（默认正方形），顶点在底面中心上方 height。
+const pyramidSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("pyramid"),
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+  width: z.number().positive(),
+  depth: z.number().positive(),
+  height: z.number().positive(),
+  ...solidRotation,
+});
+
+// 三棱柱底面三点在局部 XZ（默认边长 1 的正三角形、形心在局部原点）。
+const prismBasePointSchema = z.strictObject({
+  x: z.number(),
+  z: z.number(),
+});
+
+const triangularPrismSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("triangularPrism"),
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+  height: z.number().positive(),
+  base: z.tuple([
+    prismBasePointSchema,
+    prismBasePointSchema,
+    prismBasePointSchema,
+  ]),
+  ...solidRotation,
+});
+
 const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   lineSchema,
   polygonSchema,
@@ -173,6 +207,8 @@ const threeDPrimitiveSchema = z.discriminatedUnion("type", [
   cylinderSchema,
   coneSchema,
   sphereSchema,
+  pyramidSchema,
+  triangularPrismSchema,
 ]);
 
 const underlaySchema = z
@@ -218,7 +254,7 @@ export const documentSchema = z
     }
   })
   .describe(
-    "2D coordinates are (x,y) with Y-up. 3D coordinates are (x,y,z) with Y as height and XZ as the ground. Angles are degrees, 0° at +X, counterclockwise positive. A voxel's integer (x,y,z) is the minimum corner of the unit cube occupying [x,x+1]×[y,y+1]×[z,z+1]. Standing solids (box, cylinder, cone) are anchored at the bottom-face center: y is the base height, height grows along +Y; rotationDegY/X/Z are euler degrees composed in Y→X→Z order, 0 = base facing down. A sphere's (x,y,z) is its center.",
+    "2D coordinates are (x,y) with Y-up. 3D coordinates are (x,y,z) with Y as height and XZ as the ground. Angles are degrees, 0° at +X, counterclockwise positive. A voxel's integer (x,y,z) is the minimum corner of the unit cube occupying [x,x+1]×[y,y+1]×[z,z+1]. Standing solids (box, cylinder, cone, pyramid, triangularPrism) are anchored at the bottom-face center: y is the base height, height grows along +Y; rotationDegY/X/Z are euler degrees composed in Y→X→Z order, 0 = base facing down. A sphere's (x,y,z) is its center. A triangularPrism's base is three {x,z} points in the bottom face's local XZ plane (the default base is an equilateral triangle of side 1 with its centroid at the local origin).",
   );
 
 export type GeometryDocument = z.infer<typeof documentSchema>;
@@ -249,6 +285,8 @@ const threeDTypes = new Set([
   "cylinder",
   "cone",
   "sphere",
+  "pyramid",
+  "triangularPrism",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

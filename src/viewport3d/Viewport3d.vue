@@ -40,7 +40,7 @@ function isSelectTool(): boolean {
   return editor.tool === "select" || editor.tool === null;
 }
 
-/** 3D 创建工具：单位立方体与参数体（长方体、圆柱、圆锥、球）。 */
+/** 3D 创建工具：单位立方体与参数体（长方体、圆柱、圆锥、球、四棱锥、三棱柱）。 */
 function isCreateTool(): boolean {
   return editor.tool === "voxel" || isSolidTool(editor.tool);
 }

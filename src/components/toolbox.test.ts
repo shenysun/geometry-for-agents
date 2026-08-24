@@ -8,7 +8,7 @@ describe("toolsForSpace", () => {
     expect(ids).toEqual(["select", ...DRAW_TOOLS]);
   });
 
-  test("3D 目录 = 选择 + 单位立方体 + 长方体 + 圆柱 + 圆锥 + 球", () => {
+  test("3D 目录 = 选择 + 单位立方体 + 全部参数体（长方体、圆柱、圆锥、球、四棱锥、三棱柱）", () => {
     const ids = toolsForSpace("3d").map((tool) => tool.id);
     expect(ids).toEqual([
       "select",
@@ -17,6 +17,8 @@ describe("toolsForSpace", () => {
       "cylinder",
       "cone",
       "sphere",
+      "pyramid",
+      "triangularPrism",
     ]);
   });
 
@@ -24,7 +26,15 @@ describe("toolsForSpace", () => {
     const planar = toolsForSpace("2d").map((tool) => tool.id);
     const solid = toolsForSpace("3d").map((tool) => tool.id);
 
-    for (const solidTool of ["voxel", "box", "cylinder", "cone", "sphere"]) {
+    for (const solidTool of [
+      "voxel",
+      "box",
+      "cylinder",
+      "cone",
+      "sphere",
+      "pyramid",
+      "triangularPrism",
+    ]) {
       expect(planar).not.toContain(solidTool);
     }
     for (const drawTool of DRAW_TOOLS) {

@@ -116,6 +116,18 @@ describe("editor store", () => {
     }
   });
 
+  test("pyramid、triangularPrism 都是 3D 创建工具；带不进 2D", () => {
+    const store = useEditorStore();
+
+    for (const tool of ["pyramid", "triangularPrism"] as const) {
+      store.setTool(tool);
+      expect(store.tool).toBe(tool);
+      store.setSpace("2d");
+      expect(store.tool).toBe("select");
+      store.setSpace("3d");
+    }
+  });
+
   test("selecting a primitive by id then removePrimitive deletes it", () => {
     const document = useDocumentStore();
     const editor = useEditorStore();

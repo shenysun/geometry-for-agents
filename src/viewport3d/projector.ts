@@ -5,6 +5,103 @@ import type { BoxPrimitive } from "./box-commit.ts";
 import type { SolidPrimitive } from "./solid-commit.ts";
 import { voxelCornerFromWorld } from "./voxel-commit.ts";
 
+/** 底面局部 XZ 点 */
+type BasePoint = { x: number; z: number };
+
+/** 有向二倍面积（XZ 平面，z 上）：正值 = 逆时针，法线按约定朝外。 */
+function signedArea2x(base: readonly BasePoint[]): number {
+  const [a, b, c] = base;
+  return (
+    (b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z)
+  );
+}
+
+/**
+ * 单位四棱锥几何体：底面 y=0 的 1×1 方形（局部 XZ 逆时针）、顶点 (0,1,0)；
+ * 共享几何体，每条图元用 scale(width, height, depth) 放大。
+ */
+function createPyramidGeometry(): THREE.BufferGeometry {
+  const corners: readonly (readonly [number, number])[] = [
+    [-0.5, -0.5],
+    [0.5, -0.5],
+    [0.5, 0.5],
+    [-0.5, 0.5],
+  ];
+  const apex: readonly number[] = [0, 1, 0];
+  const positions: number[] = [];
+  const push = (
+    a: readonly number[],
+    b: readonly number[],
+    c: readonly number[],
+  ): void => {
+    positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+  };
+  const at = (corner: readonly [number, number]): readonly number[] => [
+    corner[0],
+    0,
+    corner[1],
+  ];
+  // 底面两片（法线朝 -Y）
+  push(at(corners[0]), at(corners[1]), at(corners[2]));
+  push(at(corners[0]), at(corners[2]), at(corners[3]));
+  // 侧面四片：每条有向边 (i→j) 一片 (bj, bi, apex)，法线朝外
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    push(at(corners[j]), at(corners[i]), apex);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3),
+  );
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * 三棱柱几何体：底面三点在局部 XZ、棱柱沿 y∈[0,height]；底三点任意，
+ * 顺时针输入先翻转顺序保证面朝外。每条图元自建自毁（ownsGeometry）。
+ */
+function createPrismGeometry(
+  base: readonly BasePoint[],
+  height: number,
+): THREE.BufferGeometry {
+  const order =
+    signedArea2x(base) < 0
+      ? [base[1], base[0], base[2]]
+      : [base[0], base[1], base[2]];
+  const bottom = order.map(
+    (point): readonly number[] => [point.x, 0, point.z],
+  );
+  const top = order.map(
+    (point): readonly number[] => [point.x, height, point.z],
+  );
+  const positions: number[] = [];
+  const push = (
+    a: readonly number[],
+    b: readonly number[],
+    c: readonly number[],
+  ): void => {
+    positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+  };
+  // 底面（法线朝 -Y）与顶面（法线朝 +Y）
+  push(bottom[0], bottom[1], bottom[2]);
+  push(top[0], top[2], top[1]);
+  // 三个侧面：每条有向边 (i→j) 两片，法线朝外
+  for (let i = 0; i < 3; i++) {
+    const j = (i + 1) % 3;
+    push(bottom[j], bottom[i], top[i]);
+    push(bottom[j], top[i], top[j]);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3),
+  );
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 const AXIS_LABELS = [
   { text: "X", color: "#dc2626", position: [6, 0, 0] as const },
   { text: "Y", color: "#16a34a", position: [0, 6, 0] as const },
@@ -25,6 +122,19 @@ export type PlacementPreview =
     }
   | { kind: "cylinder" | "cone"; anchor: Point3; r: number; height: number }
   | { kind: "sphere"; center: Point3; r: number }
+  | {
+      kind: "pyramid";
+      anchor: Point3;
+      width: number;
+      depth: number;
+      height: number;
+    }
+  | {
+      kind: "prism";
+      anchor: Point3;
+      height: number;
+      base: readonly BasePoint[];
+    }
   | null;
 
 /** 把一条已提交形态的参数体映射成跟随指针的预览（默认尺寸、无旋转）。 */
@@ -53,6 +163,21 @@ export function solidPlacementPreview(
         kind: "sphere",
         center: { x: solid.x, y: solid.y, z: solid.z },
         r: solid.r,
+      };
+    case "pyramid":
+      return {
+        kind: "pyramid",
+        anchor: { x: solid.x, y: solid.y, z: solid.z },
+        width: solid.width,
+        depth: solid.depth,
+        height: solid.height,
+      };
+    case "triangularPrism":
+      return {
+        kind: "prism",
+        anchor: { x: solid.x, y: solid.y, z: solid.z },
+        height: solid.height,
+        base: solid.base,
       };
   }
 }
@@ -145,10 +270,11 @@ export function createViewport3dProjector(
   }
 
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
-  // 单位几何体 + 每图元 scale/rotate：圆柱/圆锥半径 1 高 1，球半径 1。
+  // 单位几何体 + 每图元 scale/rotate：圆柱/圆锥半径 1 高 1，球半径 1，四棱锥底 1×1 高 1。
   const cylinderGeometry = new THREE.CylinderGeometry(1, 1, 1, 32);
   const coneGeometry = new THREE.ConeGeometry(1, 1, 32);
   const sphereGeometry = new THREE.SphereGeometry(1, 24, 16);
+  const pyramidGeometry = createPyramidGeometry();
   const voxelMaterial = new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
   // 选中体素的高亮：亮黄，与橙色放置预览区分。
   const selectedVoxelMaterial = new THREE.MeshLambertMaterial({
@@ -167,13 +293,15 @@ export function createViewport3dProjector(
   const solidGroup = new THREE.Group();
   scene.add(solidGroup);
 
-  // 预览网格换几何体不换材质：按预览种类在 box/cylinder/cone/sphere 间切换
+  // 预览网格换几何体不换材质：按预览种类在共享几何体间切换；
+  // 三棱柱预览几何体按底面自建，换掉时单独释放
   const previewMesh: THREE.Mesh<THREE.BufferGeometry> = new THREE.Mesh(
     boxGeometry,
     previewMaterial,
   );
   previewMesh.visible = false;
   scene.add(previewMesh);
+  let ownedPreviewGeometry: THREE.BufferGeometry | null = null;
 
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -254,12 +382,58 @@ export function createViewport3dProjector(
     solidGroup.add(mesh);
   }
 
+  function placePyramidMesh(
+    solid: Extract<SolidPrimitive, { type: "pyramid" }>,
+  ): void {
+    const mesh = new THREE.Mesh(pyramidGeometry, solidMaterial);
+    // 单位几何体底面在局部 y=0：锚点即底面中心，不再加半高偏移
+    mesh.scale.set(solid.width, solid.height, solid.depth);
+    mesh.position.set(solid.x, solid.y, solid.z);
+    mesh.rotation.set(
+      solid.rotationDegX * DEG,
+      solid.rotationDegY * DEG,
+      solid.rotationDegZ * DEG,
+      "YXZ",
+    );
+    solidGroup.add(mesh);
+  }
+
+  function placePrismMesh(
+    solid: Extract<SolidPrimitive, { type: "triangularPrism" }>,
+  ): void {
+    const geometry = createPrismGeometry(solid.base, solid.height);
+    const mesh = new THREE.Mesh(geometry, solidMaterial);
+    mesh.position.set(solid.x, solid.y, solid.z);
+    mesh.rotation.set(
+      solid.rotationDegX * DEG,
+      solid.rotationDegY * DEG,
+      solid.rotationDegZ * DEG,
+      "YXZ",
+    );
+    // 底面任意三角形只能逐条自建几何体：换掉前先按标记释放
+    mesh.userData.ownsGeometry = true;
+    solidGroup.add(mesh);
+  }
+
+  /** 释放组里自建几何体（三棱柱底面任意），共享几何体不在清理之列。 */
+  function disposeOwnedGeometries(group: THREE.Group): void {
+    for (const child of group.children) {
+      if (
+        child instanceof THREE.Mesh &&
+        child.userData.ownsGeometry === true
+      ) {
+        child.geometry.dispose();
+      }
+    }
+  }
+
   controls.addEventListener("change", paint);
   paint();
 
   function renderDocument(document: GeometryDocument): void {
     lastDocument = document;
     voxelGroup.clear();
+    disposeOwnedGeometries(solidGroup);
     solidGroup.clear();
     if (document.space === "3d") {
       for (const primitive of document.primitives) {
@@ -279,6 +453,12 @@ export function createViewport3dProjector(
           case "sphere":
             placeSphereMesh(primitive);
             break;
+          case "pyramid":
+            placePyramidMesh(primitive);
+            break;
+          case "triangularPrism":
+            placePrismMesh(primitive);
+            break;
         }
       }
     }
@@ -296,16 +476,20 @@ export function createViewport3dProjector(
       }
     },
     setPreview(preview: PlacementPreview): void {
+      if (ownedPreviewGeometry !== null) {
+        ownedPreviewGeometry.dispose();
+        ownedPreviewGeometry = null;
+      }
       if (preview === null) {
         previewMesh.visible = false;
         paint();
         return;
       }
       previewMesh.rotation.set(0, 0, 0);
+      previewMesh.scale.set(1, 1, 1);
       switch (preview.kind) {
         case "voxel":
           previewMesh.geometry = boxGeometry;
-          previewMesh.scale.set(1, 1, 1);
           previewMesh.position.set(
             preview.corner.x + 0.5,
             preview.corner.y + 0.5,
@@ -335,7 +519,32 @@ export function createViewport3dProjector(
         case "sphere":
           previewMesh.geometry = sphereGeometry;
           previewMesh.scale.set(preview.r, preview.r, preview.r);
-          previewMesh.position.set(preview.center.x, preview.center.y, preview.center.z);
+          previewMesh.position.set(
+            preview.center.x,
+            preview.center.y,
+            preview.center.z,
+          );
+          break;
+        case "pyramid":
+          previewMesh.geometry = pyramidGeometry;
+          previewMesh.scale.set(preview.width, preview.height, preview.depth);
+          previewMesh.position.set(
+            preview.anchor.x,
+            preview.anchor.y,
+            preview.anchor.z,
+          );
+          break;
+        case "prism":
+          ownedPreviewGeometry = createPrismGeometry(
+            preview.base,
+            preview.height,
+          );
+          previewMesh.geometry = ownedPreviewGeometry;
+          previewMesh.position.set(
+            preview.anchor.x,
+            preview.anchor.y,
+            preview.anchor.z,
+          );
           break;
       }
       previewMesh.visible = true;
@@ -403,11 +612,17 @@ export function createViewport3dProjector(
       controls.removeEventListener("change", paint);
       controls.dispose();
       voxelGroup.clear();
+      disposeOwnedGeometries(solidGroup);
       solidGroup.clear();
+      if (ownedPreviewGeometry !== null) {
+        ownedPreviewGeometry.dispose();
+        ownedPreviewGeometry = null;
+      }
       boxGeometry.dispose();
       cylinderGeometry.dispose();
       coneGeometry.dispose();
       sphereGeometry.dispose();
+      pyramidGeometry.dispose();
       voxelMaterial.dispose();
       selectedVoxelMaterial.dispose();
       solidMaterial.dispose();

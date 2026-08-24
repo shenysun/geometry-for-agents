@@ -39,11 +39,17 @@ export {
   CONE_DEFAULTS,
   CYLINDER_DEFAULTS,
   SPHERE_DEFAULTS,
+  PYRAMID_DEFAULTS,
   SOLID_TOOLS,
+  TRIANGULAR_PRISM_DEFAULTS,
   commitCone,
   commitCylinder,
   commitSolid,
   commitSphere,
+  commitPyramid,
+  commitTriangularPrism,
+  equilateralTriangleBase,
+  isSolidPrimitive,
   isSolidTool,
   solidAnchorFromWorld,
 } from "./solid-commit.ts";
@@ -53,5 +59,8 @@ export type {
   SolidPrimitive,
   SolidToolId,
   SpherePrimitive,
+  PyramidPrimitive,
+  TriangularPrismPrimitive,
+  PrismBase,
 } from "./solid-commit.ts";
 export { snap3d } from "./snap3d.ts";

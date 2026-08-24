@@ -60,14 +60,34 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
       "M3.2 8a4.8 2.1 0 0 0 9.6 0",
     ],
   },
+  pyramid: {
+    paths: ["M8 2.5L13.5 11.5L8 13.5L2.5 11.5z", "M8 2.5L8 13.5"],
+  },
+  triangularPrism: {
+    paths: [
+      "M2.5 11L7.5 3.5V11z",
+      "M7.5 3.5l5 1.5",
+      "M7.5 11l5 1.5",
+      "M12.5 5V12.5",
+    ],
+  },
 };
 
 /** 每个空间列出的工具次序：选择永远第一，创建工具跟在后面 */
 const TOOLS_PER_SPACE: Record<"2d" | "3d", readonly ToolboxToolId[]> = {
   // 2D：选择 + 第一期全部平面创建工具
   "2d": ["select", ...DRAW_TOOLS],
-  // 3D：选择 + 单位立方体 + 参数体（长方体、圆柱、圆锥、球；棱锥/棱柱是后面的票）
-  "3d": ["select", "voxel", "box", "cylinder", "cone", "sphere"],
+  // 3D：选择 + 单位立方体 + 全部参数体（长方体、圆柱、圆锥、球、四棱锥、三棱柱）
+  "3d": [
+    "select",
+    "voxel",
+    "box",
+    "cylinder",
+    "cone",
+    "sphere",
+    "pyramid",
+    "triangularPrism",
+  ],
 };
 
 /** 工具目录纯函数：输入空间，返回该空间工具箱应列出的工具 */

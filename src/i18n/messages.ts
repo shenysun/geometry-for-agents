@@ -58,6 +58,8 @@ export const messages = {
       cylinder: "圆柱",
       cone: "圆锥",
       sphere: "球",
+      pyramid: "四棱锥",
+      triangularPrism: "三棱柱",
     },
     field: {
       x: "X",
@@ -70,6 +72,8 @@ export const messages = {
       rotationDegY: "绕 Y 转（度）",
       rotationDegX: "绕 X 转（度）",
       rotationDegZ: "绕 Z 转（度）",
+      base: "底面三点（局部 XZ）",
+      basePoint: "底点",
     },
     fill: {
       label: "填充",
@@ -172,6 +176,8 @@ export const messages = {
       cylinder: "Cylinder",
       cone: "Cone",
       sphere: "Sphere",
+      pyramid: "Pyramid",
+      triangularPrism: "Triangular prism",
     },
     field: {
       x: "X",
@@ -184,6 +190,8 @@ export const messages = {
       rotationDegY: "Rotate Y (deg)",
       rotationDegX: "Rotate X (deg)",
       rotationDegZ: "Rotate Z (deg)",
+      base: "Base points (local XZ)",
+      basePoint: "Base point",
     },
     fill: {
       label: "Fill",

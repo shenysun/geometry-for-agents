@@ -552,3 +552,158 @@ describe("parseDocument 参数体：圆柱、圆锥、球", () => {
     expect(description).toMatch(/sphere[^\n]{0,60}center/i);
   });
 });
+
+const validPyramid = {
+  id: "pyramid-1",
+  type: "pyramid",
+  x: 0,
+  y: 0,
+  z: 0,
+  width: 1,
+  depth: 1,
+  height: 1,
+  rotationDegY: 45,
+  rotationDegX: 0,
+  rotationDegZ: 0,
+};
+
+const validPrismBase = [
+  { x: 0, z: Math.sqrt(3) / 3 },
+  { x: -0.5, z: -Math.sqrt(3) / 6 },
+  { x: 0.5, z: -Math.sqrt(3) / 6 },
+];
+
+const validPrism = {
+  id: "prism-1",
+  type: "triangularPrism",
+  x: 1,
+  y: 0.5,
+  z: -1,
+  height: 1,
+  base: validPrismBase,
+  rotationDegY: 0,
+  rotationDegX: 30,
+  rotationDegZ: 0,
+};
+
+describe("parseDocument 参数体：四棱锥与三棱柱", () => {
+  test("parses a 3d document where pyramid and triangularPrism coexist with the other solids", () => {
+    const result = parseDocument(
+      spec("3d", [
+        validPyramid,
+        validPrism,
+        validCylinder,
+        validSphere,
+        { id: "voxel-1", type: "voxel", x: 0, y: 0, z: 0 },
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.type)).toEqual([
+      "pyramid",
+      "triangularPrism",
+      "cylinder",
+      "sphere",
+      "voxel",
+    ]);
+  });
+
+  test("keeps the triangularPrism base as exactly three local XZ points", () => {
+    const result = parseDocument(spec("3d", [validPrism]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const prism = result.document.primitives[0];
+    expect(prism.type).toBe("triangularPrism");
+    if (prism.type !== "triangularPrism") return;
+    expect(prism.base).toEqual(validPrismBase);
+  });
+
+  test("rejects a pyramid with non-positive width, depth, or height", () => {
+    for (const field of ["width", "depth", "height"] as const) {
+      const result = parseDocument(spec("3d", [{ ...validPyramid, [field]: 0 }]));
+      expect(result.success, field).toBe(false);
+    }
+  });
+
+  test("rejects a pyramid missing a rotation field", () => {
+    const { rotationDegZ: _omitted, ...withoutRotation } = validPyramid;
+    const result = parseDocument(spec("3d", [withoutRotation]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toMatch(/rotationDegZ/);
+  });
+
+  test("rejects a triangularPrism base that is not exactly three points", () => {
+    const twoPoints = parseDocument(
+      spec("3d", [{ ...validPrism, base: validPrismBase.slice(0, 2) }]),
+    );
+    const fourPoints = parseDocument(
+      spec("3d", [
+        { ...validPrism, base: [...validPrismBase, { x: 9, z: 9 }] },
+      ]),
+    );
+
+    expect(twoPoints.success).toBe(false);
+    expect(fourPoints.success).toBe(false);
+  });
+
+  test("rejects a triangularPrism base point with extra or missing fields", () => {
+    const withY = parseDocument(
+      spec("3d", [
+        {
+          ...validPrism,
+          base: validPrismBase.map((point, at) =>
+            at === 0 ? { ...point, y: 0 } : point,
+          ),
+        },
+      ]),
+    );
+    const missingZ = parseDocument(
+      spec("3d", [
+        {
+          ...validPrism,
+          base: validPrismBase.map((point, at) =>
+            at === 1 ? { x: point.x } : point,
+          ),
+        },
+      ]),
+    );
+
+    expect(withY.success).toBe(false);
+    expect(missingZ.success).toBe(false);
+  });
+
+  test("rejects a triangularPrism with non-positive height or missing rotation", () => {
+    expect(
+      parseDocument(spec("3d", [{ ...validPrism, height: 0 }])).success,
+    ).toBe(false);
+
+    const { rotationDegX: _omitted, ...withoutRotation } = validPrism;
+    const result = parseDocument(spec("3d", [withoutRotation]));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toMatch(/rotationDegX/);
+  });
+
+  test("rejects pyramid and triangularPrism in space 2d", () => {
+    for (const primitive of [validPyramid, validPrism]) {
+      const result = parseDocument(spec("2d", [primitive]));
+      expect(result.success, primitive.type).toBe(false);
+      if (result.success) continue;
+      expect(result.error).toContain(
+        `type "${primitive.type}" is not allowed in space "2d"`,
+      );
+    }
+  });
+
+  test("records the pyramid and prism anchors on the schema", () => {
+    const description = documentSchema.description ?? "";
+
+    expect(description).toContain("pyramid");
+    expect(description).toContain("triangularPrism");
+    expect(description).toMatch(/triangularPrism[^\n]{0,80}base/i);
+  });
+});
