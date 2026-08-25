@@ -12,6 +12,7 @@ import {
 import { useI18n } from "vue-i18n";
 import {
   DockviewVue,
+  themeLight,
   type DockviewApi,
   type DockviewPanelApi,
   type DockviewReadyEvent,
@@ -172,9 +173,11 @@ watch(
 </script>
 
 <template>
-  <!-- 只允许停靠区内并排/改大小/叠标签；禁用浮窗，dockview 默认也不弹出浏览器窗口 -->
+  <!-- 只允许停靠区内并排/改大小/叠标签；禁用浮窗，dockview 默认也不弹出浏览器窗口。
+       主题必须走 prop：dockview v8 不传 theme 默认 abyss 深色并会覆盖根元素 class。 -->
   <DockviewVue
-    class="dockview-theme-light h-full w-full"
+    :theme="themeLight"
+    class="h-full w-full"
     :components="components"
     :default-tab-component="PanelTab"
     :disable-floating-groups="true"
