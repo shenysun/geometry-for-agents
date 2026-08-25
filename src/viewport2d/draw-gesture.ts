@@ -13,6 +13,7 @@ export const DRAW_TOOLS = [
   "triangle",
   "parallelogram",
   "trapezoid",
+  "angle",
   "circle",
   "sector",
   "bow",
@@ -103,6 +104,14 @@ export type DrawPreview =
       topOffset: number;
       rotationDeg: number;
     }
+  | {
+      type: "angle";
+      x: number;
+      y: number;
+      startDeg: number;
+      endDeg: number;
+      length: number;
+    }
   | { type: "circle"; cx: number; cy: number; r: number }
   | {
       type: "ellipse";
@@ -152,7 +161,7 @@ export type DrawGestureState =
   | { kind: "ring"; center: Point2; rOuter: number | null; cursor: Point2 }
   | {
       kind: "sweep";
-      tool: "sector" | "bow" | "arc";
+      tool: "sector" | "bow" | "arc" | "angle";
       center: Point2;
       start: Point2 | null;
       cursor: Point2;
@@ -364,6 +373,16 @@ function previewFrom(state: DrawGestureState): DrawPreview {
     if (state.start === null) {
       return { type: "guide", points: [state.center, state.cursor] };
     }
+    if (state.tool === "angle") {
+      return {
+        type: "angle",
+        x: state.center.x,
+        y: state.center.y,
+        length: distance(state.center, state.start),
+        startDeg: angleDeg(state.center, state.start),
+        endDeg: angleDeg(state.center, state.cursor),
+      };
+    }
     return {
       type: state.tool,
       cx: state.center.x,
@@ -570,17 +589,31 @@ export function upDraw(
 
 function isSweepTool(
   tool: DrawTool,
-): tool is "sector" | "bow" | "arc" {
-  return tool === "sector" || tool === "bow" || tool === "arc";
+): tool is "sector" | "bow" | "arc" | "angle" {
+  return (
+    tool === "sector" || tool === "bow" || tool === "arc" || tool === "angle"
+  );
 }
 
 function commitSweep(
-  tool: "sector" | "bow" | "arc",
+  tool: "sector" | "bow" | "arc" | "angle",
   center: Point2,
   start: Point2,
   end: Point2,
   id: string,
 ): Primitive2d {
+  // 角的字段是顶点 (x,y) 与边长 length，其余 sweep 族是圆心 (cx,cy) 与半径 r。
+  if (tool === "angle") {
+    return {
+      id,
+      type: "angle",
+      x: center.x,
+      y: center.y,
+      length: distance(center, start),
+      startDeg: angleDeg(center, start),
+      endDeg: angleDeg(center, end),
+    };
+  }
   const sweep = {
     id,
     cx: center.x,

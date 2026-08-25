@@ -9,6 +9,7 @@ import {
   baseHeightLocalOffset,
   baseHeightLocalVertices,
 } from "./base-height-family.ts";
+import type { AnglePrimitive } from "./angle.ts";
 import {
   snap2d,
   snap3d,
@@ -119,6 +120,7 @@ export function translatePrimitiveGeometry(
     case "triangle":
     case "parallelogram":
     case "trapezoid":
+    case "angle":
       return { ...primitive, x: primitive.x + dx, y: primitive.y + dy };
     case "circle":
     case "sector":
@@ -182,6 +184,7 @@ export function primitiveAnchor(primitive: Primitive2d): Point2 {
     case "triangle":
     case "parallelogram":
     case "trapezoid":
+    case "angle":
       return { x: primitive.x, y: primitive.y };
     default:
       return { x: primitive.cx, y: primitive.cy };
@@ -256,6 +259,7 @@ export function rotatePrimitiveGeometry(
     case "sector":
     case "bow":
     case "arc":
+    case "angle":
       return {
         ...primitive,
         startDeg: normalizeDeg(primitive.startDeg + deg),
@@ -332,6 +336,8 @@ export function scalePrimitiveGeometry(
         height: primitive.height * factor,
         topOffset: primitive.topOffset * factor,
       };
+    case "angle":
+      return { ...primitive, length: primitive.length * factor };
     case "label":
       return primitive;
   }
@@ -452,6 +458,22 @@ export function moveControlPointGeometry(
           at === index ? world : point,
         ),
       };
+    }
+    case "angle": {
+      // 顶点只写位置；边端点改该方向角与公共边长（两边等长）。
+      const vertex = { x: primitive.x, y: primitive.y };
+      if (pointId === "apex") {
+        return { ...primitive, x: world.x, y: world.y };
+      }
+      const deg = normalizeDeg(pointDegFrom(vertex, world));
+      const length = distanceBetween(vertex, world);
+      if (pointId === "startDeg") {
+        return { ...primitive, startDeg: deg, length };
+      }
+      if (pointId === "endDeg") {
+        return { ...primitive, endDeg: deg, length };
+      }
+      return primitive;
     }
     case "label":
       return primitive;

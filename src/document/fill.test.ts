@@ -92,4 +92,18 @@ describe("withFill", () => {
     expect(withFill(arc, "solid")).toBeNull();
     expect(withFill(label, "hatch")).toBeNull();
   });
+
+  test("returns null for angle (stroke family, no fill field)", () => {
+    const angle: Primitive = {
+      id: "angle-1",
+      type: "angle",
+      x: 0,
+      y: 0,
+      startDeg: 0,
+      endDeg: 90,
+      length: 3,
+    };
+
+    expect(withFill(angle, "solid")).toBeNull();
+  });
 });

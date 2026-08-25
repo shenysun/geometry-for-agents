@@ -74,6 +74,15 @@ const closed2dPrimitives = [
     fill: "none",
   },
   {
+    id: "angle-1",
+    type: "angle",
+    x: 0,
+    y: 0,
+    startDeg: 30,
+    endDeg: 90,
+    length: 3,
+  },
+  {
     id: "circle-1",
     type: "circle",
     cx: 0,
@@ -182,6 +191,7 @@ describe("parseDocument", () => {
       "triangle",
       "parallelogram",
       "trapezoid",
+      "angle",
       "circle",
       "sector",
       "bow",
@@ -931,5 +941,61 @@ describe("parseDocument 底/高家族", () => {
         `type "${primitive.type}" is not allowed in space "3d"`,
       );
     }
+  });
+});
+
+const validAngle = {
+  id: "angle-1",
+  type: "angle",
+  x: 1,
+  y: -2,
+  startDeg: 30,
+  endDeg: 120,
+  length: 3,
+};
+
+describe("parseDocument 角", () => {
+  test("parses an angle anchored at its vertex with two side directions", () => {
+    const result = parseDocument(spec("2d", [validAngle]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual(validAngle);
+  });
+
+  test("rejects a zero or full sweep (coincident or opposite-identical sides)", () => {
+    // 起止同角：零角。
+    expect(
+      parseDocument(spec("2d", [{ ...validAngle, endDeg: 30 }])).success,
+    ).toBe(false);
+    // 起止差整周：周角不进角契约（用圆 + 两条线拼）。
+    expect(
+      parseDocument(spec("2d", [{ ...validAngle, endDeg: 390 }])).success,
+    ).toBe(false);
+  });
+
+  test("rejects non-positive length", () => {
+    expect(
+      parseDocument(spec("2d", [{ ...validAngle, length: 0 }])).success,
+    ).toBe(false);
+    expect(
+      parseDocument(spec("2d", [{ ...validAngle, length: -1 }])).success,
+    ).toBe(false);
+  });
+
+  test("rejects fill on angle (stroke family)", () => {
+    const result = parseDocument(spec("2d", [{ ...validAngle, fill: "solid" }]));
+
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects an angle in space 3d", () => {
+    const result = parseDocument(spec("3d", [validAngle]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain(
+      'type "angle" is not allowed in space "3d"',
+    );
   });
 });

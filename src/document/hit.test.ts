@@ -401,6 +401,58 @@ describe("hitTest 底/高家族", () => {
   });
 });
 
+describe("hitTest 角", () => {
+  const angleDoc = () =>
+    doc2d([
+      {
+        id: "angle-1",
+        type: "angle",
+        x: 0,
+        y: 0,
+        startDeg: 0,
+        endDeg: 90,
+        length: 4,
+      },
+    ]);
+
+  test("两边线段在容差内命中：精确零容差只在边上命中", () => {
+    const document = angleDoc();
+
+    // 起始边是 (0,0)-(4,0) 上的点。
+    expect(hitTest(document, { x: 2, y: 0 })?.id).toBe("angle-1");
+    // 终止边是 (0,0)-(0,4) 上的点；cos(90°) 有 1e-16 级 ε，传极小容差。
+    expect(hitTest(document, { x: 0, y: 3 }, 1e-9)?.id).toBe("angle-1");
+    // 两边之间的空白（角平分线上）零容差落空。
+    expect(hitTest(document, { x: 1, y: 1 })).toBeNull();
+  });
+
+  test("容差内近边可命中，弧标也是角的一部分", () => {
+    const document = angleDoc();
+
+    // 近边 (2, 0.3) 在 0.5 容差内。
+    expect(hitTest(document, { x: 2, y: 0.3 }, 0.5)?.id).toBe("angle-1");
+    // 弧标半径 = 4×0.25 = 1：45° 方向 (cos45, sin45) 上距顶点 1 的点。
+    const onArc = {
+      x: Math.cos(Math.PI / 4),
+      y: Math.sin(Math.PI / 4),
+    };
+    expect(hitTest(document, onArc, 1e-9)?.id).toBe("angle-1");
+    // 扫角之外的反方向弧不命中：225° 方向同半径。
+    const offArc = {
+      x: -Math.cos(Math.PI / 4),
+      y: -Math.sin(Math.PI / 4),
+    };
+    expect(hitTest(document, offArc)).toBeNull();
+  });
+
+  test("角非闭合：远离边的点不命中，面积不参与", () => {
+    const document = angleDoc();
+
+    expect(hitTest(document, { x: 3, y: 3 })).toBeNull();
+    expect(hitTest(document, { x: -1, y: -1 })).toBeNull();
+  });
+});
+
 describe("hitTest 命中容差", () => {
   test("细线在容差内可命中，零容差保持精确", () => {
     const document = doc2d([

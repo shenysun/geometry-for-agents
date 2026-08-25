@@ -31,6 +31,9 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
   triangle: { paths: ["M8 3l5 9.5H3z"] },
   parallelogram: { paths: ["M4.5 11.5l2-7h8l-2 7z"] },
   trapezoid: { paths: ["M4.5 11.5l1.6-7h4l1.6 7z"] },
+  angle: {
+    paths: ["M3 12L13 4", "M3 12h9", "M7 12A4 4 0 0 0 6.1 9.5"],
+  },
   circle: { paths: ["M3 8a5 5 0 1 0 10 0a5 5 0 1 0-10 0"] },
   sector: { paths: ["M8 13L4 9a6 6 0 0 1 8.5-3.5z"] },
   bow: { paths: ["M3 11a5.2 5.2 0 0 1 10 0z"] },

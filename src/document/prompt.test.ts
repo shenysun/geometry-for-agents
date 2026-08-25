@@ -265,6 +265,27 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the angle syntax with vertex anchor and equal side length", () => {
+    const angle = {
+      id: "angle-1",
+      type: "angle",
+      x: 2,
+      y: 3,
+      startDeg: 30,
+      endDeg: 120,
+      length: 4,
+    };
+    const document = parsed("2d", [angle]);
+
+    const prompt = documentToPrompt(document);
+
+    expect(prompt).toMatch(/angle:.*vertex/);
+    expect(prompt).toMatch(/angle:.*startDeg, endDeg/);
+    expect(prompt).toMatch(/angle:.*length/);
+    expect(prompt).toContain("angle-1");
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("documents the box anchor and every field in the syntax and projects it deterministically", () => {
     const box = {
       id: "box-1",

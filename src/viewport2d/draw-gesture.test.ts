@@ -857,4 +857,115 @@ describe("底/高家族工具", () => {
   });
 });
 
+describe("角工具", () => {
+  test("三步点击提交角：顶点 → 一边端点 → 另一边端点", () => {
+    // 点击顶点。
+    const placed = clickDraw(
+      idleDrawState(),
+      ctx("angle", { x: 0, y: 0 }, 1, "angle-1"),
+    );
+    expect(placed.commit).toBeNull();
+    expect(placed.preview).toEqual({
+      type: "guide",
+      points: [
+        { x: 0, y: 0 },
+        { x: 0, y: 0 },
+      ],
+    });
+
+    // 点击起始边端点 (4,0)：0°、边长 4。
+    const firstSide = clickDraw(
+      placed.state,
+      ctx("angle", { x: 4, y: 0 }, 1, "angle-1"),
+    );
+    expect(firstSide.commit).toBeNull();
+    expect(firstSide.preview).toEqual({
+      type: "angle",
+      x: 0,
+      y: 0,
+      startDeg: 0,
+      endDeg: 0,
+      length: 4,
+    });
+
+    // 点击终止边端点 (0,3)：90°（吃格后 (0,3)）。
+    const committed = clickDraw(
+      firstSide.state,
+      ctx("angle", { x: -0.2, y: 3.4 }, 1, "angle-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "angle-1",
+      type: "angle",
+      x: 0,
+      y: 0,
+      startDeg: 0,
+      endDeg: 90,
+      length: 4,
+    });
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("第一步点在顶点自身不进入；第二步与顶点重合不进入", () => {
+    const placed = clickDraw(
+      idleDrawState(),
+      ctx("angle", { x: 0, y: 0 }, 1, "angle-1"),
+    );
+    // 与顶点重合的点击不推进。
+    const same = clickDraw(
+      placed.state,
+      ctx("angle", { x: 0, y: 0 }, 1, "angle-1"),
+    );
+    expect(same.commit).toBeNull();
+    expect(same.state).toEqual(placed.state);
+  });
+
+  test("第三步落在起始边同角不提交（零角拒绝）", () => {
+    const placed = clickDraw(
+      idleDrawState(),
+      ctx("angle", { x: 0, y: 0 }, 1, "angle-1"),
+    );
+    const firstSide = clickDraw(
+      placed.state,
+      ctx("angle", { x: 4, y: 0 }, 1, "angle-1"),
+    );
+    // 同方向的更远点：角度仍 0，与起始边重合——保留手势等下一击。
+    const flat = clickDraw(
+      firstSide.state,
+      ctx("angle", { x: 6, y: 0 }, 1, "angle-1"),
+    );
+    expect(flat.commit).toBeNull();
+    if (flat.state.kind !== "sweep") throw new Error("left sweep gesture");
+    expect(flat.state.kind).toBe("sweep");
+  });
+
+  test("起点与终点都吃当前格", () => {
+    const placed = clickDraw(
+      idleDrawState(),
+      ctx("angle", { x: 0.4, y: -0.4 }, 1, "angle-1"),
+    );
+    const firstSide = clickDraw(
+      placed.state,
+      ctx("angle", { x: 3.6, y: 0.2 }, 1, "angle-1"),
+    );
+    expect(firstSide.preview).toEqual({
+      type: "angle",
+      x: 0,
+      y: 0,
+      startDeg: 0,
+      endDeg: 0,
+      length: 4,
+    });
+  });
+
+  test("esc 取消角手势不提交", () => {
+    const placed = clickDraw(
+      idleDrawState(),
+      ctx("angle", { x: 0, y: 0 }, 1, "angle-1"),
+    );
+    const cancelled = escDraw(placed.state);
+    expect(cancelled.commit).toBeNull();
+    expect(cancelled.state).toEqual(idleDrawState());
+  });
+});
+
 

@@ -1,5 +1,9 @@
 import type { Point2, Primitive2d } from "../document/index.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
+import {
+  angleEndPoint,
+  angleStartPoint,
+} from "../document/angle.ts";
 
 /**
  * 控制点的语义分类：目录顺序即命中优先级（重叠时先列出的先赢）。
@@ -162,6 +166,23 @@ export function controlPoints(primitive: Primitive2d): ControlPoint[] {
           id: "endDeg",
           kind: "sweepAngle",
           point: pointOnCircle(center, primitive.r, primitive.endDeg),
+        },
+      ];
+    }
+    case "angle": {
+      // 顶点 + 两边端点；拖端点改方向角与公共边长（见 update-document）。
+      const vertex = { x: primitive.x, y: primitive.y };
+      return [
+        { id: "apex", kind: "vertex" as const, point: vertex },
+        {
+          id: "startDeg",
+          kind: "sweepAngle" as const,
+          point: angleStartPoint(primitive),
+        },
+        {
+          id: "endDeg",
+          kind: "sweepAngle" as const,
+          point: angleEndPoint(primitive),
         },
       ];
     }

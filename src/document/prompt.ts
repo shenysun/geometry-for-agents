@@ -18,6 +18,7 @@ const SYNTAX = [
   "- triangle: x, y (base midpoint), width (base along X), height along +Y, apexOffset (apex X offset from the base midpoint; 0 = isosceles), rotationDeg (optional, defaults to 0; counterclockwise), fill",
   "- parallelogram: x, y (base midpoint), width (base along X), height along +Y, skew (top-base X shift, nonzero), rotationDeg (optional, defaults to 0; counterclockwise), fill",
   "- trapezoid: x, y (bottom-base midpoint), width (bottom base along X), topWidth (top base, differs from width), height along +Y, topOffset (top-base midpoint X offset; 0 = isosceles), rotationDeg (optional, defaults to 0; counterclockwise), fill",
+  "- angle: x, y (vertex), startDeg, endDeg (side directions in degrees; 0° at +X, counterclockwise; sweep within (0°,360°)), length (both sides equal)",
   "- circle: cx, cy, r, fill",
   "- sector: cx, cy, r, startDeg, endDeg, fill",
   "- bow: circular segment, cx, cy, r, startDeg, endDeg, fill",

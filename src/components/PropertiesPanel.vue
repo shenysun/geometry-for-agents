@@ -71,7 +71,10 @@ type PlanarFieldKey =
   | "skew"
   | "topWidth"
   | "topOffset"
-  | "rotationDeg";
+  | "rotationDeg"
+  | "startDeg"
+  | "endDeg"
+  | "length";
 
 type PlanarField = {
   key: PlanarFieldKey;
@@ -251,6 +254,20 @@ const planarFieldList = computed(() =>
   planar.value === null ? [] : planarFields(planar.value.type),
 );
 
+/** 角字段目录：顶点、两方向角（可负/可超 360，提交归一由契约把关）与边长 */
+const ANGLE_FIELDS: readonly PlanarField[] = [
+  { key: "x", labelKey: "field.x", step: 0.5, positive: false },
+  { key: "y", labelKey: "field.y", step: 0.5, positive: false },
+  { key: "startDeg", labelKey: "field.startDeg", step: 15, positive: false },
+  { key: "endDeg", labelKey: "field.endDeg", step: 15, positive: false },
+  { key: "length", labelKey: "field.length", step: 0.5, positive: true },
+];
+
+const angle = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null && primitive.type === "angle" ? primitive : null;
+});
+
 const prism = computed(() => {
   const primitive = solid.value;
   return primitive !== null && primitive.type === "triangularPrism"
@@ -297,6 +314,13 @@ function onPlanarFieldChange(key: PlanarFieldKey, event: Event): void {
   const current = planar.value;
   if (current === null) return;
   commitNumericField(current, planarFieldList.value, key, event);
+}
+
+/** 角字段编辑：零角/周角等退化取值被契约拒绝并回退 */
+function onAngleFieldChange(key: PlanarFieldKey, event: Event): void {
+  const current = angle.value;
+  if (current === null) return;
+  commitNumericField(current, ANGLE_FIELDS, key, event);
 }
 
 const fill = computed((): Fill | null => {
@@ -349,6 +373,19 @@ function onFillChange(value: string | string[] | undefined): void {
           :aria-label="t(field.labelKey)"
           class="w-full rounded border border-zinc-300 px-2 py-1"
           @change="onPlanarFieldChange(field.key, $event)"
+        />
+      </label>
+    </div>
+    <div v-if="angle !== null" class="grid grid-cols-2 gap-2">
+      <label v-for="field in ANGLE_FIELDS" :key="field.key" class="space-y-1">
+        <span class="block text-zinc-500">{{ t(field.labelKey) }}</span>
+        <input
+          type="number"
+          :step="field.step"
+          :value="numericFieldOf(angle, field.key) ?? 0"
+          :aria-label="t(field.labelKey)"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onAngleFieldChange(field.key, $event)"
         />
       </label>
     </div>

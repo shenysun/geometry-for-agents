@@ -5,6 +5,11 @@ import type {
   Primitive2d,
 } from "../document/index.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
+import {
+  angleArcRadius,
+  angleEndPoint,
+  angleStartPoint,
+} from "../document/angle.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
 
@@ -227,6 +232,29 @@ function drawPrimitive(
     }
     case "arc":
       return [drawSweepPath(primitive, view, false)];
+    case "angle": {
+      // 笔画族：两边是共享顶点的折线，弧标总是画出（半径按边长比例）。
+      const vertex = { x: primitive.x, y: primitive.y };
+      const sides = [
+        angleStartPoint(primitive),
+        vertex,
+        angleEndPoint(primitive),
+      ];
+      return [
+        strokeLine(toScreenPoints(sides, view), false),
+        drawSweepPath(
+          {
+            cx: primitive.x,
+            cy: primitive.y,
+            r: angleArcRadius(primitive),
+            startDeg: primitive.startDeg,
+            endDeg: primitive.endDeg,
+          },
+          view,
+          false,
+        ),
+      ];
+    }
     case "sector":
       return [
         drawSweepPath(
@@ -328,6 +356,10 @@ function previewPrimitive(preview: DrawPreview): Primitive2d | null {
     }
     return { id: "preview", ...preview, fill: "none" };
   }
+  if (preview.type === "angle") {
+    if (preview.length <= 0) return null;
+    return { id: "preview", ...preview };
+  }
   if (preview.type === "label") {
     return { id: "preview", ...preview };
   }
@@ -351,7 +383,8 @@ function previewGuidePoints(preview: DrawPreview): Point2[] {
     preview.type === "rectangle" ||
     preview.type === "triangle" ||
     preview.type === "parallelogram" ||
-    preview.type === "trapezoid"
+    preview.type === "trapezoid" ||
+    preview.type === "angle"
   ) {
     return [{ x: preview.x, y: preview.y }];
   }

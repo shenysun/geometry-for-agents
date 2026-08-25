@@ -5,6 +5,11 @@ import type {
   Primitive3d,
 } from "./parse-document.ts";
 import { baseHeightWorldVertices } from "./base-height-family.ts";
+import {
+  angleArcRadius,
+  angleEndPoint,
+  angleStartPoint,
+} from "./angle.ts";
 import type { Point2 } from "./snap.ts";
 
 const DEG = Math.PI / 180;
@@ -232,6 +237,27 @@ function contains(
       return nearPolyline(point, primitive.points, tolerance);
     case "arc":
       return nearArc(point, primitive, tolerance);
+    case "angle": {
+      // 笔画族：两条边（共享顶点的折线）+ 弧标，容差内即命中。
+      const vertex = { x: primitive.x, y: primitive.y };
+      const sides = [
+        angleStartPoint(primitive),
+        vertex,
+        angleEndPoint(primitive),
+      ];
+      if (nearPolyline(point, sides, tolerance)) return true;
+      return nearArc(
+        point,
+        {
+          cx: primitive.x,
+          cy: primitive.y,
+          r: angleArcRadius(primitive),
+          startDeg: primitive.startDeg,
+          endDeg: primitive.endDeg,
+        },
+        tolerance,
+      );
+    }
     case "label":
       return Math.hypot(point.x - primitive.x, point.y - primitive.y) <= tolerance;
   }
@@ -283,6 +309,7 @@ function area(primitive: Primitive2d): number {
     }
     case "line":
     case "arc":
+    case "angle":
     case "label":
       return Number.POSITIVE_INFINITY;
   }

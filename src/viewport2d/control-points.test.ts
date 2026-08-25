@@ -354,6 +354,36 @@ describe("controlPoints 底/高家族", () => {
   });
 });
 
+describe("controlPoints 角", () => {
+  test("露出顶点与两边端点：顶点 kind vertex，端点 kind sweepAngle", () => {
+    const angle = primitive2d({
+      id: "angle-1",
+      type: "angle",
+      x: 1,
+      y: 2,
+      startDeg: 0,
+      endDeg: 90,
+      length: 4,
+    });
+
+    const points = controlPoints(angle);
+    expect(points.map((point) => point.id)).toEqual([
+      "apex",
+      "startDeg",
+      "endDeg",
+    ]);
+    expect(points.map((point) => point.kind)).toEqual([
+      "vertex",
+      "sweepAngle",
+      "sweepAngle",
+    ]);
+    expectPointCloseTo(points[0]!.point, { x: 1, y: 2 });
+    // startDeg 0 端点 (5,2)；endDeg 90 端点 (1,6)（cos(90°) 有 ε，容差断言）。
+    expectPointCloseTo(points[1]!.point, { x: 5, y: 2 });
+    expectPointCloseTo(points[2]!.point, { x: 1, y: 6 });
+  });
+});
+
 describe("controlPoints 标签", () => {  test("标签没有控制点（位置靠拖本体平移）", () => {
     const label = primitive2d({
       id: "label-1",

@@ -192,6 +192,30 @@ describe("document hash", () => {
     expect(reparsed.document).toEqual(document);
   });
 
+  test("roundtrips an angle", () => {
+    const document = parsed("2d", [
+      {
+        id: "angle-1",
+        type: "angle",
+        x: 1,
+        y: 2,
+        startDeg: 30,
+        endDeg: 120,
+        length: 4,
+      },
+    ]);
+
+    const decoded = hashToDocument(documentToHash(document));
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) return;
+    expect(decoded.document).toEqual(document);
+
+    const reparsed = parseDocument(JSON.stringify(decoded.document));
+    expect(reparsed.success).toBe(true);
+    if (!reparsed.success) return;
+    expect(reparsed.document).toEqual(document);
+  });
+
   test("roundtrips a 3d document mixing box and voxel", () => {
     const document = parsed("3d", [
       {

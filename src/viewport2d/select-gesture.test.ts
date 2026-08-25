@@ -394,6 +394,38 @@ describe("select-gesture 家族预览", () => {
       rotationDeg: 0,
     });
   });
+
+  test("角：reach 取边长（端点即最远点），预览携带两角与边长", () => {
+    const document = doc2d([
+      {
+        id: "angle-1",
+        type: "angle",
+        x: 0,
+        y: 0,
+        startDeg: 30,
+        endDeg: 120,
+        length: 4,
+      },
+    ]);
+
+    expect(selectPreview(document, "angle-1")).toEqual({
+      type: "angle",
+      x: 0,
+      y: 0,
+      startDeg: 30,
+      endDeg: 120,
+      length: 4,
+    });
+
+    // reach = length = 4，柄距 = 4 + 4×0.5 = 6。
+    const handles = transformHandles(
+      primitiveOf(document, "angle-1"),
+      0.5,
+    );
+    expect(handles?.center).toEqual({ x: 0, y: 0 });
+    expect(handles?.rotate).toEqual({ x: 0, y: 6 });
+    expect(handles?.scale).toEqual({ x: 6, y: 0 });
+  });
 });
 
 describe("select-gesture 柄命中", () => {

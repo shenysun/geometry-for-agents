@@ -1922,3 +1922,118 @@ describe("底/高家族更新", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("角更新", () => {
+  const angle: Primitive2d = {
+    id: "angle-1",
+    type: "angle",
+    x: 1,
+    y: 2,
+    startDeg: 30,
+    endDeg: 120,
+    length: 3,
+  };
+
+  const angleDoc = (): GeometryDocument =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [angle],
+    });
+
+  test("translatePrimitiveGeometry 只平移顶点，角度与边长不动", () => {
+    const moved = translatePrimitiveGeometry(angle, -1, 3);
+
+    expect(moved).toEqual({ ...angle, x: 0, y: 5 });
+    expect(angle.x).toBe(1);
+  });
+
+  test("rotatePrimitiveGeometry 无 rotationDeg 字段：改写两角并归一", () => {
+    const quarter = rotatePrimitiveGeometry(angle, 90);
+    const wrap = rotatePrimitiveGeometry(
+      { ...angle, startDeg: 300, endDeg: 350 },
+      90,
+    );
+
+    expect(quarter).toEqual({ ...angle, startDeg: 120, endDeg: 210 });
+    expect(wrap).toEqual({ ...angle, startDeg: 30, endDeg: 80 });
+  });
+
+  test("scalePrimitiveGeometry 只乘边长（两边等长，角度不动）", () => {
+    const moved = scalePrimitiveGeometry(angle, 2);
+
+    expect(moved).toEqual({ ...angle, length: 6 });
+  });
+
+  test("moveControlPointGeometry 拖顶点只写 x y", () => {
+    const moved = moveControlPointGeometry(angle, "apex", { x: 4, y: 5 });
+
+    expect(moved).toEqual({ ...angle, x: 4, y: 5 });
+  });
+
+  test("moveControlPointGeometry 拖边端点改该角与公共边长", () => {
+    // startDeg 30 的端点在世界 (1+3cos30, 2+3sin30)；拖到 (4,2) → 角 0、边长 3。
+    const moved = moveControlPointGeometry(angle, "startDeg", { x: 4, y: 2 });
+
+    if (moved.type !== "angle") return;
+    expectCloseTo(moved.startDeg, 0);
+    expectCloseTo(moved.length, 3);
+    expect(moved.endDeg).toBe(120);
+
+    // 拖 endDeg 端点到正上方 (1,7)：角 90、边长 5。
+    const endMoved = moveControlPointGeometry(angle, "endDeg", { x: 1, y: 7 });
+    if (endMoved.type !== "angle") return;
+    expectCloseTo(endMoved.endDeg, 90);
+    expectCloseTo(endMoved.length, 5);
+    expect(endMoved.startDeg).toBe(30);
+  });
+
+  test("moveControlPointGeometry 未知控制点 id 是恒等变换", () => {
+    expect(moveControlPointGeometry(angle, "vertex-0", { x: 9, y: 9 })).toBe(
+      angle,
+    );
+  });
+
+  test("moveControlPoint 先吸附当前格再提交，新说明书仍过契约", () => {
+    const original = angleDoc();
+    const snapshot = structuredClone(original);
+
+    const result = moveControlPoint(
+      original,
+      "angle-1",
+      "startDeg",
+      { x: 4.2, y: 2.3 },
+      1,
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const moved = result.document.primitives[0];
+    if (moved.type !== "angle") return;
+    expect(moved.startDeg).toBe(0);
+    expectCloseTo(moved.length, 3);
+    expect(original).toEqual(snapshot);
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+  });
+
+  test("拖边端点到顶点（边长 0）或拖成起止同角被契约拒绝", () => {
+    expect(
+      moveControlPoint(angleDoc(), "angle-1", "startDeg", { x: 1, y: 2 }, "off")
+        .success,
+    ).toBe(false);
+    // 轴向角夹具（0°/90°，atan2 在轴上无浮点误差）：startDeg 拖到 endDeg
+    // 射线上的点 → 起止同角拒绝。
+    const axisAngle = { ...angle, startDeg: 0, endDeg: 90 };
+    const axisDoc = mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [axisAngle],
+    });
+    expect(
+      moveControlPoint(axisDoc, "angle-1", "startDeg", { x: 1, y: 7 }, "off")
+        .success,
+    ).toBe(false);
+  });
+});

@@ -103,6 +103,30 @@ const trapezoidSchema = z
     path: ["topWidth"],
   });
 
+/** 角（笔画族）：无 fill；起止重合/差整周被拒（周角用圆 + 两条线拼）。 */
+const angleSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("angle"),
+    x: z.number(),
+    y: z.number(),
+    startDeg: z.number(),
+    endDeg: z.number(),
+    length: z.number().positive(),
+  })
+  .refine(
+    (angle) => {
+      if (angle.startDeg === angle.endDeg) return false;
+      const sweep = (angle.endDeg - angle.startDeg) % 360;
+      return sweep !== 0;
+    },
+    {
+      message:
+        "startDeg and endDeg must span a nonzero, non-full sweep (0° at +X, counterclockwise)",
+      path: ["endDeg"],
+    },
+  );
+
 const circleSchema = z.strictObject({
   ...disk2d,
   type: z.literal("circle"),
@@ -260,6 +284,7 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   triangleSchema,
   parallelogramSchema,
   trapezoidSchema,
+  angleSchema,
   circleSchema,
   sectorSchema,
   bowSchema,

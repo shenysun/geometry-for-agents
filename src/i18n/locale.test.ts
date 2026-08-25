@@ -86,4 +86,18 @@ describe("createAppI18n", () => {
     expect(i18n.global.t("field.topWidth")).toBe("Top base");
     expect(i18n.global.t("field.topOffset")).toBe("Top offset");
   });
+
+  test("角工具与字段在两种语言下都有文案", () => {
+    const i18n = createAppI18n(["zh-CN"]);
+    expect(i18n.global.t("tool.angle")).toBe("角");
+    expect(i18n.global.t("field.startDeg")).toBe("起始角");
+    expect(i18n.global.t("field.endDeg")).toBe("终止角");
+    expect(i18n.global.t("field.length")).toBe("边长");
+
+    i18n.global.locale.value = "en";
+    expect(i18n.global.t("tool.angle")).toBe("Angle");
+    expect(i18n.global.t("field.startDeg")).toBe("Start angle");
+    expect(i18n.global.t("field.endDeg")).toBe("End angle");
+    expect(i18n.global.t("field.length")).toBe("Side length");
+  });
 });

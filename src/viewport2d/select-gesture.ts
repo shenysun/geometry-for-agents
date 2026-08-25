@@ -115,6 +115,8 @@ function handleReach(primitive: Primitive2d, center: Point2): number {
       return primitive.rOuter;
     case "ellipse":
       return Math.max(primitive.rx, primitive.ry);
+    case "angle":
+      return primitive.length;
     case "label":
       return 0;
   }
@@ -273,6 +275,15 @@ function previewFromPrimitive(primitive: Primitive2d): DrawPreview {
         r: primitive.r,
         startDeg: primitive.startDeg,
         endDeg: primitive.endDeg,
+      };
+    case "angle":
+      return {
+        type: "angle",
+        x: primitive.x,
+        y: primitive.y,
+        startDeg: primitive.startDeg,
+        endDeg: primitive.endDeg,
+        length: primitive.length,
       };
     case "label":
       return {
