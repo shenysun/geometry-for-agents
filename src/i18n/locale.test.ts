@@ -64,4 +64,26 @@ describe("createAppI18n", () => {
     expect(i18n.global.t("tool.rectangle")).toBe("Rectangle");
     expect(i18n.global.t("field.rotationDeg")).toBe("Rotation (deg)");
   });
+
+  test("\u5e95/\u9ad8\u5bb6\u65cf\u5de5\u5177\u4e0e\u5b57\u6bb5\u5728\u4e24\u79cd\u8bed\u8a00\u4e0b\u90fd\u6709\u6587\u6848", () => {
+    const i18n = createAppI18n(["zh-CN"]);
+    expect(i18n.global.t("tool.square")).toBe("\u6b63\u65b9\u5f62");
+    expect(i18n.global.t("tool.triangle")).toBe("\u4e09\u89d2\u5f62");
+    expect(i18n.global.t("tool.parallelogram")).toBe("\u5e73\u884c\u56db\u8fb9\u5f62");
+    expect(i18n.global.t("tool.trapezoid")).toBe("\u68af\u5f62");
+    expect(i18n.global.t("field.apexOffset")).toBe("\u9876\u70b9\u504f\u79fb");
+    expect(i18n.global.t("field.skew")).toBe("\u659c\u79fb");
+    expect(i18n.global.t("field.topWidth")).toBe("\u4e0a\u5e95");
+    expect(i18n.global.t("field.topOffset")).toBe("\u4e0a\u5e95\u504f\u79fb");
+
+    i18n.global.locale.value = "en";
+    expect(i18n.global.t("tool.square")).toBe("Square");
+    expect(i18n.global.t("tool.triangle")).toBe("Triangle");
+    expect(i18n.global.t("tool.parallelogram")).toBe("Parallelogram");
+    expect(i18n.global.t("tool.trapezoid")).toBe("Trapezoid");
+    expect(i18n.global.t("field.apexOffset")).toBe("Apex offset");
+    expect(i18n.global.t("field.skew")).toBe("Skew");
+    expect(i18n.global.t("field.topWidth")).toBe("Top base");
+    expect(i18n.global.t("field.topOffset")).toBe("Top offset");
+  });
 });

@@ -610,3 +610,251 @@ describe("rectangle 工具", () => {
   });
 });
 
+describe("底/高家族工具", () => {
+  test("拖 box 提交三角：锚点=底边中点，等腰（apexOffset 0）", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("triangle", { x: 0, y: 0 }, 1, "tri-1"),
+    );
+    expect(started.commit).toBeNull();
+    const moved = moveDraw(
+      started.state,
+      ctx("triangle", { x: 4, y: 3 }, 1, "tri-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "triangle",
+      x: 2,
+      y: 0,
+      width: 4,
+      height: 3,
+      apexOffset: 0,
+      rotationDeg: 0,
+    });
+
+    const committed = upDraw(
+      moved.state,
+      ctx("triangle", { x: 4, y: 3 }, 1, "tri-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "tri-1",
+      type: "triangle",
+      x: 2,
+      y: 0,
+      width: 4,
+      height: 3,
+      apexOffset: 0,
+      rotationDeg: 0,
+      fill: "none",
+    });
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("拖 box 提交平四：斜移取高（45° 斜边）", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("parallelogram", { x: 0, y: 0 }, 1, "para-1"),
+    );
+    const committed = upDraw(
+      started.state,
+      ctx("parallelogram", { x: 4, y: 2 }, 1, "para-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "para-1",
+      type: "parallelogram",
+      x: 2,
+      y: 0,
+      width: 4,
+      height: 2,
+      skew: 2,
+      rotationDeg: 0,
+      fill: "none",
+    });
+  });
+
+  test("拖 box 提交梯形：上底取下底一半，等腰（topOffset 0）", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("trapezoid", { x: 0, y: 0 }, 1, "trap-1"),
+    );
+    const committed = upDraw(
+      started.state,
+      ctx("trapezoid", { x: 4, y: 2 }, 1, "trap-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "trap-1",
+      type: "trapezoid",
+      x: 2,
+      y: 0,
+      width: 4,
+      topWidth: 2,
+      height: 2,
+      topOffset: 0,
+      rotationDeg: 0,
+      fill: "none",
+    });
+  });
+
+  test("反向拖（右上→左下）：底边中点与尺寸取包围盒", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("triangle", { x: 2, y: 3 }, 1, "tri-1"),
+    );
+    const committed = upDraw(
+      started.state,
+      ctx("triangle", { x: -2, y: 1 }, 1, "tri-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "tri-1",
+      type: "triangle",
+      x: 0,
+      y: 1,
+      width: 4,
+      height: 2,
+      apexOffset: 0,
+      rotationDeg: 0,
+      fill: "none",
+    });
+  });
+
+  test("正方形工具：取主轴长度为边长，提交 width=height 的 rectangle", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("square", { x: 0, y: 0 }, 1, "sq-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("square", { x: 4, y: 2 }, 1, "sq-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "rectangle",
+      x: 2,
+      y: 2,
+      width: 4,
+      height: 4,
+      rotationDeg: 0,
+    });
+
+    const committed = upDraw(
+      moved.state,
+      ctx("square", { x: 4, y: 2 }, 1, "sq-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "sq-1",
+      type: "rectangle",
+      x: 2,
+      y: 2,
+      width: 4,
+      height: 4,
+      rotationDeg: 0,
+      fill: "none",
+    });
+  });
+
+  test("正方形反向拖：方向沿拖拽象限", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("square", { x: 2, y: 2 }, 1, "sq-1"),
+    );
+    const committed = upDraw(
+      started.state,
+      ctx("square", { x: -1, y: 0 }, 1, "sq-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "sq-1",
+      type: "rectangle",
+      x: 0.5,
+      y: 0.5,
+      width: 3,
+      height: 3,
+      rotationDeg: 0,
+      fill: "none",
+    });
+  });
+
+  test("零宽或零高的退化拖动不提交；正方形拖回起点不提交", () => {
+    for (const tool of [
+      "triangle",
+      "parallelogram",
+      "trapezoid",
+    ] as const) {
+      const started = startDraw(
+        idleDrawState(),
+        ctx(tool, { x: 0, y: 0 }, 1, "x-1"),
+      );
+      const flat = upDraw(started.state, ctx(tool, { x: 3, y: 0 }, 1, "x-1"));
+      expect(flat.commit, tool).toBeNull();
+      expect(flat.state).toEqual(idleDrawState());
+    }
+    // 正方形取主轴长度：纯水平拖 3 仍提交 3×3，只有拖回起点（零位移）不提交。
+    const squareStart = startDraw(
+      idleDrawState(),
+      ctx("square", { x: 0, y: 0 }, 1, "x-1"),
+    );
+    const squareFlat = upDraw(
+      squareStart.state,
+      ctx("square", { x: 0, y: 0 }, 1, "x-1"),
+    );
+    expect(squareFlat.commit).toBeNull();
+    expect(squareFlat.state).toEqual(idleDrawState());
+  });
+
+  test("起点与终点都吃当前格（家族共用 box 手势）", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("triangle", { x: 1.4, y: -1.6 }, 1, "tri-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("triangle", { x: 3.5, y: 0.2 }, 1, "tri-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "triangle",
+      x: 2.5,
+      y: -2,
+      width: 3,
+      height: 2,
+      apexOffset: 0,
+      rotationDeg: 0,
+    });
+  });
+
+  test("Alt 不落格（grid off 保留原始点）", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("trapezoid", { x: 0.5, y: -0.5 }, "off", "trap-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("trapezoid", { x: 2.25, y: 1 }, "off", "trap-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "trapezoid",
+      x: 1.375,
+      y: -0.5,
+      width: 1.75,
+      topWidth: 0.875,
+      height: 1.5,
+      topOffset: 0,
+      rotationDeg: 0,
+    });
+  });
+
+  test("esc 取消家族预览且不提交", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("parallelogram", { x: 0, y: 0 }, 1, "para-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("parallelogram", { x: 4, y: 2 }, 1, "para-1"),
+    );
+    expect(moved.preview).not.toBeNull();
+
+    const cancelled = escDraw(moved.state);
+    expect(cancelled.commit).toBeNull();
+    expect(cancelled.preview).toBeNull();
+    expect(cancelled.state).toEqual(idleDrawState());
+  });
+});
+
+

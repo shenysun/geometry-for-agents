@@ -40,6 +40,40 @@ const closed2dPrimitives = [
     fill: "hatch",
   },
   {
+    id: "triangle-1",
+    type: "triangle",
+    x: 0,
+    y: 0,
+    width: 4,
+    height: 3,
+    apexOffset: 1,
+    rotationDeg: 15,
+    fill: "hatch",
+  },
+  {
+    id: "parallelogram-1",
+    type: "parallelogram",
+    x: 0,
+    y: 0,
+    width: 4,
+    height: 2,
+    skew: 1,
+    rotationDeg: -15,
+    fill: "solid",
+  },
+  {
+    id: "trapezoid-1",
+    type: "trapezoid",
+    x: 0,
+    y: 0,
+    width: 4,
+    topWidth: 2,
+    height: 2,
+    topOffset: 0.5,
+    rotationDeg: 0,
+    fill: "none",
+  },
+  {
     id: "circle-1",
     type: "circle",
     cx: 0,
@@ -145,6 +179,9 @@ describe("parseDocument", () => {
       "line",
       "polygon",
       "rectangle",
+      "triangle",
+      "parallelogram",
+      "trapezoid",
       "circle",
       "sector",
       "bow",
@@ -771,5 +808,128 @@ describe("parseDocument 矩形", () => {
     expect(result.error).toContain(
       'type "rectangle" is not allowed in space "3d"',
     );
+  });
+});
+
+const validTriangle = {
+  id: "triangle-1",
+  type: "triangle",
+  x: 1,
+  y: -2,
+  width: 4,
+  height: 3,
+  apexOffset: -0.5,
+  rotationDeg: 30,
+  fill: "hatch",
+};
+
+const validParallelogram = {
+  id: "parallelogram-1",
+  type: "parallelogram",
+  x: 1,
+  y: -2,
+  width: 4,
+  height: 2,
+  skew: 1.5,
+  rotationDeg: 30,
+  fill: "solid",
+};
+
+const validTrapezoid = {
+  id: "trapezoid-1",
+  type: "trapezoid",
+  x: 1,
+  y: -2,
+  width: 4,
+  topWidth: 2,
+  height: 2,
+  topOffset: 0.5,
+  rotationDeg: 30,
+  fill: "none",
+};
+
+describe("parseDocument 底/高家族", () => {
+  test("parses triangle, parallelogram, trapezoid anchored at the base midpoint", () => {
+    for (const primitive of [
+      validTriangle,
+      validParallelogram,
+      validTrapezoid,
+    ]) {
+      const result = parseDocument(spec("2d", [primitive]));
+
+      expect(result.success, primitive.type).toBe(true);
+      if (!result.success) return;
+      expect(result.document.primitives[0]).toEqual(primitive);
+    }
+  });
+
+  test("opens the family without rotationDeg as rotation 0", () => {
+    for (const primitive of [
+      validTriangle,
+      validParallelogram,
+      validTrapezoid,
+    ]) {
+      const { rotationDeg: _omitted, ...withoutRotation } = primitive;
+      const result = parseDocument(spec("2d", [withoutRotation]));
+
+      expect(result.success, primitive.type).toBe(true);
+      if (!result.success) return;
+      expect(result.document.primitives[0]).toEqual({
+        ...withoutRotation,
+        rotationDeg: 0,
+      });
+    }
+  });
+
+  test("rejects non-positive sizes", () => {
+    const sizeFields = {
+      triangle: ["width", "height"],
+      parallelogram: ["width", "height"],
+      trapezoid: ["width", "topWidth", "height"],
+    } as const;
+    for (const [type, fields] of Object.entries(sizeFields)) {
+      const primitive =
+        type === "triangle"
+          ? validTriangle
+          : type === "parallelogram"
+            ? validParallelogram
+            : validTrapezoid;
+      for (const field of fields) {
+        expect(
+          parseDocument(spec("2d", [{ ...primitive, [field]: 0 }])).success,
+          `${type}.${field}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  test("refines degenerate family shapes back to their canonical types", () => {
+    // 平四斜移为零即矩形：拒绝（一形一表，ADR 0017）。
+    expect(
+      parseDocument(spec("2d", [{ ...validParallelogram, skew: 0 }])).success,
+    ).toBe(false);
+
+    // 梯形上底与下底等长即平四/矩形：拒绝。
+    expect(
+      parseDocument(
+        spec("2d", [{ ...validTrapezoid, topWidth: validTrapezoid.width }]),
+      ).success,
+    ).toBe(false);
+  });
+
+  test("rejects the family in space 3d", () => {
+    for (const primitive of [
+      validTriangle,
+      validParallelogram,
+      validTrapezoid,
+    ]) {
+      const result = parseDocument(spec("3d", [primitive]));
+
+      expect(result.success, primitive.type).toBe(false);
+      if (result.success) return;
+      expect(result.error).toContain(
+        `type "${primitive.type}" is not allowed in space "3d"`,
+      );
+    }
   });
 });

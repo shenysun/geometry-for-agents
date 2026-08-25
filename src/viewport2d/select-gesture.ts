@@ -14,6 +14,7 @@ import {
   translatePrimitiveGeometry,
 } from "../document/update-document.ts";
 import { controlPoints } from "./control-points.ts";
+import { baseHeightWorldVertices } from "../document/base-height-family.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 
 export type SelectGestureState =
@@ -97,6 +98,14 @@ function handleReach(primitive: Primitive2d, center: Point2): number {
       );
     case "rectangle":
       return Math.hypot(primitive.width / 2, primitive.height / 2);
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid":
+      return Math.max(
+        ...baseHeightWorldVertices(primitive).map((vertex) =>
+          distance(vertex, center),
+        ),
+      );
     case "circle":
     case "sector":
     case "bow":
@@ -197,6 +206,37 @@ function previewFromPrimitive(primitive: Primitive2d): DrawPreview {
         y: primitive.y,
         width: primitive.width,
         height: primitive.height,
+        rotationDeg: primitive.rotationDeg,
+      };
+    case "triangle":
+      return {
+        type: "triangle",
+        x: primitive.x,
+        y: primitive.y,
+        width: primitive.width,
+        height: primitive.height,
+        apexOffset: primitive.apexOffset,
+        rotationDeg: primitive.rotationDeg,
+      };
+    case "parallelogram":
+      return {
+        type: "parallelogram",
+        x: primitive.x,
+        y: primitive.y,
+        width: primitive.width,
+        height: primitive.height,
+        skew: primitive.skew,
+        rotationDeg: primitive.rotationDeg,
+      };
+    case "trapezoid":
+      return {
+        type: "trapezoid",
+        x: primitive.x,
+        y: primitive.y,
+        width: primitive.width,
+        topWidth: primitive.topWidth,
+        height: primitive.height,
+        topOffset: primitive.topOffset,
         rotationDeg: primitive.rotationDeg,
       };
     case "circle":

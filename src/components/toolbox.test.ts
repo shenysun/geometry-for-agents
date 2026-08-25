@@ -53,6 +53,20 @@ describe("toolsForSpace", () => {
     expect(solid).not.toContain("rectangle");
   });
 
+  test("2D 目录含底/高家族，square 紧跟 rectangle，家族排在 circle 前", () => {
+    const planar = toolsForSpace("2d").map((tool) => tool.id);
+
+    expect(planar.indexOf("square")).toBe(planar.indexOf("rectangle") + 1);
+    expect(planar.indexOf("triangle")).toBe(planar.indexOf("square") + 1);
+    expect(planar.indexOf("parallelogram")).toBe(
+      planar.indexOf("triangle") + 1,
+    );
+    expect(planar.indexOf("trapezoid")).toBe(
+      planar.indexOf("parallelogram") + 1,
+    );
+    expect(planar.indexOf("trapezoid")).toBe(planar.indexOf("circle") - 1);
+  });
+
   test("每项都带 i18n key 与图标数据", () => {
     for (const space of ["2d", "3d"] as const) {
       for (const tool of toolsForSpace(space)) {

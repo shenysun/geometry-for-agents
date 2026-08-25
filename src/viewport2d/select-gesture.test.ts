@@ -301,6 +301,99 @@ describe("transformHandles 柄布局", () => {
     expect(handles?.rotate).toEqual({ x: 0, y: 4 });
     expect(handles?.scale).toEqual({ x: 4, y: 0 });
   });
+
+  test("底/高家族两柄齐备：reach 取顶点到锚点的最大距离，锚点即底边中点", () => {
+    const document = doc2d([
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        apexOffset: 0,
+        rotationDeg: 0,
+        fill: "none",
+      },
+      {
+        id: "para-1",
+        type: "parallelogram",
+        x: 0,
+        y: 0,
+        width: 2,
+        height: 1,
+        skew: 3,
+        rotationDeg: 0,
+        fill: "none",
+      },
+    ]);
+
+    // 三角顶点 (-2,0),(2,0),(0,3)：reach=3 → 柄距 3+4×0.5=5。
+    const triangle = transformHandles(
+      primitiveOf(document, "tri-1"),
+      0.5,
+    );
+    expect(triangle?.center).toEqual({ x: 0, y: 0 });
+    expect(triangle?.rotate).toEqual({ x: 0, y: 5 });
+    expect(triangle?.scale).toEqual({ x: 5, y: 0 });
+
+    // 平四顶点 (-1,0),(1,0),(4,1),(-2,1)：reach=√17 ≈ 4.123。
+    const parallelogram = transformHandles(
+      primitiveOf(document, "para-1"),
+      0.5,
+    );
+    expect(parallelogram?.rotate?.y).toBeCloseTo(Math.sqrt(17) + 2);
+  });
+});
+
+describe("select-gesture 家族预览", () => {
+  test("selectPreview 携带家族全部几何字段", () => {
+    const document = doc2d([
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 1,
+        y: 2,
+        width: 4,
+        height: 3,
+        apexOffset: 0.5,
+        rotationDeg: 30,
+        fill: "none",
+      },
+      {
+        id: "trap-1",
+        type: "trapezoid",
+        x: 1,
+        y: 2,
+        width: 4,
+        topWidth: 2,
+        height: 3,
+        topOffset: -0.5,
+        rotationDeg: 0,
+        fill: "none",
+      },
+    ]);
+
+    expect(selectPreview(document, "tri-1")).toEqual({
+      type: "triangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 3,
+      apexOffset: 0.5,
+      rotationDeg: 30,
+    });
+    expect(selectPreview(document, "trap-1")).toEqual({
+      type: "trapezoid",
+      x: 1,
+      y: 2,
+      width: 4,
+      topWidth: 2,
+      height: 3,
+      topOffset: -0.5,
+      rotationDeg: 0,
+    });
+  });
 });
 
 describe("select-gesture 柄命中", () => {

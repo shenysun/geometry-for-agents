@@ -1,4 +1,5 @@
 import type { Point2, Primitive2d } from "../document/index.ts";
+import { baseHeightWorldVertices } from "../document/base-height-family.ts";
 
 /**
  * 控制点的语义分类：目录顺序即命中优先级（重叠时先列出的先赢）。
@@ -86,6 +87,17 @@ export function controlPoints(primitive: Primitive2d): ControlPoint[] {
           point: { x: center.x + rotated.x, y: center.y + rotated.y },
         };
       });
+    }
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid": {
+      // 顶点目录与世界顶点同源（三角 3 个、平四/梯 4 个）；底边中点锚点
+      // 不进目录，平移走拖本体。
+      return baseHeightWorldVertices(primitive).map((point, index) => ({
+        id: `corner-${index}`,
+        kind: "corner" as const,
+        point,
+      }));
     }
     case "circle": {
       const center = { x: primitive.cx, y: primitive.cy };

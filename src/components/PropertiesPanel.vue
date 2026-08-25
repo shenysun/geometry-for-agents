@@ -61,23 +61,92 @@ const HEIGHT_FIELD: SolidField = {
   positive: true,
 };
 
-/** 矩形数字字段目录的键：中心位置、两轴尺寸与旋转角 */
-type RectangleFieldKey = "x" | "y" | "width" | "height" | "rotationDeg";
+/** 平面参数形（矩形与底/高家族）数字字段目录的键 */
+type PlanarFieldKey =
+  | "x"
+  | "y"
+  | "width"
+  | "height"
+  | "apexOffset"
+  | "skew"
+  | "topWidth"
+  | "topOffset"
+  | "rotationDeg";
 
-type RectangleField = {
-  key: RectangleFieldKey;
-  labelKey: `field.${RectangleFieldKey}`;
+type PlanarField = {
+  key: PlanarFieldKey;
+  labelKey: `field.${PlanarFieldKey}`;
   step: number;
   positive: boolean;
 };
 
-const RECTANGLE_FIELDS: readonly RectangleField[] = [
+const PLANAR_POSITION_FIELDS: readonly PlanarField[] = [
   { key: "x", labelKey: "field.x", step: 0.5, positive: false },
   { key: "y", labelKey: "field.y", step: 0.5, positive: false },
-  { key: "width", labelKey: "field.width", step: 0.5, positive: true },
-  { key: "height", labelKey: "field.height", step: 0.5, positive: true },
-  { key: "rotationDeg", labelKey: "field.rotationDeg", step: 15, positive: false },
 ];
+
+const PLANAR_ROTATION_FIELD: PlanarField = {
+  key: "rotationDeg",
+  labelKey: "field.rotationDeg",
+  step: 15,
+  positive: false,
+};
+
+/** 平面参数形类型：字段目录按类型取其子集 */
+type PlanarParametric = Extract<
+  Primitive,
+  { type: "rectangle" | "triangle" | "parallelogram" | "trapezoid" }
+>;
+
+/** 按类型穷尽的字段目录：锚点、尺寸（正数）、家族偏移（可负）与旋转角 */
+function planarFields(type: PlanarParametric["type"]): readonly PlanarField[] {
+  const widthField: PlanarField = {
+    key: "width",
+    labelKey: "field.width",
+    step: 0.5,
+    positive: true,
+  };
+  const heightField: PlanarField = {
+    key: "height",
+    labelKey: "field.height",
+    step: 0.5,
+    positive: true,
+  };
+  switch (type) {
+    case "rectangle":
+      return [
+        ...PLANAR_POSITION_FIELDS,
+        widthField,
+        heightField,
+        PLANAR_ROTATION_FIELD,
+      ];
+    case "triangle":
+      return [
+        ...PLANAR_POSITION_FIELDS,
+        widthField,
+        heightField,
+        { key: "apexOffset", labelKey: "field.apexOffset", step: 0.5, positive: false },
+        PLANAR_ROTATION_FIELD,
+      ];
+    case "parallelogram":
+      return [
+        ...PLANAR_POSITION_FIELDS,
+        widthField,
+        heightField,
+        { key: "skew", labelKey: "field.skew", step: 0.5, positive: false },
+        PLANAR_ROTATION_FIELD,
+      ];
+    case "trapezoid":
+      return [
+        ...PLANAR_POSITION_FIELDS,
+        widthField,
+        { key: "topWidth", labelKey: "field.topWidth", step: 0.5, positive: true },
+        heightField,
+        { key: "topOffset", labelKey: "field.topOffset", step: 0.5, positive: false },
+        PLANAR_ROTATION_FIELD,
+      ];
+  }
+}
 
 /** 按类型穷尽的字段目录：长方体/四棱锥三尺寸，圆柱/圆锥 r+height+旋转，
  * 三棱柱 base 三点单独一节，球只有位置和 r */
@@ -167,10 +236,20 @@ const solidFieldList = computed(() =>
   solid.value === null ? [] : solidFields(solid.value.type),
 );
 
-const rectangle = computed(() => {
+const planar = computed(() => {
   const primitive = selected.value;
-  return primitive !== null && primitive.type === "rectangle" ? primitive : null;
+  return primitive !== null &&
+    (primitive.type === "rectangle" ||
+      primitive.type === "triangle" ||
+      primitive.type === "parallelogram" ||
+      primitive.type === "trapezoid")
+    ? primitive
+    : null;
 });
+
+const planarFieldList = computed(() =>
+  planar.value === null ? [] : planarFields(planar.value.type),
+);
 
 const prism = computed(() => {
   const primitive = solid.value;
@@ -213,11 +292,11 @@ function onSolidFieldChange(key: SolidFieldKey, event: Event): void {
   commitNumericField(current, solidFieldList.value, key, event);
 }
 
-/** 矩形字段编辑：与参数体共用数字字段提交路径，非法宽高被契约拒绝 */
-function onRectangleFieldChange(key: RectangleFieldKey, event: Event): void {
-  const current = rectangle.value;
+/** 平面参数形字段编辑：与参数体共用数字字段提交路径，非法尺寸被契约拒绝 */
+function onPlanarFieldChange(key: PlanarFieldKey, event: Event): void {
+  const current = planar.value;
   if (current === null) return;
-  commitNumericField(current, RECTANGLE_FIELDS, key, event);
+  commitNumericField(current, planarFieldList.value, key, event);
 }
 
 const fill = computed((): Fill | null => {
@@ -256,9 +335,9 @@ function onFillChange(value: string | string[] | undefined): void {
         />
       </label>
     </div>
-    <div v-if="rectangle !== null" class="grid grid-cols-2 gap-2">
+    <div v-if="planar !== null" class="grid grid-cols-2 gap-2">
       <label
-        v-for="field in RECTANGLE_FIELDS"
+        v-for="field in planarFieldList"
         :key="field.key"
         class="space-y-1"
       >
@@ -266,10 +345,10 @@ function onFillChange(value: string | string[] | undefined): void {
         <input
           type="number"
           :step="field.step"
-          :value="numericFieldOf(rectangle, field.key) ?? 0"
+          :value="numericFieldOf(planar, field.key) ?? 0"
           :aria-label="t(field.labelKey)"
           class="w-full rounded border border-zinc-300 px-2 py-1"
-          @change="onRectangleFieldChange(field.key, $event)"
+          @change="onPlanarFieldChange(field.key, $event)"
         />
       </label>
     </div>

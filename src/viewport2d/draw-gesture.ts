@@ -9,6 +9,10 @@ export const DRAW_TOOLS = [
   "line",
   "polygon",
   "rectangle",
+  "square",
+  "triangle",
+  "parallelogram",
+  "trapezoid",
   "circle",
   "sector",
   "bow",
@@ -20,9 +24,25 @@ export const DRAW_TOOLS = [
 
 export type DrawTool = (typeof DRAW_TOOLS)[number];
 
+/** 底/高家族与正方形共用 box 手势：对角拖出包围盒，工具决定产出类型。 */
+type BoxTool = "square" | "triangle" | "parallelogram" | "trapezoid";
+
+function isBoxTool(tool: DrawTool): tool is BoxTool {
+  return (
+    tool === "square" ||
+    tool === "triangle" ||
+    tool === "parallelogram" ||
+    tool === "trapezoid"
+  );
+}
+
 const DRAG_TOOLS: ReadonlySet<DrawTool> = new Set([
   "line",
   "rectangle",
+  "square",
+  "triangle",
+  "parallelogram",
+  "trapezoid",
   "circle",
   "ellipse",
   "ring",
@@ -53,6 +73,34 @@ export type DrawPreview =
       y: number;
       width: number;
       height: number;
+      rotationDeg: number;
+    }
+  | {
+      type: "triangle";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      apexOffset: number;
+      rotationDeg: number;
+    }
+  | {
+      type: "parallelogram";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      skew: number;
+      rotationDeg: number;
+    }
+  | {
+      type: "trapezoid";
+      x: number;
+      y: number;
+      width: number;
+      topWidth: number;
+      height: number;
+      topOffset: number;
       rotationDeg: number;
     }
   | { type: "circle"; cx: number; cy: number; r: number }
@@ -98,6 +146,7 @@ export type DrawGestureState =
   | { kind: "line"; start: Point2; cursor: Point2 }
   | { kind: "polygon"; vertices: Point2[]; cursor: Point2 }
   | { kind: "rectangle"; start: Point2; cursor: Point2 }
+  | { kind: "box"; tool: BoxTool; start: Point2; cursor: Point2 }
   | { kind: "circle"; center: Point2; cursor: Point2 }
   | { kind: "ellipse"; start: Point2; cursor: Point2 }
   | { kind: "ring"; center: Point2; rOuter: number | null; cursor: Point2 }
@@ -163,6 +212,85 @@ function rectangleFromDiagonal(
   };
 }
 
+/** 拖对角线画正方形：取主轴分量为边长，起点为一角，方向沿拖拽象限。 */
+function squareFromDiagonal(
+  a: Point2,
+  b: Point2,
+): { x: number; y: number; width: number; height: number } {
+  const side = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+  const dirX = b.x >= a.x ? 1 : -1;
+  const dirY = b.y >= a.y ? 1 : -1;
+  return rectangleFromDiagonal(a, {
+    x: a.x + dirX * side,
+    y: a.y + dirY * side,
+  });
+}
+
+/** 底/高家族几何的判别形状：预览与提交共用。 */
+type FamilyGeometry =
+  | {
+      type: "triangle";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      apexOffset: number;
+    }
+  | {
+      type: "parallelogram";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      skew: number;
+    }
+  | {
+      type: "trapezoid";
+      x: number;
+      y: number;
+      width: number;
+      topWidth: number;
+      height: number;
+      topOffset: number;
+    };
+
+/** 拖 box 的底/高家族几何：底边取包围盒下边（Y 向上），等腰缺省。 */
+function familyFromBox(
+  tool: Exclude<BoxTool, "square">,
+  a: Point2,
+  b: Point2,
+): FamilyGeometry {
+  const width = Math.abs(b.x - a.x);
+  const height = Math.abs(b.y - a.y);
+  const base = {
+    x: (a.x + b.x) / 2,
+    y: Math.min(a.y, b.y),
+    width,
+    height,
+  };
+  if (tool === "triangle") {
+    return { type: tool, ...base, apexOffset: 0 };
+  }
+  if (tool === "parallelogram") {
+    // 斜移取高：拖出的斜边恒为 45°，提交值天然非零。
+    return { type: tool, ...base, skew: height };
+  }
+  // 梯形上底取下底一半、等腰：topWidth = width/2 ≠ width（width > 0 时）。
+  return { type: tool, ...base, topWidth: width / 2, topOffset: 0 };
+}
+
+/** box 手势的预览与提交几何：正方形复用 rectangle（已钳等宽高）。 */
+function boxGeometry(
+  tool: BoxTool,
+  a: Point2,
+  b: Point2,
+): { type: "rectangle"; x: number; y: number; width: number; height: number } | FamilyGeometry {
+  if (tool === "square") {
+    return { type: "rectangle", ...squareFromDiagonal(a, b) };
+  }
+  return familyFromBox(tool, a, b);
+}
+
 function columnName(index: number): string {
   let n = index + 1;
   let text = "";
@@ -196,6 +324,12 @@ function previewFrom(state: DrawGestureState): DrawPreview {
       type: "rectangle",
       rotationDeg: 0,
       ...rectangleFromDiagonal(state.start, state.cursor),
+    };
+  }
+  if (state.kind === "box") {
+    return {
+      rotationDeg: 0,
+      ...boxGeometry(state.tool, state.start, state.cursor),
     };
   }
   if (state.kind === "circle") {
@@ -274,6 +408,9 @@ export function startDraw(
   if (ctx.tool === "rectangle") {
     return result({ kind: "rectangle", start: point, cursor: point });
   }
+  if (isBoxTool(ctx.tool)) {
+    return result({ kind: "box", tool: ctx.tool, start: point, cursor: point });
+  }
   if (ctx.tool === "circle") {
     return result({ kind: "circle", center: point, cursor: point });
   }
@@ -308,6 +445,9 @@ export function moveDraw(
   }
   if (state.kind === "rectangle") {
     return result({ kind: "rectangle", start: state.start, cursor });
+  }
+  if (state.kind === "box") {
+    return result({ ...state, cursor });
   }
   if (state.kind === "circle") {
     return result({ kind: "circle", center: state.center, cursor });
@@ -412,6 +552,18 @@ export function upDraw(
   }
   if (state.kind === "ring") {
     return upRing(state, end, ctx.id);
+  }
+  if (state.kind === "box") {
+    const geometry = boxGeometry(state.tool, state.start, end);
+    if (geometry.width <= 0 || geometry.height <= 0) {
+      return result(idleDrawState());
+    }
+    return commitAndIdle({
+      id: ctx.id,
+      ...geometry,
+      rotationDeg: 0,
+      fill: "none",
+    });
   }
   return result(state);
 }

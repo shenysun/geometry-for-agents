@@ -8,6 +8,9 @@ export function withFill(primitive: Primitive, fill: Fill): Primitive | null {
   switch (primitive.type) {
     case "polygon":
     case "rectangle":
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid":
     case "circle":
     case "sector":
     case "bow":

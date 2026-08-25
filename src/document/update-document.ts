@@ -6,6 +6,10 @@ import type {
   Primitive3d,
 } from "./parse-document.ts";
 import {
+  baseHeightLocalOffset,
+  baseHeightLocalVertices,
+} from "./base-height-family.ts";
+import {
   snap2d,
   snap3d,
   type GridSnap,
@@ -112,6 +116,9 @@ export function translatePrimitiveGeometry(
       };
     case "label":
     case "rectangle":
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid":
       return { ...primitive, x: primitive.x + dx, y: primitive.y + dy };
     case "circle":
     case "sector":
@@ -164,7 +171,7 @@ function centroid(points: readonly Point2[]): Point2 {
   return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
-/** 图元自身锚点：折线/多边形取顶点质心，圆族取圆心，矩形/标签取其位置。 */
+/** 图元自身锚点：折线/多边形取顶点质心，圆族取圆心，矩形/标签/底高家族取其位置。 */
 export function primitiveAnchor(primitive: Primitive2d): Point2 {
   switch (primitive.type) {
     case "line":
@@ -172,6 +179,9 @@ export function primitiveAnchor(primitive: Primitive2d): Point2 {
       return centroid(primitive.points);
     case "rectangle":
     case "label":
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid":
       return { x: primitive.x, y: primitive.y };
     default:
       return { x: primitive.cx, y: primitive.cy };
@@ -236,6 +246,9 @@ export function rotatePrimitiveGeometry(
     }
     case "ellipse":
     case "rectangle":
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid":
       return {
         ...primitive,
         rotationDeg: normalizeDeg(primitive.rotationDeg + deg),
@@ -296,6 +309,28 @@ export function scalePrimitiveGeometry(
         ...primitive,
         width: primitive.width * factor,
         height: primitive.height * factor,
+      };
+    case "triangle":
+      return {
+        ...primitive,
+        width: primitive.width * factor,
+        height: primitive.height * factor,
+        apexOffset: primitive.apexOffset * factor,
+      };
+    case "parallelogram":
+      return {
+        ...primitive,
+        width: primitive.width * factor,
+        height: primitive.height * factor,
+        skew: primitive.skew * factor,
+      };
+    case "trapezoid":
+      return {
+        ...primitive,
+        width: primitive.width * factor,
+        topWidth: primitive.topWidth * factor,
+        height: primitive.height * factor,
+        topOffset: primitive.topOffset * factor,
       };
     case "label":
       return primitive;
@@ -486,6 +521,39 @@ export function moveControlPointGeometry(
         };
       }
       return primitive;
+    }
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid": {
+      // 底/高家族：底角以底边中点为不动点对称改底宽；顶点/上角写各自的
+      // 上部字段与高（平四 skew 由上角减半底推出，梯形上底对称伸缩）。
+      const match = CORNER_ID.exec(pointId);
+      if (match === null) return primitive;
+      const index = Number(match[1]);
+      if (index >= baseHeightLocalVertices(primitive).length) return primitive;
+      const local = baseHeightLocalOffset(primitive, world);
+      if (index <= 1) {
+        return { ...primitive, width: Math.abs(local.x) * 2 };
+      }
+      switch (primitive.type) {
+        case "triangle":
+          return { ...primitive, apexOffset: local.x, height: local.y };
+        case "parallelogram":
+          return {
+            ...primitive,
+            skew:
+              index === 2
+                ? local.x - primitive.width / 2
+                : local.x + primitive.width / 2,
+            height: local.y,
+          };
+        case "trapezoid":
+          return {
+            ...primitive,
+            topWidth: Math.abs(local.x - primitive.topOffset) * 2,
+            height: local.y,
+          };
+      }
     }
   }
 }

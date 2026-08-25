@@ -143,6 +143,55 @@ describe("document hash", () => {
     expect(reparsed.document).toEqual(document);
   });
 
+  test("roundtrips the base-height family with rotationDeg and fill", () => {
+    const document = parsed("2d", [
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 1,
+        y: 2,
+        width: 4,
+        height: 3,
+        apexOffset: 0.5,
+        rotationDeg: 30,
+        fill: "hatch",
+      },
+      {
+        id: "para-1",
+        type: "parallelogram",
+        x: -1,
+        y: 0,
+        width: 2,
+        height: 1,
+        skew: -0.5,
+        rotationDeg: 0,
+        fill: "solid",
+      },
+      {
+        id: "trap-1",
+        type: "trapezoid",
+        x: 3,
+        y: -2,
+        width: 5,
+        topWidth: 2,
+        height: 1.5,
+        topOffset: -0.5,
+        rotationDeg: 15,
+        fill: "none",
+      },
+    ]);
+
+    const decoded = hashToDocument(documentToHash(document));
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) return;
+    expect(decoded.document).toEqual(document);
+
+    const reparsed = parseDocument(JSON.stringify(decoded.document));
+    expect(reparsed.success).toBe(true);
+    if (!reparsed.success) return;
+    expect(reparsed.document).toEqual(document);
+  });
+
   test("roundtrips a 3d document mixing box and voxel", () => {
     const document = parsed("3d", [
       {

@@ -4,6 +4,7 @@ import type {
   Primitive2d,
   Primitive3d,
 } from "./parse-document.ts";
+import { baseHeightWorldVertices } from "./base-height-family.ts";
 import type { Point2 } from "./snap.ts";
 
 const DEG = Math.PI / 180;
@@ -214,6 +215,11 @@ function contains(
       return inEllipse(point, primitive);
     case "rectangle":
       return inRectangle(point, primitive);
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid":
+      // 家族顶点已随 rotationDeg 旋到世界：点在多边形判定与坐标系无关。
+      return pointInPolygon(point, baseHeightWorldVertices(primitive));
     case "ring":
       return inRing(point, primitive);
     case "polygon":
@@ -234,6 +240,9 @@ function contains(
 const closedTypes = new Set<Primitive2d["type"]>([
   "polygon",
   "rectangle",
+  "triangle",
+  "parallelogram",
+  "trapezoid",
   "circle",
   "sector",
   "bow",
@@ -253,6 +262,12 @@ function area(primitive: Primitive2d): number {
       return Math.PI * primitive.rx * primitive.ry;
     case "rectangle":
       return primitive.width * primitive.height;
+    case "triangle":
+      return (primitive.width * primitive.height) / 2;
+    case "parallelogram":
+      return primitive.width * primitive.height;
+    case "trapezoid":
+      return ((primitive.width + primitive.topWidth) / 2) * primitive.height;
     case "ring":
       return Math.PI * (primitive.rOuter ** 2 - primitive.rInner ** 2);
     case "polygon":

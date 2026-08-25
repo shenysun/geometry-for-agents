@@ -4,6 +4,7 @@ import type {
   GeometryDocument,
   Primitive2d,
 } from "../document/index.ts";
+import { baseHeightWorldVertices } from "../document/base-height-family.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
 
@@ -181,6 +182,17 @@ function drawPrimitive(
       return [
         drawDisk(primitive.cx, primitive.cy, primitive.r, primitive.fill, view),
       ];
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid":
+      // 家族顶点已随 rotationDeg 旋到世界：闭合折线即形，无需 Konva rotation。
+      return [
+        strokeLine(
+          toScreenPoints(baseHeightWorldVertices(primitive), view),
+          true,
+          primitive.fill,
+        ),
+      ];
     case "ellipse": {
       const center = centerScreen(primitive.cx, primitive.cy, view);
       return [
@@ -279,6 +291,25 @@ function previewPrimitive(preview: DrawPreview): Primitive2d | null {
     if (preview.width <= 0 || preview.height <= 0) return null;
     return { id: "preview", ...preview, fill: "none" };
   }
+  if (preview.type === "triangle") {
+    if (preview.width <= 0 || preview.height <= 0) return null;
+    return { id: "preview", ...preview, fill: "none" };
+  }
+  if (preview.type === "parallelogram") {
+    // 预览态允许 skew 过零（ADR 0007）：退化只挡非正尺寸。
+    if (preview.width <= 0 || preview.height <= 0) return null;
+    return { id: "preview", ...preview, fill: "none" };
+  }
+  if (preview.type === "trapezoid") {
+    if (
+      preview.width <= 0 ||
+      preview.topWidth <= 0 ||
+      preview.height <= 0
+    ) {
+      return null;
+    }
+    return { id: "preview", ...preview, fill: "none" };
+  }
   if (preview.type === "ellipse") {
     if (preview.rx <= 0 || preview.ry <= 0) return null;
     return { id: "preview", ...preview, fill: "none" };
@@ -315,7 +346,13 @@ function previewGuidePoints(preview: DrawPreview): Point2[] {
   if (preview.type === "line" || preview.type === "polygon" || preview.type === "guide") {
     return preview.points;
   }
-  if (preview.type === "label" || preview.type === "rectangle") {
+  if (
+    preview.type === "label" ||
+    preview.type === "rectangle" ||
+    preview.type === "triangle" ||
+    preview.type === "parallelogram" ||
+    preview.type === "trapezoid"
+  ) {
     return [{ x: preview.x, y: preview.y }];
   }
   return [{ x: preview.cx, y: preview.cy }];

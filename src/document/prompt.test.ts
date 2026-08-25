@@ -210,6 +210,61 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the base-height family syntax with base-midpoint anchors and rotationDeg", () => {
+    const family = [
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 2,
+        y: 3,
+        width: 4,
+        height: 1,
+        apexOffset: 0.5,
+        rotationDeg: 30,
+        fill: "solid",
+      },
+      {
+        id: "para-1",
+        type: "parallelogram",
+        x: 2,
+        y: 3,
+        width: 4,
+        height: 1,
+        skew: 1,
+        rotationDeg: 0,
+        fill: "none",
+      },
+      {
+        id: "trap-1",
+        type: "trapezoid",
+        x: 2,
+        y: 3,
+        width: 4,
+        topWidth: 2,
+        height: 1,
+        topOffset: -0.5,
+        rotationDeg: 0,
+        fill: "hatch",
+      },
+    ];
+    const document = parsed("2d", family);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法行写明锚点（底边中点）与家族特有字段（沿椭圆/矩形写法）
+    expect(prompt).toMatch(/triangle:.*base midpoint/);
+    expect(prompt).toMatch(/triangle:.*apexOffset/);
+    expect(prompt).toMatch(/parallelogram:.*base midpoint/);
+    expect(prompt).toMatch(/parallelogram:.*skew/);
+    expect(prompt).toMatch(/trapezoid:.*bottom-base midpoint/);
+    expect(prompt).toMatch(/trapezoid:.*topWidth/);
+    // 投影含家族成员且两次生成相等
+    for (const primitive of family) {
+      expect(prompt).toContain(primitive.id);
+    }
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("documents the box anchor and every field in the syntax and projects it deterministically", () => {
     const box = {
       id: "box-1",

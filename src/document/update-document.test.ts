@@ -1665,3 +1665,260 @@ describe("矩形更新", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("底/高家族更新", () => {
+  const triangle: Primitive2d = {
+    id: "tri-1",
+    type: "triangle",
+    x: 1,
+    y: 2,
+    width: 4,
+    height: 3,
+    apexOffset: 1,
+    rotationDeg: 0,
+    fill: "none",
+  };
+
+  const parallelogram: Primitive2d = {
+    id: "para-1",
+    type: "parallelogram",
+    x: 1,
+    y: 2,
+    width: 4,
+    height: 2,
+    skew: 1.5,
+    rotationDeg: 0,
+    fill: "none",
+  };
+
+  const trapezoid: Primitive2d = {
+    id: "trap-1",
+    type: "trapezoid",
+    x: 1,
+    y: 2,
+    width: 4,
+    topWidth: 2,
+    height: 2,
+    topOffset: 0.5,
+    rotationDeg: 0,
+    fill: "none",
+  };
+
+  const familyDoc = (
+    primitive: Primitive2d,
+  ): GeometryDocument =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [primitive],
+    });
+
+  test("translatePrimitiveGeometry 只平移锚点，尺寸与偏移原样", () => {
+    const moved = translatePrimitiveGeometry(
+      { ...triangle, rotationDeg: 30 },
+      -1,
+      3,
+    );
+
+    expect(moved).toEqual({ ...triangle, rotationDeg: 30, x: 0, y: 5 });
+    expect(triangle.x).toBe(1);
+  });
+
+  test("rotatePrimitiveGeometry 写 rotationDeg 并归一到 [0,360)，锚点不动", () => {
+    const quarter = rotatePrimitiveGeometry(triangle, 90);
+    const wrap = rotatePrimitiveGeometry(
+      { ...parallelogram, rotationDeg: 270 },
+      90,
+    );
+    const back = rotatePrimitiveGeometry(
+      { ...trapezoid, rotationDeg: 30 },
+      -60,
+    );
+
+    expect(quarter).toEqual({ ...triangle, rotationDeg: 90 });
+    expect(wrap).toEqual({ ...parallelogram, rotationDeg: 0 });
+    expect(back).toEqual({ ...trapezoid, rotationDeg: 330 });
+  });
+
+  test("scalePrimitiveGeometry 所有长度字段同乘因子，形状保持相似", () => {
+    expect(scalePrimitiveGeometry(triangle, 2)).toEqual({
+      ...triangle,
+      width: 8,
+      height: 6,
+      apexOffset: 2,
+    });
+    expect(scalePrimitiveGeometry(parallelogram, 2)).toEqual({
+      ...parallelogram,
+      width: 8,
+      height: 4,
+      skew: 3,
+    });
+    expect(scalePrimitiveGeometry(trapezoid, 2)).toEqual({
+      ...trapezoid,
+      width: 8,
+      topWidth: 4,
+      height: 4,
+      topOffset: 1,
+    });
+  });
+
+  test("moveControlPointGeometry 拖底角对称改底宽：锚点不动", () => {
+    // 左底角在 (-1,2)，拖到 (0,2) → 局部 x=-1 → 宽 2。
+    const moved = moveControlPointGeometry(triangle, "corner-0", {
+      x: 0,
+      y: 2,
+    });
+    expect(moved).toEqual({ ...triangle, width: 2 });
+
+    const shifted = moveControlPointGeometry(trapezoid, "corner-1", {
+      x: 4,
+      y: 2,
+    });
+    expect(shifted).toEqual({ ...trapezoid, width: 6 });
+  });
+
+  test("moveControlPointGeometry 拖三角顶点改 apexOffset 与 height", () => {
+    // 顶点在 (2,5)，拖到 (-1,6) → 局部 (-2,4)。
+    const moved = moveControlPointGeometry(triangle, "corner-2", {
+      x: -1,
+      y: 6,
+    });
+    expect(moved).toEqual({
+      ...triangle,
+      width: 4,
+      apexOffset: -2,
+      height: 4,
+    });
+  });
+
+  test("moveControlPointGeometry 拖平四上角改 skew 与 height", () => {
+    // 右上角在 (3.5,4)，拖到 (4,5) → 局部 (3,3) → skew = 3-2 = 1。
+    const moved = moveControlPointGeometry(parallelogram, "corner-2", {
+      x: 4,
+      y: 5,
+    });
+    expect(moved).toEqual({
+      ...parallelogram,
+      skew: 1,
+      height: 3,
+    });
+
+    // 左上角在 (-0.5,4)，拖到 (0.5,5) → 局部 (-0.5,3) → skew = -0.5+2 = 1.5。
+    const fromLeft = moveControlPointGeometry(parallelogram, "corner-3", {
+      x: 0.5,
+      y: 5,
+    });
+    expect(fromLeft).toEqual({
+      ...parallelogram,
+      skew: 1.5,
+      height: 3,
+    });
+  });
+
+  test("moveControlPointGeometry 拖梯形上角对称改 topWidth 与 height", () => {
+    // 右上角在 (1.5,4)，拖到 (2.5,5) → 局部 (1.5,3)：topWidth = 2|1.5-0.5| = 2。
+    const moved = moveControlPointGeometry(trapezoid, "corner-2", {
+      x: 2.5,
+      y: 5,
+    });
+    expect(moved).toEqual({
+      ...trapezoid,
+      topWidth: 2,
+      height: 3,
+    });
+
+    // 左上角在 (-0.5,4)，拖到 (1,5) → 局部 (0,3)：topWidth = 2|0-0.5| = 1。
+    const fromLeft = moveControlPointGeometry(trapezoid, "corner-3", {
+      x: 1,
+      y: 5,
+    });
+    expect(fromLeft).toEqual({
+      ...trapezoid,
+      topWidth: 1,
+      height: 3,
+    });
+  });
+
+  test("moveControlPointGeometry 旋转过的形状先把世界点逆旋转回局部度量", () => {
+    // rotationDeg 90：局部 +X 指向世界 +Y。左底角世界在 (1,0)；
+    // 沿世界 -Y 拖到 (1,-4) 即局部 x=-6 → 宽 12。
+    const rotated = { ...triangle, rotationDeg: 90 };
+    const moved = moveControlPointGeometry(rotated, "corner-0", {
+      x: 1,
+      y: -4,
+    });
+
+    if (moved.type !== "triangle") return;
+    expectCloseTo(moved.width, 12);
+    expectCloseTo(moved.height, 3);
+    expect(moved.x).toBe(1);
+    expect(moved.y).toBe(2);
+  });
+
+  test("moveControlPointGeometry 未知控制点 id 是恒等变换", () => {
+    for (const primitive of [triangle, parallelogram, trapezoid]) {
+      expect(
+        moveControlPointGeometry(primitive, "vertex-0", { x: 9, y: 9 }),
+      ).toBe(primitive);
+    }
+  });
+
+  test("moveControlPoint 先吸附当前格再提交，新说明书仍过契约", () => {
+    const original = familyDoc(triangle);
+    const snapshot = structuredClone(original);
+
+    const result = moveControlPoint(
+      original,
+      "tri-1",
+      "corner-2",
+      { x: -1.2, y: 6.3 },
+      1,
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual({
+      ...triangle,
+      apexOffset: -2,
+      height: 4,
+    });
+    expect(original).toEqual(snapshot);
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+  });
+
+  test("拖顶点把高拖成 0 被契约拒绝，不进说明书", () => {
+    const result = moveControlPoint(
+      familyDoc(triangle),
+      "tri-1",
+      "corner-2",
+      { x: 2, y: 2 },
+      "off",
+    );
+    expect(result.success).toBe(false);
+  });
+
+  test("拖平四上角把斜移拖成 0 被契约拒绝（那是矩形）", () => {
+    // 右上角局部 (2+skew, 2)，拖到局部 x=2 → skew=0。
+    const result = moveControlPoint(
+      familyDoc(parallelogram),
+      "para-1",
+      "corner-2",
+      { x: 3, y: 4 },
+      "off",
+    );
+    expect(result.success).toBe(false);
+  });
+
+  test("拖梯形上角把上底拖成与下底等长被契约拒绝（那是平四）", () => {
+    // 上底中点局部 x=topOffset=0.5，拖右上角到局部 x=2.5 → topWidth=4=width。
+    const result = moveControlPoint(
+      familyDoc(trapezoid),
+      "trap-1",
+      "corner-2",
+      { x: 3.5, y: 4 },
+      "off",
+    );
+    expect(result.success).toBe(false);
+  });
+});

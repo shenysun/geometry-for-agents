@@ -41,6 +41,27 @@ describe("withFill", () => {
     expect(rectangle).toEqual(snapshot);
   });
 
+  test("returns a new family shape with the chosen fill, keeping geometry", () => {
+    const triangle: Primitive = {
+      id: "tri-1",
+      type: "triangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 3,
+      apexOffset: 0.5,
+      rotationDeg: 30,
+      fill: "none",
+    };
+    const snapshot = structuredClone(triangle);
+
+    const next = withFill(triangle, "hatch");
+
+    expect(next).toEqual({ ...triangle, fill: "hatch" });
+    expect(next).not.toBe(triangle);
+    expect(triangle).toEqual(snapshot);
+  });
+
   test("returns null for line, arc, and label", () => {
     const line: Primitive = {
       id: "line-1",

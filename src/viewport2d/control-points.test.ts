@@ -254,6 +254,106 @@ describe("controlPoints 矩形", () => {
   });
 });
 
+describe("controlPoints 底/高家族", () => {
+  test("三角露出三个顶点：左底角、右底角、顶点；锚点不进目录", () => {
+    const triangle = primitive2d({
+      id: "tri-1",
+      type: "triangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 3,
+      apexOffset: 1,
+      rotationDeg: 0,
+      fill: "none",
+    });
+
+    const points = controlPoints(triangle);
+    expect(points.map((point) => point.id)).toEqual([
+      "corner-0",
+      "corner-1",
+      "corner-2",
+    ]);
+    expect(points.map((point) => point.kind)).toEqual([
+      "corner",
+      "corner",
+      "corner",
+    ]);
+    expectPointCloseTo(points[0]!.point, { x: -1, y: 2 });
+    expectPointCloseTo(points[1]!.point, { x: 3, y: 2 });
+    expectPointCloseTo(points[2]!.point, { x: 2, y: 5 });
+  });
+
+  test("平四/梯形露出四角，底边中点锚点不进目录（平移靠拖本体）", () => {
+    const parallelogram = primitive2d({
+      id: "para-1",
+      type: "parallelogram",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 2,
+      skew: 1,
+      rotationDeg: 0,
+      fill: "none",
+    });
+    const trapezoid = primitive2d({
+      id: "trap-1",
+      type: "trapezoid",
+      x: 1,
+      y: 2,
+      width: 4,
+      topWidth: 2,
+      height: 2,
+      topOffset: 0.5,
+      rotationDeg: 0,
+      fill: "none",
+    });
+
+    const paraPoints = controlPoints(parallelogram);
+    expect(paraPoints.map((point) => point.id)).toEqual([
+      "corner-0",
+      "corner-1",
+      "corner-2",
+      "corner-3",
+    ]);
+    // 底边两端 + 上底两端（上底整体平移 skew）。
+    expectPointCloseTo(paraPoints[0]!.point, { x: -1, y: 2 });
+    expectPointCloseTo(paraPoints[1]!.point, { x: 3, y: 2 });
+    expectPointCloseTo(paraPoints[2]!.point, { x: 4, y: 4 });
+    expectPointCloseTo(paraPoints[3]!.point, { x: 0, y: 4 });
+
+    const trapPoints = controlPoints(trapezoid);
+    expect(trapPoints.map((point) => point.id)).toEqual([
+      "corner-0",
+      "corner-1",
+      "corner-2",
+      "corner-3",
+    ]);
+    expectPointCloseTo(trapPoints[2]!.point, { x: 2.5, y: 4 });
+    expectPointCloseTo(trapPoints[3]!.point, { x: 0.5, y: 4 });
+  });
+
+  test("带 rotationDeg 时顶点绕锚点旋到世界", () => {
+    const triangle = primitive2d({
+      id: "tri-1",
+      type: "triangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 3,
+      apexOffset: 0,
+      rotationDeg: 90,
+      fill: "none",
+    });
+
+    const points = controlPoints(triangle);
+    // 顶点局部 (0,3) 转 90° 后世界 (1-3, 2)。
+    expectPointCloseTo(points[2]!.point, { x: -2, y: 2 });
+    // 左底角局部 (-2,0) 转 90° 后世界 (1, 0)。
+    expectPointCloseTo(points[0]!.point, { x: 1, y: 0 });
+  });
+});
+
 describe("controlPoints 标签", () => {  test("标签没有控制点（位置靠拖本体平移）", () => {
     const label = primitive2d({
       id: "label-1",

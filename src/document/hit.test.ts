@@ -294,6 +294,113 @@ describe("hitTest 矩形", () => {
   });
 });
 
+describe("hitTest 底/高家族", () => {
+  test("三角/平四/梯形：内点与底边边界命中，外点落空", () => {
+    const document = doc2d([
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        apexOffset: 0,
+        rotationDeg: 0,
+        fill: "none",
+      },
+      {
+        id: "para-1",
+        type: "parallelogram",
+        x: 6,
+        y: 0,
+        width: 4,
+        height: 2,
+        skew: 1,
+        rotationDeg: 0,
+        fill: "none",
+      },
+      {
+        id: "trap-1",
+        type: "trapezoid",
+        x: 0,
+        y: 5,
+        width: 4,
+        topWidth: 2,
+        height: 2,
+        topOffset: 0,
+        rotationDeg: 0,
+        fill: "none",
+      },
+    ]);
+
+    // 三角：底边中点 (0,0) 在边界上，形内 (0,1) 命中，形外 (1.9,2.9) 落空。
+    expect(hitTest(document, { x: 0, y: 0 })?.id).toBe("tri-1");
+    expect(hitTest(document, { x: 0, y: 1 })?.id).toBe("tri-1");
+    expect(hitTest(document, { x: 1.9, y: 2.9 })).toBeNull();
+
+    // 平四 (6,0) 底 4 高 2 斜移 1：上底占据 x∈[5,9]、y=2；(9.5,1) 在斜边外。
+    expect(hitTest(document, { x: 6, y: 1 })?.id).toBe("para-1");
+    expect(hitTest(document, { x: 8.5, y: 2 })?.id).toBe("para-1");
+    expect(hitTest(document, { x: 4.4, y: 1 })).toBeNull();
+    expect(hitTest(document, { x: 9.5, y: 1 })).toBeNull();
+
+    // 梯形：下底宽 4 上底宽 2，y=5.5 处腰在 |x|=1.75。
+    expect(hitTest(document, { x: 0, y: 5.5 })?.id).toBe("trap-1");
+    expect(hitTest(document, { x: 1.9, y: 5.5 })).toBeNull();
+  });
+
+  test("旋转过的三角形按旋转后的世界顶点判定", () => {
+    const document = doc2d([
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        apexOffset: 0,
+        rotationDeg: 90,
+        fill: "none",
+      },
+    ]);
+
+    // 旋 90° 后底边竖直、顶点指向世界 -X：(0.5,1) 出形，(-1,0) 进形。
+    expect(hitTest(document, { x: 0.5, y: 1 })).toBeNull();
+    expect(hitTest(document, { x: -1, y: 0 })?.id).toBe("tri-1");
+  });
+
+  test("家族是闭合图元：面积参与重叠小者优先", () => {
+    // 平四 wh=3 小于三角 wh/2=6：重叠点选平四，只属三角的点归三角。
+    const document = doc2d([
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        apexOffset: 0,
+        rotationDeg: 0,
+        fill: "none",
+      },
+      {
+        id: "para-1",
+        type: "parallelogram",
+        x: 0,
+        y: 0,
+        width: 2,
+        height: 1.5,
+        skew: 0.5,
+        rotationDeg: 0,
+        fill: "solid",
+      },
+    ]);
+
+    expect(hitTest(document, { x: 0, y: 1 })?.id).toBe("para-1");
+    expect(hitTest(document, { x: 0, y: 2.5 })?.id).toBe("tri-1");
+  });
+});
+
 describe("hitTest 命中容差", () => {
   test("细线在容差内可命中，零容差保持精确", () => {
     const document = doc2d([

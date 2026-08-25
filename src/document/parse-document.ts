@@ -52,6 +52,57 @@ const rectangleSchema = z.strictObject({
   fill: fillSchema,
 });
 
+// 底/高家族（ADR 0017）：锚点是底边中点，底沿局部 X，高沿局部 +Y，
+// 旋转绕锚点。apexOffset/topOffset 是上顶相对底边中点的 X 偏移（0 = 等腰）。
+const triangleSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("triangle"),
+  x: z.number(),
+  y: z.number(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  apexOffset: z.number(),
+  rotationDeg: z.number().default(0),
+  fill: fillSchema,
+});
+
+// 平四斜移为零即矩形：refine 拒绝，一形一表。
+const parallelogramSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("parallelogram"),
+    x: z.number(),
+    y: z.number(),
+    width: z.number().positive(),
+    height: z.number().positive(),
+    skew: z.number(),
+    rotationDeg: z.number().default(0),
+    fill: fillSchema,
+  })
+  .refine((shape) => shape.skew !== 0, {
+    message: "skew must be nonzero (a zero-skew parallelogram is a rectangle)",
+    path: ["skew"],
+  });
+
+// 梯形锚点是下底中点；上底与下底等长即平四/矩形：refine 拒绝。
+const trapezoidSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("trapezoid"),
+    x: z.number(),
+    y: z.number(),
+    width: z.number().positive(),
+    topWidth: z.number().positive(),
+    height: z.number().positive(),
+    topOffset: z.number(),
+    rotationDeg: z.number().default(0),
+    fill: fillSchema,
+  })
+  .refine((shape) => shape.topWidth !== shape.width, {
+    message: "topWidth must differ from width (equal bases are a parallelogram)",
+    path: ["topWidth"],
+  });
+
 const circleSchema = z.strictObject({
   ...disk2d,
   type: z.literal("circle"),
@@ -206,6 +257,9 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   lineSchema,
   polygonSchema,
   rectangleSchema,
+  triangleSchema,
+  parallelogramSchema,
+  trapezoidSchema,
   circleSchema,
   sectorSchema,
   bowSchema,
