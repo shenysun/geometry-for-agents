@@ -10,7 +10,9 @@ export type {
 } from "./parse-document.ts";
 export {
   addPrimitive,
+  addVertex,
   removePrimitive,
+  removeVertex,
   setUnderlay,
   updatePrimitive,
 } from "./update-document.ts";

@@ -954,3 +954,135 @@ export function moveSolidControlPoint(
     solid,
   ) => moveSolidControlPointGeometry(solid, pointId, snap3d(world, grid)));
 }
+
+/**
+ * 添加顶点到 line/polygon：新顶点位置 = 最后一个顶点副本。
+ * 返回新图元，或原图元（若类型不匹配或已是最大顶点数）。
+ */
+export function addVertexGeometry(
+  primitive: Primitive2d,
+): Primitive2d {
+  switch (primitive.type) {
+    case "line": {
+      // line 没有上限，直接复制最后一个顶点
+      const last = primitive.points[primitive.points.length - 1];
+      return {
+        ...primitive,
+        points: [...primitive.points, { ...last }],
+      };
+    }
+    case "polygon": {
+      // polygon 也没有上限，直接复制最后一个顶点
+      const last = primitive.points[primitive.points.length - 1];
+      return {
+        ...primitive,
+        points: [...primitive.points, { ...last }],
+      };
+    }
+    default:
+      return primitive;
+  }
+}
+
+/**
+ * 删除指定索引的顶点：line ≥ 2 点，polygon ≥ 3 点。
+ * 若删除后违反下限，返回原图元不做删除。
+ */
+export function removeVertexGeometry(
+  primitive: Primitive2d,
+  index: number,
+): Primitive2d {
+  switch (primitive.type) {
+    case "line": {
+      // line 最少 2 个点
+      if (primitive.points.length <= 2) return primitive;
+      if (index < 0 || index >= primitive.points.length) return primitive;
+      return {
+        ...primitive,
+        points: primitive.points.filter((_, i) => i !== index),
+      };
+    }
+    case "polygon": {
+      // polygon 最少 3 个点
+      if (primitive.points.length <= 3) return primitive;
+      if (index < 0 || index >= primitive.points.length) return primitive;
+      return {
+        ...primitive,
+        points: primitive.points.filter((_, i) => i !== index),
+      };
+    }
+    default:
+      return primitive;
+  }
+}
+
+/**
+ * 添加顶点到 line/polygon（文档级）：验证后写入说明书。
+ */
+export function addVertex(
+  document: GeometryDocument,
+  id: string,
+): DocumentUpdateResult {
+  if (document.space !== "2d") {
+    return {
+      success: false,
+      error: "addVertex is only defined for 2D primitives",
+    };
+  }
+  const current = document.primitives.find((p) => p.id === id);
+  if (current === undefined) {
+    return {
+      success: false,
+      error: `Primitive with id ${id} not found`,
+    };
+  }
+  if (current.type !== "line" && current.type !== "polygon") {
+    return {
+      success: false,
+      error: `addVertex is only defined for line and polygon, got ${current.type}`,
+    };
+  }
+  const next = addVertexGeometry(current);
+  return replacePrimitives(
+    document,
+    document.primitives.map((p) => (p.id === id ? next : p)),
+  );
+}
+
+/**
+ * 删除顶点（文档级）：验证后写入说明书。
+ */
+export function removeVertex(
+  document: GeometryDocument,
+  id: string,
+  index: number,
+): DocumentUpdateResult {
+  if (document.space !== "2d") {
+    return {
+      success: false,
+      error: "removeVertex is only defined for 2D primitives",
+    };
+  }
+  const current = document.primitives.find((p) => p.id === id);
+  if (current === undefined) {
+    return {
+      success: false,
+      error: `Primitive with id ${id} not found`,
+    };
+  }
+  if (current.type !== "line" && current.type !== "polygon") {
+    return {
+      success: false,
+      error: `removeVertex is only defined for line and polygon, got ${current.type}`,
+    };
+  }
+  const next = removeVertexGeometry(current, index);
+  if (next === current) {
+    // 没有删除发生（已在下限或索引超范围）
+    return { success: true, document };
+  }
+  return replacePrimitives(
+    document,
+    document.primitives.map((p) => (p.id === id ? next : p)),
+  );
+}

@@ -7,6 +7,7 @@ import {
   withFill,
   type Fill,
   type Primitive,
+  type Primitive2d,
 } from "../document/index.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
@@ -14,6 +15,11 @@ import {
   isSolidPrimitive,
   type SolidPrimitive,
 } from "../viewport3d/solid-commit.ts";
+import {
+  validateNumericField,
+  truncateToPrecision,
+  truncateToInteger,
+} from "./numeric-precision.ts";
 
 /** 参数体数字字段目录的键：位置、尺寸与三欧拉角（各类型取其子集） */
 type SolidFieldKey =
@@ -348,6 +354,301 @@ function onAngleFieldChange(key: PlanarFieldKey, event: Event): void {
   commitNumericField(current, ANGLE_FIELDS, key, event);
 }
 
+
+const circle = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null && primitive.type === "circle" ? primitive : null;
+});
+
+const ring = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null && primitive.type === "ring" ? primitive : null;
+});
+
+const arcFamily = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null &&
+    (primitive.type === "sector" ||
+      primitive.type === "bow" ||
+      primitive.type === "arc")
+    ? primitive
+    : null;
+});
+
+const ellipse = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null && primitive.type === "ellipse" ? primitive : null;
+});
+
+/** 对应各图元的字段编辑处理函数 */
+function onCircleFieldChange(
+  key: "cx" | "cy" | "r",
+  event: Event,
+): void {
+  const current = circle.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const value = Number(input.value);
+  const present = current[key];
+  if (!Number.isFinite(value) || present === value) {
+    input.value = String(present);
+    return;
+  }
+  // cx/cy 可为负（圆心坐标），r 必须正数
+  const constraints = key === "r" ? { positive: true } : {};
+  const { valid, truncated } = validateNumericField(value, constraints);
+  if (!valid) {
+    input.value = String(present);
+    return;
+  }
+  const result = documentStore.updatePrimitive(current.id, {
+    ...current,
+    [key]: truncated,
+  });
+  if (!result.success) {
+    input.value = String(present);
+  }
+}
+
+function onRingFieldChange(
+  key: "cx" | "cy" | "rInner" | "rOuter",
+  event: Event,
+): void {
+  const current = ring.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const value = Number(input.value);
+  const present = current[key];
+  if (!Number.isFinite(value) || present === value) {
+    input.value = String(present);
+    return;
+  }
+  // cx/cy 可为负（圆心坐标），rInner/rOuter 必须正数
+  const constraints = (key === "cx" || key === "cy") ? {} : { positive: true };
+  const { valid, truncated } = validateNumericField(value, constraints);
+  if (!valid) {
+    input.value = String(present);
+    return;
+  }
+  const result = documentStore.updatePrimitive(current.id, {
+    ...current,
+    [key]: truncated,
+  });
+  if (!result.success) {
+    input.value = String(present);
+  }
+}
+
+function onArcFamilyFieldChange(
+  key: "cx" | "cy" | "r" | "startDeg" | "endDeg",
+  event: Event,
+): void {
+  const current = arcFamily.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const value = Number(input.value);
+  const present = current[key];
+  if (!Number.isFinite(value) || present === value) {
+    input.value = String(present);
+    return;
+  }
+  // cx/cy 可为负，r 必须正数，角度无约束
+  const constraints = key === "r" ? { positive: true } : {};
+  const { valid, truncated } = validateNumericField(value, constraints);
+  if (!valid) {
+    input.value = String(present);
+    return;
+  }
+  const result = documentStore.updatePrimitive(current.id, {
+    ...current,
+    [key]: truncated,
+  });
+  if (!result.success) {
+    input.value = String(present);
+  }
+}
+
+function onEllipseFieldChange(
+  key: "cx" | "cy" | "rx" | "ry" | "rotationDeg",
+  event: Event,
+): void {
+  const current = ellipse.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const value = Number(input.value);
+  const present = current[key];
+  if (!Number.isFinite(value) || present === value) {
+    input.value = String(present);
+    return;
+  }
+  // cx/cy 可为负，rx/ry 必须正数，rotationDeg 无约束
+  const constraints = (key === "rx" || key === "ry") ? { positive: true } : {};
+  const { valid, truncated } = validateNumericField(value, constraints);
+  if (!valid) {
+    input.value = String(present);
+    return;
+  }
+  const result = documentStore.updatePrimitive(current.id, {
+    ...current,
+    [key]: truncated,
+  });
+  if (!result.success) {
+    input.value = String(present);
+  }
+}
+
+/** line/polygon 的顶点数组 */
+const linePolygon = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null &&
+    (primitive.type === "line" || primitive.type === "polygon")
+    ? primitive
+    : null;
+});
+
+function onVertexChange(
+  vertexIndex: number,
+  axis: "x" | "y",
+  event: Event,
+): void {
+  const current = linePolygon.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const value = Number(input.value);
+  const present = current.points[vertexIndex]?.[axis];
+  if (!Number.isFinite(value) || present === value) {
+    input.value = String(present);
+    return;
+  }
+  const { valid, truncated } = validateNumericField(value, {});
+  if (!valid) {
+    input.value = String(present);
+    return;
+  }
+  const next = {
+    ...current,
+    points: current.points.map((p, i) =>
+      i === vertexIndex ? { ...p, [axis]: truncated } : p,
+    ),
+  };
+  const result = documentStore.updatePrimitive(current.id, next);
+  if (!result.success) {
+    input.value = String(present);
+  }
+}
+
+function onAddVertex(): void {
+  const current = linePolygon.value;
+  if (current === null) return;
+  documentStore.addVertex(current.id);
+}
+
+function canRemoveVertex(count: number, type: string): boolean {
+  return (type === "line" && count > 2) || (type === "polygon" && count > 3);
+}
+
+function onRemoveVertex(index: number): void {
+  const current = linePolygon.value;
+  if (current === null) return;
+  documentStore.removeVertex(current.id, index);
+}
+
+/** label 的 text 编辑 */
+const label = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null && primitive.type === "label" ? primitive : null;
+});
+
+function onLabelTextChange(event: Event): void {
+  const current = label.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const text = input.value.trim();
+  if (text === current.text) return;
+  if (text.length === 0) {
+    input.value = current.text;
+    return;
+  }
+  const result = documentStore.updatePrimitive(current.id, {
+    ...current,
+    text,
+  });
+  if (!result.success) {
+    input.value = current.text;
+  }
+}
+
+/** dimension 的两个顶点 */
+const dimension = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null && primitive.type === "dimension"
+    ? primitive
+    : null;
+});
+
+function onDimensionPointChange(
+  pointIndex: 0 | 1,
+  axis: "x" | "y",
+  event: Event,
+): void {
+  const current = dimension.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const value = Number(input.value);
+  const present = current.points[pointIndex][axis];
+  if (!Number.isFinite(value) || present === value) {
+    input.value = String(present);
+    return;
+  }
+  const { valid, truncated } = validateNumericField(value, {});
+  if (!valid) {
+    input.value = String(present);
+    return;
+  }
+  const [a, b] = current.points;
+  const next = {
+    ...current,
+    points: [
+      pointIndex === 0 ? { ...a, [axis]: truncated } : a,
+      pointIndex === 1 ? { ...b, [axis]: truncated } : b,
+    ],
+  };
+  const result = documentStore.updatePrimitive(current.id, next);
+  if (!result.success) {
+    input.value = String(present);
+  }
+}
+
+/** voxel 的整数坐标 */
+const voxel = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null && primitive.type === "voxel" ? primitive : null;
+});
+
+function onVoxelFieldChange(key: "x" | "y" | "z", event: Event): void {
+  const current = voxel.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const value = Number(input.value);
+  const present = current[key];
+  if (!Number.isFinite(value) || present === value) {
+    input.value = String(present);
+    return;
+  }
+  const { valid, truncated } = validateNumericField(value, { integer: true });
+  if (!valid) {
+    input.value = String(present);
+    return;
+  }
+  const result = documentStore.updatePrimitive(current.id, {
+    ...current,
+    [key]: truncated,
+  });
+  if (!result.success) {
+    input.value = String(present);
+  }
+}
+
 const fill = computed((): Fill | null => {
   const primitive = selected.value;
   if (primitive === null || !("fill" in primitive)) return null;
@@ -414,6 +715,342 @@ function onFillChange(value: string | string[] | undefined): void {
         />
       </label>
     </div>
+    <!-- 圆 -->
+    <div v-if="circle !== null" class="grid grid-cols-2 gap-2">
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.cx") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="circle.cx"
+          :aria-label="t('field.cx')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onCircleFieldChange('cx', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.cy") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="circle.cy"
+          :aria-label="t('field.cy')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onCircleFieldChange('cy', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.r") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="circle.r"
+          :aria-label="t('field.r')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onCircleFieldChange('r', $event)"
+        />
+      </label>
+    </div>
+
+    <!-- 圆环 -->
+    <div v-if="ring !== null" class="grid grid-cols-2 gap-2">
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.cx") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="ring.cx"
+          :aria-label="t('field.cx')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onRingFieldChange('cx', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.cy") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="ring.cy"
+          :aria-label="t('field.cy')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onRingFieldChange('cy', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.rInner") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="ring.rInner"
+          :aria-label="t('field.rInner')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onRingFieldChange('rInner', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.rOuter") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="ring.rOuter"
+          :aria-label="t('field.rOuter')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onRingFieldChange('rOuter', $event)"
+        />
+      </label>
+    </div>
+
+    <!-- 扇形/弓形/弧 -->
+    <div v-if="arcFamily !== null" class="grid grid-cols-2 gap-2">
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.cx") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="arcFamily.cx"
+          :aria-label="t('field.cx')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onArcFamilyFieldChange('cx', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.cy") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="arcFamily.cy"
+          :aria-label="t('field.cy')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onArcFamilyFieldChange('cy', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.r") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="arcFamily.r"
+          :aria-label="t('field.r')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onArcFamilyFieldChange('r', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.startDeg") }}</span>
+        <input
+          type="number"
+          step="1"
+          :value="arcFamily.startDeg"
+          :aria-label="t('field.startDeg')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onArcFamilyFieldChange('startDeg', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.endDeg") }}</span>
+        <input
+          type="number"
+          step="1"
+          :value="arcFamily.endDeg"
+          :aria-label="t('field.endDeg')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onArcFamilyFieldChange('endDeg', $event)"
+        />
+      </label>
+    </div>
+
+    <!-- 椭圆 -->
+    <div v-if="ellipse !== null" class="grid grid-cols-2 gap-2">
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.cx") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="ellipse.cx"
+          :aria-label="t('field.cx')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onEllipseFieldChange('cx', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.cy") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="ellipse.cy"
+          :aria-label="t('field.cy')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onEllipseFieldChange('cy', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.rx") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="ellipse.rx"
+          :aria-label="t('field.rx')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onEllipseFieldChange('rx', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.ry") }}</span>
+        <input
+          type="number"
+          step="0.01"
+          :value="ellipse.ry"
+          :aria-label="t('field.ry')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onEllipseFieldChange('ry', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.rotationDeg") }}</span>
+        <input
+          type="number"
+          step="1"
+          :value="ellipse.rotationDeg"
+          :aria-label="t('field.rotationDeg')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onEllipseFieldChange('rotationDeg', $event)"
+        />
+      </label>
+    </div>
+
+    <!-- 线段/多边形顶点 -->
+    <div v-if="linePolygon !== null" class="space-y-2">
+      <p class="text-zinc-500">{{ t("field.vertex") }}</p>
+      <div
+        v-for="(point, index) in linePolygon.points"
+        :key="index"
+        class="grid grid-cols-3 gap-2"
+      >
+        <span class="col-span-3 text-zinc-400">
+          {{ t("field.vertex") }} {{ index + 1 }}
+        </span>
+        <label class="space-y-1 col-span-1">
+          <span class="block text-zinc-500">{{ t("field.x") }}</span>
+          <input
+            type="number"
+            step="0.01"
+            :value="point.x"
+            :aria-label="`${t('field.vertex')} ${index + 1} X`"
+            class="w-full rounded border border-zinc-300 px-2 py-1"
+            @change="onVertexChange(index, 'x', $event)"
+          />
+        </label>
+        <label class="space-y-1 col-span-1">
+          <span class="block text-zinc-500">{{ t("field.y") }}</span>
+          <input
+            type="number"
+            step="0.01"
+            :value="point.y"
+            :aria-label="`${t('field.vertex')} ${index + 1} Y`"
+            class="w-full rounded border border-zinc-300 px-2 py-1"
+            @change="onVertexChange(index, 'y', $event)"
+          />
+        </label>
+        <button
+          v-if="canRemoveVertex(linePolygon.points.length, linePolygon.type)"
+          type="button"
+          class="col-span-1 rounded border border-red-300 px-2 py-1 text-red-600 hover:bg-red-50"
+          @click="onRemoveVertex(index)"
+        >
+          删除
+        </button>
+        <div v-else class="col-span-1"></div>
+      </div>
+      <button
+        type="button"
+        class="w-full rounded border border-zinc-300 bg-zinc-50 px-2 py-1 text-zinc-600 hover:bg-zinc-100"
+        @click="onAddVertex"
+      >
+        + 添加顶点
+      </button>
+    </div>
+
+    <!-- 标注线顶点 -->
+    <div v-if="dimension !== null" class="space-y-2">
+      <p class="text-zinc-500">顶点</p>
+      <div v-for="(point, index) in dimension.points" :key="index" class="grid grid-cols-2 gap-2">
+        <span class="col-span-2 text-zinc-400">顶点 {{ index + 1 }}</span>
+        <label class="space-y-1">
+          <span class="block text-zinc-500">{{ t("field.x") }}</span>
+          <input
+            type="number"
+            step="0.01"
+            :value="point.x"
+            :aria-label="`顶点 ${index + 1} X`"
+            class="w-full rounded border border-zinc-300 px-2 py-1"
+            @change="onDimensionPointChange(index as 0 | 1, 'x', $event)"
+          />
+        </label>
+        <label class="space-y-1">
+          <span class="block text-zinc-500">{{ t("field.y") }}</span>
+          <input
+            type="number"
+            step="0.01"
+            :value="point.y"
+            :aria-label="`顶点 ${index + 1} Y`"
+            class="w-full rounded border border-zinc-300 px-2 py-1"
+            @change="onDimensionPointChange(index as 0 | 1, 'y', $event)"
+          />
+        </label>
+      </div>
+    </div>
+
+    <!-- label 文字 -->
+    <div v-if="label !== null" class="space-y-2">
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.text") }}</span>
+        <input
+          type="text"
+          :value="label.text"
+          :aria-label="t('field.text')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onLabelTextChange"
+        />
+      </label>
+    </div>
+
+    <!-- voxel 坐标 -->
+    <div v-if="voxel !== null" class="grid grid-cols-2 gap-2">
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.x") }}</span>
+        <input
+          type="number"
+          step="1"
+          :value="voxel.x"
+          :aria-label="t('field.x')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onVoxelFieldChange('x', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.y") }}</span>
+        <input
+          type="number"
+          step="1"
+          :value="voxel.y"
+          :aria-label="t('field.y')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onVoxelFieldChange('y', $event)"
+        />
+      </label>
+      <label class="space-y-1">
+        <span class="block text-zinc-500">{{ t("field.z") }}</span>
+        <input
+          type="number"
+          step="1"
+          :value="voxel.z"
+          :aria-label="t('field.z')"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onVoxelFieldChange('z', $event)"
+        />
+      </label>
+    </div>
+
     <div v-if="prism !== null" class="space-y-2">
       <p class="text-zinc-500">{{ t("field.base") }}</p>
       <div
@@ -437,6 +1074,7 @@ function onFillChange(value: string | string[] | undefined): void {
         </label>
       </div>
     </div>
+
     <div v-if="fill !== null">
       <p class="mb-1 text-zinc-500">{{ t("fill.label") }}</p>
       <ToggleGroupRoot

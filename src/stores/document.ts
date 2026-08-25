@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref, shallowRef } from "vue";
 import {
   addPrimitive as addPrimitiveToDocument,
+  addVertex as addVertexToDocument,
   commitSnapshot,
   createHistory,
   hashToDocument,
@@ -9,6 +10,7 @@ import {
   planSpaceChange,
   redo as redoHistory,
   removePrimitive as removePrimitiveFromDocument,
+  removeVertex as removeVertexFromDocument,
   setUnderlay as setDocumentUnderlay,
   undo as undoHistory,
   updatePrimitive as updatePrimitiveInDocument,
@@ -117,6 +119,14 @@ export const useDocumentStore = defineStore("document", () => {
     );
   }
 
+  function addVertex(id: string): DocumentUpdateResult {
+    return applyUpdate(addVertexToDocument(current.value, id));
+  }
+
+  function removeVertex(id: string, index: number): DocumentUpdateResult {
+    return applyUpdate(removeVertexFromDocument(current.value, id, index));
+  }
+
   function setUnderlay(
     underlay: GeometryDocument["underlay"],
   ): DocumentUpdateResult {
@@ -158,6 +168,8 @@ export const useDocumentStore = defineStore("document", () => {
     addPrimitive,
     removePrimitive,
     updatePrimitive,
+    addVertex,
+    removeVertex,
     setUnderlay,
     requestSpaceChange,
     clearAndSetSpace,

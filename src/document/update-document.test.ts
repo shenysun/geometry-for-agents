@@ -8,10 +8,14 @@ import {
 } from "./index.ts";
 import type { GeometryDocument, Primitive, Primitive2d } from "./index.ts";
 import {
+  addVertex,
+  addVertexGeometry,
   moveControlPoint,
   moveControlPointGeometry,
   moveSolidControlPoint,
   moveSolidControlPointGeometry,
+  removeVertex,
+  removeVertexGeometry,
   rotateEulerYxz,
   rotatePrimitive,
   rotatePrimitiveGeometry,
@@ -2209,6 +2213,171 @@ describe("尺寸标注线更新", () => {
       { x: 0, y: 0 },
       "off",
     );
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("addVertexGeometry / removeVertexGeometry", () => {
+  type LineType = Extract<Primitive2d, { type: "line" }>;
+  type PolygonType = Extract<Primitive2d, { type: "polygon" }>;
+
+  const line2 = (id: string): LineType => ({
+    id,
+    type: "line",
+    points: [
+      { x: 0, y: 0 },
+      { x: 1, y: 1 },
+    ],
+  });
+
+  const polygon3 = (id: string): PolygonType => ({
+    id,
+    type: "polygon",
+    points: [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 0.5, y: 1 },
+    ],
+    fill: "none",
+  });
+
+  test("addVertexGeometry line: 复制最后一个顶点", () => {
+    const line = line2("line-1");
+    const result = addVertexGeometry(line);
+    expect(result.type).toBe("line");
+    if (result.type === "line") {
+      expect(result.points).toHaveLength(3);
+      expect(result.points[2]).toEqual(result.points[1]);
+    }
+  });
+
+  test("addVertexGeometry polygon: 复制最后一个顶点", () => {
+    const poly = polygon3("poly-1");
+    const result = addVertexGeometry(poly);
+    expect(result.type).toBe("polygon");
+    if (result.type === "polygon") {
+      expect(result.points).toHaveLength(4);
+      expect(result.points[3]).toEqual(result.points[2]);
+    }
+  });
+
+  test("addVertexGeometry 非 line/polygon 返回原图元", () => {
+    const circle: Primitive2d = {
+      id: "c1",
+      type: "circle",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      fill: "none",
+    };
+    expect(addVertexGeometry(circle)).toBe(circle);
+  });
+
+  test("removeVertexGeometry line: 删除中间顶点", () => {
+    const line = line2("line-1");
+    const extended = addVertexGeometry(line);
+    expect(extended.type).toBe("line");
+    if (extended.type !== "line") return;
+    const result = removeVertexGeometry(extended, 1);
+    expect(result.type).toBe("line");
+    if (result.type === "line") {
+      expect(result.points).toHaveLength(2);
+      expect(result.points).toEqual(line.points);
+    }
+  });
+
+  test("removeVertexGeometry line: 已在 2 点下限不删除", () => {
+    const line = line2("line-1");
+    const result = removeVertexGeometry(line, 0);
+    expect(result).toBe(line);
+  });
+
+  test("removeVertexGeometry polygon: 已在 3 点下限不删除", () => {
+    const poly = polygon3("poly-1");
+    const result = removeVertexGeometry(poly, 0);
+    expect(result).toBe(poly);
+  });
+
+  test("removeVertexGeometry polygon: 4 点删到 3 点允许", () => {
+    const poly = polygon3("poly-1");
+    const extended = addVertexGeometry(poly);
+    expect(extended.type).toBe("polygon");
+    if (extended.type !== "polygon") return;
+    expect(extended.points).toHaveLength(4);
+    const result = removeVertexGeometry(extended, 2);
+    expect(result.type).toBe("polygon");
+    if (result.type === "polygon") {
+      expect(result.points).toHaveLength(3);
+    }
+  });
+
+  test("removeVertexGeometry 索引超范围返回原图元", () => {
+    const line = line2("line-1");
+    expect(removeVertexGeometry(line, 999)).toBe(line);
+    expect(removeVertexGeometry(line, -1)).toBe(line);
+  });
+});
+
+describe("addVertex / removeVertex (document-level)", () => {
+  const docWithLine = (): GeometryDocument =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        {
+          id: "line-1",
+          type: "line",
+          points: [
+            { x: 0, y: 0 },
+            { x: 1, y: 1 },
+          ],
+        },
+      ],
+    });
+
+  test("addVertex 添加一个顶点到 line", () => {
+    const doc = docWithLine();
+    const result = addVertex(doc, "line-1");
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const line = result.document.primitives[0];
+    expect(line?.type).toBe("line");
+    if (line?.type === "line") {
+      expect(line.points).toHaveLength(3);
+    }
+  });
+
+  test("removeVertex 删除一个顶点（line >= 2 下限）", () => {
+    const doc = docWithLine();
+    const addResult = addVertex(doc, "line-1");
+    expect(addResult.success).toBe(true);
+    if (!addResult.success) return;
+
+    const removeResult = removeVertex(addResult.document, "line-1", 1);
+    expect(removeResult.success).toBe(true);
+    if (!removeResult.success) return;
+    const line = removeResult.document.primitives[0];
+    expect(line?.type).toBe("line");
+    if (line?.type === "line") {
+      expect(line.points).toHaveLength(2);
+    }
+  });
+
+  test("addVertex 不存在的 id 返回错误", () => {
+    const doc = docWithLine();
+    const result = addVertex(doc, "nonexistent");
+    expect(result.success).toBe(false);
+  });
+
+  test("removeVertex 非 2D 文档返回错误", () => {
+    const doc = mustParse({
+      version: 1,
+      space: "3d",
+      underlay: null,
+      primitives: [],
+    });
+    const result = removeVertex(doc, "some-id", 0);
     expect(result.success).toBe(false);
   });
 });
