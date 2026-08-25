@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 — 单击放置长方体
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 两种创建工具单击落下默认尺寸，预览后一次提交
 - [x] 四棱锥默认 `width === depth`；三棱柱 `base` 为形心在原点的正三角形

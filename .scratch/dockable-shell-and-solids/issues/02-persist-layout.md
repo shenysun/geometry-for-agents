@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — 可停靠五块面板出厂布局
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 布局用 VueUse `useLocalStorage` 记住；刷新后摆法还在
 - [x] 保存/分享后的说明书与 URL hash 不含布局

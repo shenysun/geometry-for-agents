@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 — 工具箱：图标+名称
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 3D 工具箱有长方体；单击吸附后提交一条 `box`，默认 width/depth/height 为 1
 - [x] 位置为底面中心；`rotationDegY/X/Z` 为 0；与体素共存于 `space: "3d"`

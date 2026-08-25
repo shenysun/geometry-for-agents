@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 — 工具箱：图标+名称
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 选择工具左键不调用放置；点体素选中，点空取消
 - [x] 单位立方体工具点格放置；占用格不重复放

@@ -4,7 +4,7 @@
 
 **Blocked by:** 13 — 角图元
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 契约：regularPolygonSchema 进判别联合（angle 后、circle 前）；sides <5 或非整数拒绝；3D 拒绝；闭合大夹具补齐
 - [x] 提交纯函数：translate 改 x/y；rotate 写 rotationDeg 归一；scale 乘 r；控制点 = 顶点（拖顶点改 r）

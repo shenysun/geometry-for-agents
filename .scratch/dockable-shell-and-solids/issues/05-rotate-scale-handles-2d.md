@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — 选择工具拖 2D 图元平移
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 选中后可见旋转柄与缩放柄；拖动手势预览后一次提交
 - [x] 圆缩放保持圆形；椭圆可旋转，`rotationDeg` 进说明书

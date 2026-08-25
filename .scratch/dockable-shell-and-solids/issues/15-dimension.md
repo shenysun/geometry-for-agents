@@ -4,7 +4,7 @@
 
 **Blocked by:** 14 — 正多边形
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 契约：dimensionSchema（定长二元组）进判别联合；两点重合拒绝；3D 拒绝；大夹具补齐
 - [x] 提交纯函数：translate/rotate/scale 沿 line 先例作用于两点；控制点 = 两端点

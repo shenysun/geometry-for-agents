@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 接入 `dockview-vue`，五块面板可并排、改大小、叠成标签
 - [x] 出厂摆法为左工具箱/对象列表、中视口、右属性/垫图

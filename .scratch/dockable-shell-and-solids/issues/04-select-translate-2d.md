@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 选择工具下单击图元选中，单击空白取消
 - [x] 拖本体平移整图元（坐标写入几何字段），预览期间说明书未变，松手一次提交

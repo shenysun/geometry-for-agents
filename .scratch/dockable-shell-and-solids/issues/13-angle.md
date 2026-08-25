@@ -4,7 +4,7 @@
 
 **Blocked by:** 12 — 底/高家族
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 契约：angleSchema 进判别联合（家族后、circle 前）；sweep 退化拒绝；3D 拒绝；闭合大夹具补齐（角是笔画族，夹具名不改动语义）
 - [x] 提交纯函数：translate 改 x/y；rotate 改写 startDeg/endDeg（无 rotationDeg）；scale 乘 length；控制点 = 顶点 + 两边端点

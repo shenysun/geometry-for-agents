@@ -4,7 +4,7 @@
 
 **Blocked by:** 矩形票（已合入 `b7f0883`）
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 契约：triangle/parallelogram/trapezoid schema 进判别联合（rectangle 后、circle 前）；3D 拒绝；refine 拒绝；闭合大夹具补齐
 - [x] 提交纯函数：translate 改 x/y；rotate 写 rotationDeg 归一；scale 尺寸同乘（含 apexOffset/skew/topWidth/topOffset）；控制点 corner-0..n 语义

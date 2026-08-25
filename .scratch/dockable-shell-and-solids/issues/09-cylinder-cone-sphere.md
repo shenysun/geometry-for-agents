@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 — 单击放置长方体
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 三种创建工具单击落下默认尺寸，预览后一次提交
 - [x] 圆柱/圆锥：底面中心 + `r` + `height` + 三欧拉角（默认 0）

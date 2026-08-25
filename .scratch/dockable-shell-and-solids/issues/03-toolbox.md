@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — 可停靠五块面板出厂布局
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] 2D 工具箱含选择与现有平面创建工具，图标+名称，点选切换 `editor.tool`
 - [x] 3D 工具箱含选择与单位立方体；2D 创建工具不出现
