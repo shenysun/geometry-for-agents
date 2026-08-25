@@ -307,6 +307,25 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the dimension syntax with derived length", () => {
+    const dimension = {
+      id: "dim-1",
+      type: "dimension",
+      points: [
+        { x: 0, y: 0 },
+        { x: 3, y: 4 },
+      ],
+    };
+    const document = parsed("2d", [dimension]);
+
+    const prompt = documentToPrompt(document);
+
+    expect(prompt).toMatch(/dimension:.*exactly 2/);
+    expect(prompt).toMatch(/dimension:.*distance/);
+    expect(prompt).toMatch(/dimension:.*no text field/);
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("documents the box anchor and every field in the syntax and projects it deterministically", () => {
     const box = {
       id: "box-1",

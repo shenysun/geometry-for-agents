@@ -93,6 +93,7 @@ function handleReach(primitive: Primitive2d, center: Point2): number {
   switch (primitive.type) {
     case "line":
     case "polygon":
+    case "dimension":
       return Math.max(
         ...primitive.points.map((point) => distance(point, center)),
       );
@@ -201,6 +202,8 @@ function previewFromPrimitive(primitive: Primitive2d): DrawPreview {
   switch (primitive.type) {
     case "line":
       return { type: "line", points: primitive.points };
+    case "dimension":
+      return { type: "dimension", points: primitive.points };
     case "polygon":
       return { type: "polygon", points: primitive.points };
     case "rectangle":

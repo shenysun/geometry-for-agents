@@ -241,6 +241,29 @@ describe("document hash", () => {
     expect(reparsed.document).toEqual(document);
   });
 
+  test("roundtrips a dimension", () => {
+    const document = parsed("2d", [
+      {
+        id: "dim-1",
+        type: "dimension",
+        points: [
+          { x: -1, y: 2 },
+          { x: 3, y: -4 },
+        ],
+      },
+    ]);
+
+    const decoded = hashToDocument(documentToHash(document));
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) return;
+    expect(decoded.document).toEqual(document);
+
+    const reparsed = parseDocument(JSON.stringify(decoded.document));
+    expect(reparsed.success).toBe(true);
+    if (!reparsed.success) return;
+    expect(reparsed.document).toEqual(document);
+  });
+
   test("roundtrips a 3d document mixing box and voxel", () => {
     const document = parsed("3d", [
       {

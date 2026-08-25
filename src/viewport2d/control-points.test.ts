@@ -416,6 +416,25 @@ describe("controlPoints 正多边形", () => {
   });
 });
 
+describe("controlPoints 尺寸标注线", () => {
+  test("两端点即控制点（沿 line 先例）", () => {
+    const dimension = primitive2d({
+      id: "dim-1",
+      type: "dimension",
+      points: [
+        { x: 0, y: 0 },
+        { x: 4, y: 3 },
+      ],
+    });
+
+    const points = controlPoints(dimension);
+    expect(points.map((point) => point.id)).toEqual(["vertex-0", "vertex-1"]);
+    expect(points.every((point) => point.kind === "vertex")).toBe(true);
+    expect(points[0]!.point).toEqual({ x: 0, y: 0 });
+    expect(points[1]!.point).toEqual({ x: 4, y: 3 });
+  });
+});
+
 describe("controlPoints 标签", () => {  test("标签没有控制点（位置靠拖本体平移）", () => {
     const label = primitive2d({
       id: "label-1",

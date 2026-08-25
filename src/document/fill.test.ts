@@ -126,4 +126,17 @@ describe("withFill", () => {
 
     expect(withFill(angle, "solid")).toBeNull();
   });
+
+  test("returns null for dimension (stroke family, no fill field)", () => {
+    const dimension: Primitive = {
+      id: "dim-1",
+      type: "dimension",
+      points: [
+        { x: 0, y: 0 },
+        { x: 3, y: 4 },
+      ],
+    };
+
+    expect(withFill(dimension, "solid")).toBeNull();
+  });
 });

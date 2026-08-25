@@ -1066,4 +1066,84 @@ describe("正多边形工具", () => {
   });
 });
 
+describe("尺寸标注线工具", () => {
+  test("拖拽提交定长二元组（沿 line 手势）", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("dimension", { x: 0, y: 0 }, 1, "dim-1"),
+    );
+    expect(started.commit).toBeNull();
+    const moved = moveDraw(
+      started.state,
+      ctx("dimension", { x: 3, y: 4 }, 1, "dim-1"),
+    );
+    expect(moved.commit).toBeNull();
+    // 预览复用线段虚线（箭头与数字是提交后的渲染细节）。
+    expect(moved.preview).toEqual({
+      type: "line",
+      points: [
+        { x: 0, y: 0 },
+        { x: 3, y: 4 },
+      ],
+    });
+
+    const committed = upDraw(
+      moved.state,
+      ctx("dimension", { x: 3, y: 4 }, 1, "dim-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "dim-1",
+      type: "dimension",
+      points: [
+        { x: 0, y: 0 },
+        { x: 3, y: 4 },
+      ],
+    });
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("两端吃格重合不提交；Alt 关格保留原始点", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("dimension", { x: 0.2, y: 0.2 }, 1, "dim-1"),
+    );
+    const flat = upDraw(
+      started.state,
+      ctx("dimension", { x: 0.4, y: 0.3 }, 1, "dim-1"),
+    );
+    expect(flat.commit).toBeNull();
+    expect(flat.state).toEqual(idleDrawState());
+
+    const freeStart = startDraw(
+      idleDrawState(),
+      ctx("dimension", { x: 0.5, y: -0.5 }, "off", "dim-1"),
+    );
+    const freeMoved = moveDraw(
+      freeStart.state,
+      ctx("dimension", { x: 2.25, y: 1 }, "off", "dim-1"),
+    );
+    expect(freeMoved.preview).toEqual({
+      type: "line",
+      points: [
+        { x: 0.5, y: -0.5 },
+        { x: 2.25, y: 1 },
+      ],
+    });
+  });
+
+  test("esc 取消标注线手势不提交", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("dimension", { x: 0, y: 0 }, 1, "dim-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("dimension", { x: 3, y: 0 }, 1, "dim-1"),
+    );
+    const cancelled = escDraw(moved.state);
+    expect(cancelled.commit).toBeNull();
+    expect(cancelled.state).toEqual(idleDrawState());
+  });
+});
+
 

@@ -151,6 +151,70 @@ function drawSweepPath(
   );
 }
 
+/** 箭头翼端：从尖端沿指向 toward 的方向回摆 150° 的两翼（屏幕坐标）。 */
+function arrowWings(
+  tip: Point2,
+  toward: Point2,
+  size: number,
+): [Point2, Point2] {
+  const dx = toward.x - tip.x;
+  const dy = toward.y - tip.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const rad = (150 * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return [
+    { x: tip.x + (ux * cos - uy * sin) * size, y: tip.y + (ux * sin + uy * cos) * size },
+    { x: tip.x + (ux * cos + uy * sin) * size, y: tip.y + (-ux * sin + uy * cos) * size },
+  ];
+}
+
+/** 标注数字：两点距离的推导值，保留两位并去尾零（5、4.25、3.1）。 */
+function dimensionLabel(primitive: Extract<Primitive2d, { type: "dimension" }>): string {
+  const [a, b] = primitive.points;
+  return String(Number(Math.hypot(b.x - a.x, b.y - a.y).toFixed(2)));
+}
+
+function drawDimension(
+  primitive: Extract<Primitive2d, { type: "dimension" }>,
+  view: ViewTransform,
+): Konva.Shape[] {
+  const [a, b] = primitive.points;
+  const screenA = worldToScreen(a, view);
+  const screenB = worldToScreen(b, view);
+  const ARROW_PX = 8;
+  const [aWing1, aWing2] = arrowWings(screenA, screenB, ARROW_PX);
+  const [bWing1, bWing2] = arrowWings(screenB, screenA, ARROW_PX);
+  const mid = {
+    x: (screenA.x + screenB.x) / 2,
+    y: (screenA.y + screenB.y) / 2,
+  };
+  const label = new Konva.Text({
+    x: mid.x,
+    y: mid.y - 16,
+    text: dimensionLabel(primitive),
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    fill: STROKE,
+    listening: false,
+  });
+  label.offsetX(label.width() / 2);
+  return [
+    strokeLine([screenA.x, screenA.y, screenB.x, screenB.y], false),
+    strokeLine(
+      [aWing1.x, aWing1.y, screenA.x, screenA.y, aWing2.x, aWing2.y],
+      false,
+    ),
+    strokeLine(
+      [bWing1.x, bWing1.y, screenB.x, screenB.y, bWing2.x, bWing2.y],
+      false,
+    ),
+    label,
+  ];
+}
+
 function drawPrimitive(
   primitive: Primitive2d,
   view: ViewTransform,
@@ -158,6 +222,8 @@ function drawPrimitive(
   switch (primitive.type) {
     case "line":
       return [strokeLine(toScreenPoints(primitive.points, view), false)];
+    case "dimension":
+      return drawDimension(primitive, view);
     case "polygon":
       return [
         strokeLine(toScreenPoints(primitive.points, view), true, primitive.fill),
@@ -306,6 +372,14 @@ function previewPrimitive(preview: DrawPreview): Primitive2d | null {
     if (preview.points.length < 2) return null;
     return { id: "preview", type: "line", points: preview.points };
   }
+  if (preview.type === "dimension") {
+    if (preview.points.length < 2) return null;
+    return {
+      id: "preview",
+      type: "dimension",
+      points: [preview.points[0]!, preview.points[1]!],
+    };
+  }
   if (preview.type === "polygon") {
     if (preview.points.length < 3) {
       if (preview.points.length < 2) return null;
@@ -386,7 +460,12 @@ function previewPrimitive(preview: DrawPreview): Primitive2d | null {
 
 function previewGuidePoints(preview: DrawPreview): Point2[] {
   if (preview === null) return [];
-  if (preview.type === "line" || preview.type === "polygon" || preview.type === "guide") {
+  if (
+    preview.type === "line" ||
+    preview.type === "dimension" ||
+    preview.type === "polygon" ||
+    preview.type === "guide"
+  ) {
     return preview.points;
   }
   if (
@@ -419,7 +498,10 @@ export function drawGesturePreview(
       layer.add(node);
     }
   } else if (
-    (preview.type === "line" || preview.type === "polygon" || preview.type === "guide") &&
+    (preview.type === "line" ||
+      preview.type === "dimension" ||
+      preview.type === "polygon" ||
+      preview.type === "guide") &&
     preview.points.length >= 2
   ) {
     layer.add(

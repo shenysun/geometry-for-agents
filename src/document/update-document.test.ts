@@ -2125,3 +2125,90 @@ describe("正多边形更新", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("尺寸标注线更新", () => {
+  const dimension: Primitive2d = {
+    id: "dim-1",
+    type: "dimension",
+    points: [
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+    ],
+  };
+
+  const dimensionDoc = (): GeometryDocument =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [dimension],
+    });
+
+  test("translatePrimitiveGeometry 整体平移两点", () => {
+    const moved = translatePrimitiveGeometry(dimension, 1, 2);
+
+    expect(moved).toEqual({
+      ...dimension,
+      points: [
+        { x: 1, y: 2 },
+        { x: 5, y: 2 },
+      ],
+    });
+    expect(dimension.points[0]).toEqual({ x: 0, y: 0 });
+  });
+
+  test("rotatePrimitiveGeometry 绕中点转两点（无锚点字段，沿 line 先例）", () => {
+    // 中点 (2,0)；转 90°：(0,0)→(2,-2)、(4,0)→(2,2)。
+    const quarter = rotatePrimitiveGeometry(dimension, 90);
+
+    if (quarter.type !== "dimension") return;
+    expectCloseTo(quarter.points[0]!.x, 2);
+    expectCloseTo(quarter.points[0]!.y, -2);
+    expectCloseTo(quarter.points[1]!.x, 2);
+    expectCloseTo(quarter.points[1]!.y, 2);
+  });
+
+  test("scalePrimitiveGeometry 两点朝中点收放，长度乘因子", () => {
+    const moved = scalePrimitiveGeometry(dimension, 1.5);
+
+    expect(moved).toEqual({
+      ...dimension,
+      points: [
+        { x: -1, y: 0 },
+        { x: 5, y: 0 },
+      ],
+    });
+  });
+
+  test("moveControlPointGeometry 拖端点只动那一个，保 tuple", () => {
+    const moved = moveControlPointGeometry(dimension, "vertex-1", {
+      x: 4,
+      y: 3,
+    });
+
+    expect(moved).toEqual({
+      ...dimension,
+      points: [
+        { x: 0, y: 0 },
+        { x: 4, y: 3 },
+      ],
+    });
+  });
+
+  test("moveControlPointGeometry 未知控制点 id 是恒等变换", () => {
+    expect(
+      moveControlPointGeometry(dimension, "vertex-2", { x: 9, y: 9 }),
+    ).toBe(dimension);
+  });
+
+  test("moveControlPoint 拖端点到另一端（两点重合）被契约拒绝", () => {
+    const result = moveControlPoint(
+      dimensionDoc(),
+      "dim-1",
+      "vertex-1",
+      { x: 0, y: 0 },
+      "off",
+    );
+    expect(result.success).toBe(false);
+  });
+});

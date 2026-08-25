@@ -53,38 +53,29 @@ describe("toolsForSpace", () => {
     expect(solid).not.toContain("rectangle");
   });
 
-  test("2D 目录含底/高家族，square 紧跟 rectangle，家族排在 circle 前", () => {
+  test("2D 创建工具顺序钉死规格：家族→正多边形→角→标注线→圆族（spec-2d-expansion）", () => {
     const planar = toolsForSpace("2d").map((tool) => tool.id);
 
-    expect(planar.indexOf("square")).toBe(planar.indexOf("rectangle") + 1);
-    expect(planar.indexOf("triangle")).toBe(planar.indexOf("square") + 1);
-    expect(planar.indexOf("parallelogram")).toBe(
-      planar.indexOf("triangle") + 1,
-    );
-    expect(planar.indexOf("trapezoid")).toBe(
-      planar.indexOf("parallelogram") + 1,
-    );
-    expect(planar.indexOf("trapezoid")).toBe(planar.indexOf("angle") - 1);
-  });
-
-  test("2D 目录含 angle，排在 trapezoid 后", () => {
-    const planar = toolsForSpace("2d").map((tool) => tool.id);
-
-    expect(planar.indexOf("angle")).toBe(planar.indexOf("trapezoid") + 1);
-    expect(planar.indexOf("angle")).toBe(
-      planar.indexOf("regularPolygon") - 1,
-    );
-  });
-
-  test("2D 目录含 regularPolygon，排在 angle 后、circle 前", () => {
-    const planar = toolsForSpace("2d").map((tool) => tool.id);
-
-    expect(planar.indexOf("regularPolygon")).toBe(
-      planar.indexOf("angle") + 1,
-    );
-    expect(planar.indexOf("regularPolygon")).toBe(
-      planar.indexOf("circle") - 1,
-    );
+    expect(planar).toEqual([
+      "select",
+      "line",
+      "polygon",
+      "rectangle",
+      "square",
+      "triangle",
+      "parallelogram",
+      "trapezoid",
+      "regularPolygon",
+      "angle",
+      "dimension",
+      "circle",
+      "sector",
+      "bow",
+      "arc",
+      "ring",
+      "ellipse",
+      "label",
+    ]);
   });
 
   test("每项都带 i18n key 与图标数据", () => {

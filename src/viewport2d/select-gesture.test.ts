@@ -458,6 +458,36 @@ describe("select-gesture 家族预览", () => {
     expect(handles?.rotate).toEqual({ x: 0, y: 4 });
     expect(handles?.scale).toEqual({ x: 4, y: 0 });
   });
+
+  test("标注线：reach 取端点到中点最大距离，预览携带两点", () => {
+    const document = doc2d([
+      {
+        id: "dim-1",
+        type: "dimension",
+        points: [
+          { x: 0, y: 0 },
+          { x: 4, y: 0 },
+        ],
+      },
+    ]);
+
+    expect(selectPreview(document, "dim-1")).toEqual({
+      type: "dimension",
+      points: [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+      ],
+    });
+
+    // reach = 2（端点到中点），柄距 = 2 + 4×0.5 = 4。
+    const handles = transformHandles(
+      primitiveOf(document, "dim-1"),
+      0.5,
+    );
+    expect(handles?.center).toEqual({ x: 2, y: 0 });
+    expect(handles?.rotate).toEqual({ x: 2, y: 4 });
+    expect(handles?.scale).toEqual({ x: 6, y: 0 });
+  });
 });
 
 describe("select-gesture 柄命中", () => {

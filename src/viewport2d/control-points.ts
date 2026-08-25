@@ -73,6 +73,7 @@ export function controlPoints(primitive: Primitive2d): ControlPoint[] {
   switch (primitive.type) {
     case "line":
     case "polygon":
+    case "dimension":
       return vertexPoints(primitive.points);
     case "rectangle": {
       // 四角按局部逆时针排列，随 rotationDeg 旋到世界；拖角改宽高（中心不动），

@@ -13,8 +13,9 @@ export const DRAW_TOOLS = [
   "triangle",
   "parallelogram",
   "trapezoid",
-  "angle",
   "regularPolygon",
+  "angle",
+  "dimension",
   "circle",
   "sector",
   "bow",
@@ -46,6 +47,7 @@ const DRAG_TOOLS: ReadonlySet<DrawTool> = new Set([
   "parallelogram",
   "trapezoid",
   "regularPolygon",
+  "dimension",
   "circle",
   "ellipse",
   "ring",
@@ -69,6 +71,7 @@ export type DrawContext = {
 
 export type DrawPreview =
   | { type: "line"; points: Point2[] }
+  | { type: "dimension"; points: Point2[] }
   | { type: "polygon"; points: Point2[] }
   | {
       type: "rectangle";
@@ -443,7 +446,7 @@ export function startDraw(
   if (state.kind !== "idle") {
     return result(state);
   }
-  if (ctx.tool === "line") {
+  if (ctx.tool === "line" || ctx.tool === "dimension") {
     return result({ kind: "line", start: point, cursor: point });
   }
   if (ctx.tool === "rectangle") {
@@ -550,6 +553,14 @@ export function upDraw(
   if (state.kind === "line") {
     if (samePoint(state.start, end)) {
       return result(idleDrawState());
+    }
+    // 标注线复用 line 手势，提交定长二元组（箭头数字是渲染细节）。
+    if (ctx.tool === "dimension") {
+      return commitAndIdle({
+        id: ctx.id,
+        type: "dimension",
+        points: [state.start, end],
+      });
     }
     return commitAndIdle({
       id: ctx.id,

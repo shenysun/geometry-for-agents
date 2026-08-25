@@ -20,6 +20,7 @@ const SYNTAX = [
   "- trapezoid: x, y (bottom-base midpoint), width (bottom base along X), topWidth (top base, differs from width), height along +Y, topOffset (top-base midpoint X offset; 0 = isosceles), rotationDeg (optional, defaults to 0; counterclockwise), fill",
   "- angle: x, y (vertex), startDeg, endDeg (side directions in degrees; 0° at +X, counterclockwise; sweep within (0°,360°)), length (both sides equal)",
   "- regularPolygon: x, y (circumcenter), sides (integer ≥ 5), r (circumradius), rotationDeg (optional, defaults to 0 = flat-bottom: one edge parallel to X at the bottom), fill",
+  "- dimension: exactly 2 {x,y} points (must not coincide); the displayed number is the derived distance between them (no text field, no unit)",
   "- circle: cx, cy, r, fill",
   "- sector: cx, cy, r, startDeg, endDeg, fill",
   "- bow: circular segment, cx, cy, r, startDeg, endDeg, fill",

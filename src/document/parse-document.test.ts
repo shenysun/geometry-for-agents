@@ -74,6 +74,16 @@ const closed2dPrimitives = [
     fill: "none",
   },
   {
+    id: "regularPolygon-1",
+    type: "regularPolygon",
+    x: 0,
+    y: 0,
+    sides: 6,
+    r: 2,
+    rotationDeg: 15,
+    fill: "hatch",
+  },
+  {
     id: "angle-1",
     type: "angle",
     x: 0,
@@ -83,14 +93,12 @@ const closed2dPrimitives = [
     length: 3,
   },
   {
-    id: "regularPolygon-1",
-    type: "regularPolygon",
-    x: 0,
-    y: 0,
-    sides: 6,
-    r: 2,
-    rotationDeg: 15,
-    fill: "hatch",
+    id: "dimension-1",
+    type: "dimension",
+    points: [
+      { x: 0, y: 0 },
+      { x: 3, y: 4 },
+    ],
   },
   {
     id: "circle-1",
@@ -201,8 +209,9 @@ describe("parseDocument", () => {
       "triangle",
       "parallelogram",
       "trapezoid",
-      "angle",
       "regularPolygon",
+      "angle",
+      "dimension",
       "circle",
       "sector",
       "bow",
@@ -1072,6 +1081,75 @@ describe("parseDocument 正多边形", () => {
     if (result.success) return;
     expect(result.error).toContain(
       'type "regularPolygon" is not allowed in space "3d"',
+    );
+  });
+});
+
+const validDimension = {
+  id: "dimension-1",
+  type: "dimension",
+  points: [
+    { x: 0, y: 0 },
+    { x: 3, y: 4 },
+  ],
+};
+
+describe("parseDocument 尺寸标注线", () => {
+  test("parses a dimension as a fixed pair of points", () => {
+    const result = parseDocument(spec("2d", [validDimension]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual(validDimension);
+  });
+
+  test("rejects coincident endpoints (zero length)", () => {
+    const coincident = {
+      ...validDimension,
+      points: [
+        { x: 1, y: 1 },
+        { x: 1, y: 1 },
+      ],
+    };
+
+    expect(parseDocument(spec("2d", [coincident])).success).toBe(false);
+  });
+
+  test("rejects a wrong point arity", () => {
+    expect(
+      parseDocument(
+        spec("2d", [{ ...validDimension, points: [{ x: 0, y: 0 }] }]),
+      ).success,
+    ).toBe(false);
+    expect(
+      parseDocument(
+        spec("2d", [
+          {
+            ...validDimension,
+            points: [
+              { x: 0, y: 0 },
+              { x: 1, y: 0 },
+              { x: 2, y: 0 },
+            ],
+          },
+        ]),
+      ).success,
+    ).toBe(false);
+  });
+
+  test("rejects fill on dimension (stroke family)", () => {
+    const result = parseDocument(spec("2d", [{ ...validDimension, fill: "solid" }]));
+
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects a dimension in space 3d", () => {
+    const result = parseDocument(spec("3d", [validDimension]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain(
+      'type "dimension" is not allowed in space "3d"',
     );
   });
 });

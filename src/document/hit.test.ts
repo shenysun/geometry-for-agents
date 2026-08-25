@@ -530,6 +530,28 @@ describe("hitTest 正多边形", () => {
   });
 });
 
+describe("hitTest 尺寸标注线", () => {
+  test("主段笔画命中：线上与容差内命中，线外落空；非闭合不参与面积", () => {
+    const document = doc2d([
+      {
+        id: "dim-1",
+        type: "dimension",
+        points: [
+          { x: 0, y: 0 },
+          { x: 4, y: 0 },
+        ],
+      },
+    ]);
+
+    expect(hitTest(document, { x: 2, y: 0 })?.id).toBe("dim-1");
+    expect(hitTest(document, { x: 2, y: 0.3 }, 0.5)?.id).toBe("dim-1");
+    expect(hitTest(document, { x: 2, y: 0.3 })).toBeNull();
+    expect(hitTest(document, { x: 2, y: 1 })).toBeNull();
+    // 中点上方 0.8 处是数字标签区域，但数字不是几何：仍落空。
+    expect(hitTest(document, { x: 2, y: 0.8 })).toBeNull();
+  });
+});
+
 describe("hitTest 命中容差", () => {
   test("细线在容差内可命中，零容差保持精确", () => {
     const document = doc2d([

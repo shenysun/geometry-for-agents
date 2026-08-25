@@ -241,6 +241,7 @@ function contains(
     case "bow":
       return inBow(point, primitive);
     case "line":
+    case "dimension":
       return nearPolyline(point, primitive.points, tolerance);
     case "arc":
       return nearArc(point, primitive, tolerance);
@@ -325,6 +326,7 @@ function area(primitive: Primitive2d): number {
     case "line":
     case "arc":
     case "angle":
+    case "dimension":
     case "label":
       return Number.POSITIVE_INFINITY;
   }

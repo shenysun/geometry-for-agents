@@ -116,6 +116,14 @@ export function translatePrimitiveGeometry(
           y: point.y + dy,
         })),
       };
+    case "dimension":
+      return {
+        ...primitive,
+        points: [
+          { x: primitive.points[0].x + dx, y: primitive.points[0].y + dy },
+          { x: primitive.points[1].x + dx, y: primitive.points[1].y + dy },
+        ],
+      };
     case "label":
     case "rectangle":
     case "triangle":
@@ -180,6 +188,7 @@ export function primitiveAnchor(primitive: Primitive2d): Point2 {
   switch (primitive.type) {
     case "line":
     case "polygon":
+    case "dimension":
       return centroid(primitive.points);
     case "rectangle":
     case "label":
@@ -250,6 +259,13 @@ export function rotatePrimitiveGeometry(
         ),
       };
     }
+    case "dimension": {
+      const center = primitiveAnchor(primitive);
+      const [a, b] = primitive.points.map((point) =>
+        rotatePoint(point, center, deg),
+      );
+      return { ...primitive, points: [a, b] };
+    }
     case "ellipse":
     case "rectangle":
     case "triangle":
@@ -294,6 +310,13 @@ export function scalePrimitiveGeometry(
           scalePoint(point, center, factor),
         ),
       };
+    }
+    case "dimension": {
+      const center = primitiveAnchor(primitive);
+      const [a, b] = primitive.points.map((point) =>
+        scalePoint(point, center, factor),
+      );
+      return { ...primitive, points: [a, b] };
     }
     case "circle":
     case "sector":
@@ -464,6 +487,16 @@ export function moveControlPointGeometry(
           at === index ? world : point,
         ),
       };
+    }
+    case "dimension": {
+      const match = VERTEX_ID.exec(pointId);
+      if (match === null) return primitive;
+      const index = Number(match[1]);
+      if (index >= primitive.points.length) return primitive;
+      const [a, b] = primitive.points.map((point, at) =>
+        at === index ? world : point,
+      );
+      return { ...primitive, points: [a, b] };
     }
     case "angle": {
       // 顶点只写位置；边端点改该方向角与公共边长（两边等长）。

@@ -35,6 +35,14 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
     paths: ["M3 12L13 4", "M3 12h9", "M7 12A4 4 0 0 0 6.1 9.5"],
   },
   regularPolygon: { paths: ["M8 2.5l5.2 3.8-2 6.2H4.8l-2-6.2z"] },
+  dimension: {
+    paths: [
+      "M2.5 11.5h11",
+      "M4.5 9.5l-2 2 2 2",
+      "M11.5 9.5l2 2-2 2",
+      "M6 8.5h4v3H6z",
+    ],
+  },
   circle: { paths: ["M3 8a5 5 0 1 0 10 0a5 5 0 1 0-10 0"] },
   sector: { paths: ["M8 13L4 9a6 6 0 0 1 8.5-3.5z"] },
   bow: { paths: ["M3 11a5.2 5.2 0 0 1 10 0z"] },

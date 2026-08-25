@@ -140,6 +140,25 @@ const regularPolygonSchema = z.strictObject({
   fill: fillSchema,
 });
 
+// 尺寸标注线（笔画族）：定长二元组，两点不重合；显示数字是两点距离的
+// 推导值，不进契约（无 text 字段、无单位）。
+const dimensionSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("dimension"),
+    points: z.tuple([point2Schema, point2Schema]),
+  })
+  .refine(
+    (dimension) => {
+      const [a, b] = dimension.points;
+      return a.x !== b.x || a.y !== b.y;
+    },
+    {
+      message: "the two points must not coincide (zero length)",
+      path: ["points"],
+    },
+  );
+
 const circleSchema = z.strictObject({
   ...disk2d,
   type: z.literal("circle"),
@@ -297,8 +316,9 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   triangleSchema,
   parallelogramSchema,
   trapezoidSchema,
-  angleSchema,
   regularPolygonSchema,
+  angleSchema,
+  dimensionSchema,
   circleSchema,
   sectorSchema,
   bowSchema,

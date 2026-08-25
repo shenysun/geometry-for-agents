@@ -112,4 +112,12 @@ describe("createAppI18n", () => {
     expect(i18n.global.t("field.sides")).toBe("Sides");
     expect(i18n.global.t("field.r")).toBe("Radius (r)");
   });
+
+  test("标注线工具在两种语言下都有文案", () => {
+    const i18n = createAppI18n(["zh-CN"]);
+    expect(i18n.global.t("tool.dimension")).toBe("标注线");
+
+    i18n.global.locale.value = "en";
+    expect(i18n.global.t("tool.dimension")).toBe("Dimension line");
+  });
 });
