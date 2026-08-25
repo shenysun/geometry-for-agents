@@ -28,6 +28,7 @@ const SYNTAX = [
   "- ring: cx, cy, rInner < rOuter, fill",
   "- ellipse: cx, cy, rx, ry, rotationDeg (optional, defaults to 0 = axis-aligned; counterclockwise), fill",
   "- label: named point at x, y with text",
+  "- overlapFill: shades the intersection of the two closed primitives named in sources (by id); only the relation is stored, not geometry — the intersection may be empty after later edits",
   "- voxel: 3D unit cube at integer min corner x, y, z",
   "- box: 3D cuboid anchored at the bottom-face center x, y, z; width (X), depth (Z), height (Y) along +Y; rotationDegY, rotationDegX, rotationDegZ",
   "- cylinder: 3D cylinder anchored at the bottom-face center x, y, z; r (radius), height along +Y; rotationDegY, rotationDegX, rotationDegZ",

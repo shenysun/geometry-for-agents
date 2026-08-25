@@ -55,6 +55,15 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
   },
   ellipse: { paths: ["M2.5 8a5.5 3.5 0 1 0 11 0a5.5 3.5 0 1 0-11 0"] },
   label: { paths: ["M5 12L8 4l3 8", "M6 9.5h4"] },
+  overlapFill: {
+    // 两交叠圆 + 交集处斜线：引用式阴影的直白图示。
+    paths: [
+      "M3.5 7a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0",
+      "M5.5 7a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0",
+      "M6.8 4.6l2.4 2.4",
+      "M6 6.2l1.6 1.6",
+    ],
+  },
   voxel: {
     paths: ["M8 2l5 2.8v6.4L8 14l-5-2.8V4.8z", "M3 4.8L8 7.6l5-2.8", "M8 7.6V14"],
   },
@@ -93,8 +102,8 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
 
 /** 每个空间列出的工具次序：选择永远第一，创建工具跟在后面 */
 const TOOLS_PER_SPACE: Record<"2d" | "3d", readonly ToolboxToolId[]> = {
-  // 2D：选择 + 第一期全部平面创建工具
-  "2d": ["select", ...DRAW_TOOLS],
+  // 2D：选择 + 全部平面创建工具 + 重叠填充拾取（ADR 0019，二期图元）
+  "2d": ["select", ...DRAW_TOOLS, "overlapFill"],
   // 3D：选择 + 单位立方体 + 全部参数体（名单与放置提交共用 SOLID_TOOLS）
   "3d": ["select", "voxel", ...SOLID_TOOLS],
 };

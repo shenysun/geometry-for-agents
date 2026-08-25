@@ -478,3 +478,38 @@ describe("documentToPrompt", () => {
     expect(prompt).not.toContain("problem.png");
   });
 });
+
+describe("documentToPrompt 重叠填充（ADR 0019 引用式）", () => {
+  test("documents overlapFill as a source-id relation, no coordinates involved", () => {
+    const document = parsed("2d", [
+      { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 2, fill: "none" },
+      {
+        id: "triangle-1",
+        type: "triangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        apexOffset: 0,
+        fill: "none",
+      },
+      {
+        id: "fill-1",
+        type: "overlapFill",
+        sources: ["circle-1", "triangle-1"],
+        fill: "hatch",
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法行讲清关系语义：交集、按 id 引用、可为空。
+    expect(prompt).toMatch(
+      /overlapFill:.*sources.*intersection/i,
+    );
+    // 投影是关系不是坐标：条目 JSON 里只有 id 引用与填充样式。
+    expect(prompt).toContain('"type":"overlapFill"');
+    expect(prompt).toContain('"sources":["circle-1","triangle-1"]');
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+});

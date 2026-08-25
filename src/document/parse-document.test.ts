@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { documentSchema, parseDocument } from "./index.ts";
+import {
+  documentSchema,
+  fillable2dTypes,
+  parseDocument,
+} from "./index.ts";
 
 function spec(
   space: "2d" | "3d",
@@ -1150,6 +1154,110 @@ describe("parseDocument 尺寸标注线", () => {
     if (result.success) return;
     expect(result.error).toContain(
       'type "dimension" is not allowed in space "3d"',
+    );
+  });
+});
+
+const overlapSources = [
+  { id: "circle-a", type: "circle", cx: 0, cy: 0, r: 2, fill: "none" },
+  {
+    id: "triangle-b",
+    type: "triangle",
+    x: 0,
+    y: 0,
+    width: 4,
+    height: 3,
+    apexOffset: 0,
+    fill: "none",
+  },
+];
+
+const validOverlapFill = {
+  id: "fill-1",
+  type: "overlapFill",
+  sources: ["circle-a", "triangle-b"],
+  fill: "hatch",
+};
+
+describe("parseDocument 重叠填充（ADR 0019 引用式）", () => {
+  test("parses an overlapFill referencing two closed sources", () => {
+    const result = parseDocument(spec("2d", [...overlapSources, validOverlapFill]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[2]).toEqual(validOverlapFill);
+  });
+
+  test("accepts non-intersecting sources (intersection is not a schema concern)", () => {
+    const apart = [
+      { ...overlapSources[0], cx: 50, cy: 50 },
+      overlapSources[1],
+      validOverlapFill,
+    ];
+
+    expect(parseDocument(spec("2d", apart)).success).toBe(true);
+  });
+
+  test("rejects a source referencing a missing primitive", () => {
+    const dangling = { ...validOverlapFill, sources: ["circle-a", "ghost-9"] };
+
+    const result = parseDocument(spec("2d", [overlapSources[0], dangling]));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain('references missing primitive "ghost-9"');
+  });
+
+  test("rejects a stroke-family source", () => {
+    const sources = [
+      ...overlapSources,
+      {
+        id: "line-c",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ],
+      },
+    ];
+    const overLine = { ...validOverlapFill, sources: ["circle-a", "line-c"] };
+
+    const result = parseDocument(spec("2d", [...sources, overLine]));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain("not a fillable closed primitive");
+  });
+
+  test("rejects both sources being the same primitive", () => {
+    const same = { ...validOverlapFill, sources: ["circle-a", "circle-a"] };
+
+    expect(parseDocument(spec("2d", [...overlapSources, same])).success).toBe(false);
+  });
+
+  test("rejects overlapFill in space 3d", () => {
+    const result = parseDocument(spec("3d", [validOverlapFill]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain(
+      'type "overlapFill" is not allowed in space "3d"',
+    );
+  });
+
+  test("fillable2dTypes derives the closed fill family, excluding overlapFill itself", () => {
+    expect([...fillable2dTypes].sort()).toEqual(
+      [
+        "polygon",
+        "rectangle",
+        "triangle",
+        "parallelogram",
+        "trapezoid",
+        "regularPolygon",
+        "circle",
+        "sector",
+        "bow",
+        "ring",
+        "ellipse",
+      ].sort(),
     );
   });
 });

@@ -39,6 +39,7 @@ describe("toolFromShortcut", () => {
     ["p", "polygon"],
     ["n", "regularPolygon"],
     ["z", "trapezoid"],
+    ["f", "overlapFill"],
   ] as const)("2D 单键 %s → %s", (pressed, tool) => {
     expect(toolFromShortcut(key(pressed), "2d")).toBe(tool);
   });

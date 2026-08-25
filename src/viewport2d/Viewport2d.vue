@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useEventListener, useResizeObserver } from "@vueuse/core";
+import { useI18n } from "vue-i18n";
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { type GridSnap, type Point2 } from "../document/index.ts";
 import {
@@ -25,6 +26,13 @@ import {
   type DrawGestureState,
   type DrawPreview,
 } from "./draw-gesture.ts";
+import {
+  clickPickOverlap,
+  idlePickOverlapState,
+  type PickOverlapResult,
+  type PickOverlapState,
+} from "./pick-overlap-gesture.ts";
+import { sourcesIntersect } from "./draw-primitives.ts";
 import { controlPoints } from "./control-points.ts";
 import {
   createViewport2dProjector,
@@ -62,9 +70,11 @@ const scaleHandleScreen = ref<Point2 | null>(null);
 const controlPointScreens = ref<{ id: string; point: Point2 }[]>([]);
 const documentStore = useDocumentStore();
 const editor = useEditorStore();
+const { t } = useI18n();
 let projector: Viewport2dProjector | null = null;
 let gesture: DrawGestureState = idleDrawState();
 let selectGesture: SelectGestureState = idleSelectState();
+let pickOverlap: PickOverlapState = idlePickOverlapState();
 let dragStart: Point2 | null = null;
 let dragDistance = 0;
 let panSuppressed = false;
@@ -203,6 +213,11 @@ function refreshOverlays(): void {
 function refreshSelectionMark(): void {
   refreshOverlays();
   if (projector === null) return;
+  if (editor.tool === "overlapFill") {
+    // 拾取态的预览（第一源高亮）随视图换算重画。
+    projector.setPreview(pickOverlapPreview());
+    return;
+  }
   if (isDrawTool(editor.tool) || selectGesture.kind !== "idle") return;
   projector.setPreview(selectionMark());
 }
@@ -253,20 +268,75 @@ function drawContext(
   return { tool, point, grid: gridForEvent(event), id, labelTexts };
 }
 
-function applyGesture(result: DrawGestureResult): void {
-  gesture = result.state;
-  projector?.setPreview(result.preview);
-  if (result.commit === null) return;
-  const added = documentStore.addPrimitive(result.commit);
+/** 提交一条新图元：成功才选中它并切回选择（ADR 0018 画完即回选择）。 */
+function commitPrimitive(primitive: Parameters<typeof documentStore.addPrimitive>[0]): void {
+  const added = documentStore.addPrimitive(primitive);
   if (added.success) {
-    editor.setSelectionId(result.commit.id);
+    editor.setSelectionId(primitive.id);
     // ADR 0018：画完即回选择，刚画的图元保持选中可立即调整。
     editor.setTool("select");
   }
 }
 
+function applyGesture(result: DrawGestureResult): void {
+  gesture = result.state;
+  projector?.setPreview(result.preview);
+  if (result.commit === null) return;
+  commitPrimitive(result.commit);
+}
+
 function cancelPreview(): void {
   applyGesture(escDraw(gesture));
+}
+
+/** 重叠填充两步拾取：进度/契约拒绝提示（模板直读），第一拾取高亮复用选中标记画法。 */
+const pickHint = ref<string | null>(null);
+
+function pickOverlapPreview(): DrawPreview {
+  return pickOverlap.kind === "first"
+    ? selectPreview(documentStore.current, pickOverlap.id)
+    : selectionMark();
+}
+
+function resetPickOverlap(): void {
+  pickOverlap = idlePickOverlapState();
+  pickHint.value = null;
+}
+
+function applyPickHint(state: PickOverlapState, rejection: string | null): void {
+  if (rejection === "not-fillable") {
+    pickHint.value = t("pickHint.notFillable");
+  } else if (rejection === "same-source") {
+    pickHint.value = t("pickHint.sameSource");
+  } else if (rejection === "no-intersection") {
+    pickHint.value = t("pickHint.noIntersection");
+  } else {
+    pickHint.value =
+      state.kind === "first" ? t("pickHint.first") : null;
+  }
+}
+
+function handlePickOverlapClick(event: MouseEvent): void {
+  const point = eventWorld(event);
+  if (point === null) return;
+  const result = clickPickOverlap(
+    pickOverlap,
+    {
+      document: documentStore.current,
+      point,
+      tolerance: hitToleranceWorld(),
+      id: crypto.randomUUID(),
+    },
+    sourcesIntersect,
+  );
+  pickOverlap = result.state;
+  applyPickHint(result.state, result.rejection);
+  if (result.commit !== null) {
+    // 成功分支里提交并回选择；工具切换的 watch 会复位拾取态与预览。
+    commitPrimitive(result.commit);
+    return;
+  }
+  projector?.setPreview(pickOverlapPreview());
 }
 
 onMounted(() => {
@@ -329,6 +399,7 @@ watch(
   (tool) => {
     cancelPreview();
     selectGesture = idleSelectState();
+    resetPickOverlap();
     projector?.setTool(tool);
     refreshSelectionMark();
   },
@@ -430,6 +501,10 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
 
 useEventListener(hostRef, "click", (event: MouseEvent) => {
   if (dragDistance > 4) return;
+  if (editor.tool === "overlapFill") {
+    handlePickOverlapClick(event);
+    return;
+  }
   if (isDrawTool(editor.tool)) {
     if (!isDragDrawTool(editor.tool)) {
       const context = drawContext(event);
@@ -451,6 +526,10 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
   if (event.key === "Escape") {
     cancelPreview();
     applySelectGesture(escSelect(selectGesture), editor.grid);
+    if (editor.tool === "overlapFill") {
+      resetPickOverlap();
+      projector?.setPreview(pickOverlapPreview());
+    }
     return;
   }
 
@@ -472,11 +551,21 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    ref="hostRef"
-    class="relative h-full min-h-0 w-full overflow-hidden bg-white"
-    data-viewport-2d
-  >
+  <div class="relative h-full min-h-0 w-full">
+    <!-- 提示条不进宿主容器：Konva 舞台 div 是命令式插进去的，Vue 不能在
+         同一容器里增删兄弟节点（否则 patch 锚点错乱，ADR 0008 的边界）。 -->
+    <div
+      v-if="pickHint !== null"
+      class="pointer-events-none absolute bottom-2 left-2 z-20 rounded bg-zinc-900/85 px-2 py-1 text-xs text-white"
+      data-pick-hint
+    >
+      {{ pickHint }}
+    </div>
+    <div
+      ref="hostRef"
+      class="relative h-full min-h-0 w-full overflow-hidden bg-white"
+      data-viewport-2d
+    >
     <!-- 控制点与变换手柄层：容器不接事件，只有控件本身可点，不会挡住底下的视口平移。 -->
     <div class="pointer-events-none absolute inset-0 z-10">
       <div
@@ -510,6 +599,7 @@ onUnmounted(() => {
         }"
         data-scale-handle
       />
+    </div>
     </div>
   </div>
 </template>

@@ -3,9 +3,9 @@ import { DRAW_TOOLS } from "../viewport2d/draw-gesture.ts";
 import { toolsForSpace } from "./toolbox.ts";
 
 describe("toolsForSpace", () => {
-  test("2D 目录 = 选择 + 第一期全部平面创建工具", () => {
+  test("2D 目录 = 选择 + 全部平面创建工具 + 重叠填充拾取", () => {
     const ids = toolsForSpace("2d").map((tool) => tool.id);
-    expect(ids).toEqual(["select", ...DRAW_TOOLS]);
+    expect(ids).toEqual(["select", ...DRAW_TOOLS, "overlapFill"]);
   });
 
   test("3D 目录 = 选择 + 单位立方体 + 全部参数体（长方体、圆柱、圆锥、球、四棱锥、三棱柱）", () => {
@@ -75,6 +75,7 @@ describe("toolsForSpace", () => {
       "ring",
       "ellipse",
       "label",
+      "overlapFill",
     ]);
   });
 

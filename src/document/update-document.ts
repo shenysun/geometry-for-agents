@@ -78,9 +78,21 @@ export function removePrimitive(
   if (!document.primitives.some((primitive) => primitive.id === id)) {
     return missingId(id);
   }
+  // 级联删除（ADR 0019）：删源连带删引用它的 overlapFill。源只能是可填充
+  // 几何图元（不可能是另一条 overlapFill），一遍扫描即闭包；不级联则 sources
+  // 悬空，schema 直接拒绝整份说明书。
+  const doomed = new Set<string>([id]);
+  for (const primitive of document.primitives) {
+    if (
+      primitive.type === "overlapFill" &&
+      primitive.sources.some((source) => doomed.has(source))
+    ) {
+      doomed.add(primitive.id);
+    }
+  }
   return replacePrimitives(
     document,
-    document.primitives.filter((primitive) => primitive.id !== id),
+    document.primitives.filter((primitive) => !doomed.has(primitive.id)),
   );
 }
 
@@ -107,6 +119,9 @@ export function translatePrimitiveGeometry(
   dy: number,
 ): Primitive2d {
   switch (primitive.type) {
+    case "overlapFill":
+      // 引用式条目无几何字段可写：变换恒等（源动它跟着动，自身不可拖）。
+      return primitive;
     case "line":
     case "polygon":
       return {
@@ -198,6 +213,9 @@ export function primitiveAnchor(primitive: Primitive2d): Point2 {
     case "angle":
     case "regularPolygon":
       return { x: primitive.x, y: primitive.y };
+    case "overlapFill":
+      // 引用条目无锚点（不可变换）：手柄布局对其返回 null，不应抵达此处。
+      return { x: Number.NaN, y: Number.NaN };
     default:
       return { x: primitive.cx, y: primitive.cy };
   }
@@ -249,6 +267,8 @@ export function rotatePrimitiveGeometry(
   deg: number,
 ): Primitive2d {
   switch (primitive.type) {
+    case "overlapFill":
+      return primitive;
     case "line":
     case "polygon": {
       const center = primitiveAnchor(primitive);
@@ -301,6 +321,8 @@ export function scalePrimitiveGeometry(
   factor: number,
 ): Primitive2d {
   switch (primitive.type) {
+    case "overlapFill":
+      return primitive;
     case "line":
     case "polygon": {
       const center = primitiveAnchor(primitive);
@@ -475,6 +497,8 @@ export function moveControlPointGeometry(
   world: Point2,
 ): Primitive2d {
   switch (primitive.type) {
+    case "overlapFill":
+      return primitive;
     case "line":
     case "polygon": {
       const match = VERTEX_ID.exec(pointId);

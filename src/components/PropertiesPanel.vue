@@ -271,6 +271,14 @@ const selectedName = computed(() => {
   );
 });
 
+/** 重叠填充的两源显示名（只读）：删源即级联删条目，不会出现悬空名。 */
+const overlapSources = computed(() => {
+  const primitive = selected.value;
+  if (primitive === null || primitive.type !== "overlapFill") return null;
+  const names = displayNamesById(documentStore.current.primitives, t);
+  return primitive.sources.map((id) => names.get(id) ?? id);
+});
+
 const solid = computed(() => {
   const primitive = selected.value;
   return primitive !== null && isSolidPrimitive(primitive) ? primitive : null;
@@ -683,6 +691,9 @@ function onFillChange(value: string | string[] | undefined): void {
     class="h-full space-y-3 overflow-auto px-3 py-3 text-sm"
   >
     <p class="font-medium" :title="selected.id">{{ selectedName }}</p>
+    <p v-if="overlapSources !== null" class="text-zinc-500">
+      {{ t("field.sources") }}：{{ overlapSources.join(" ∩ ") }}
+    </p>
     <div v-if="solid !== null" class="grid grid-cols-2 gap-2">
       <label v-for="field in solidFieldList" :key="field.key" class="space-y-1">
         <span class="block text-zinc-500">{{ t(field.labelKey) }}</span>

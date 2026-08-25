@@ -215,6 +215,9 @@ function contains(
   tolerance: number,
 ): boolean {
   switch (primitive.type) {
+    case "overlapFill":
+      // 引用条目自身无几何：区域命中（点在两源交集内）由 hitTest 顶层特判。
+      return false;
     case "circle":
       return inDisk(point, primitive);
     case "ellipse":
@@ -328,6 +331,7 @@ function area(primitive: Primitive2d): number {
     case "angle":
     case "dimension":
     case "label":
+    case "overlapFill":
       return Number.POSITIVE_INFINITY;
   }
 }
@@ -356,15 +360,48 @@ export function hitTest(
   if (document.space === "3d") {
     return hitVoxels(document.primitives, point);
   }
+
+  // 几何命中沿用现行规则：封闭面优先于笔画，并列取面积小者。
+  // overlapFill 自身 contains 恒 false，不进几何通道。
   const hits = document.primitives.filter((primitive) =>
     contains(primitive, point, tolerance),
   );
-  if (hits.length === 0) return null;
+  const geometricWinner =
+    hits.length === 0
+      ? null
+      : hits.reduce((best, candidate) => {
+          if (isClosed(candidate) !== isClosed(best)) {
+            return isClosed(candidate) ? candidate : best;
+          }
+          return area(candidate) <= area(best) ? candidate : best;
+        });
 
-  const closedHits = hits.filter(isClosed);
-  const candidates = closedHits.length > 0 ? closedHits : hits;
+  // 重叠填充（ADR 0019）：点在两源交集内即命中条目本身，并列取列表靠后者。
+  // 让位规则是「面积小者优先」的延伸：几何胜者是面积严格小于两源的嵌套小面
+  // （交集里可见的更小目标）时它赢，否则引用条目赢——源自身不劫走自己的条目。
+  for (let i = document.primitives.length - 1; i >= 0; i--) {
+    const entry = document.primitives[i];
+    if (entry === undefined || entry.type !== "overlapFill") continue;
+    const [a, b] = entry.sources.map((id) =>
+      document.primitives.find((primitive) => primitive.id === id),
+    );
+    if (
+      a === undefined ||
+      b === undefined ||
+      !contains(a, point, tolerance) ||
+      !contains(b, point, tolerance)
+    ) {
+      continue;
+    }
+    if (
+      geometricWinner !== null &&
+      isClosed(geometricWinner) &&
+      area(geometricWinner) < Math.min(area(a), area(b))
+    ) {
+      break;
+    }
+    return entry;
+  }
 
-  return candidates.reduce((best, candidate) =>
-    area(candidate) <= area(best) ? candidate : best,
-  );
+  return geometricWinner;
 }

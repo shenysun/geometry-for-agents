@@ -213,6 +213,21 @@ const labelSchema = z.strictObject({
   text: z.string().min(1),
 });
 
+// 重叠填充（ADR 0019 引用式）：两源 id + 一份填充样式，不存几何——交集是
+// 渲染期的推导值。相交性不进 schema：创建后源被拖开，条目合法保留（渲染为空）。
+// 源必须存在且属可填充封闭族，由 documentSchema 的 superRefine 跨条目校验。
+const overlapFillSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("overlapFill"),
+    sources: z.tuple([primitiveId, primitiveId]),
+    fill: fillSchema,
+  })
+  .refine((entry) => entry.sources[0] !== entry.sources[1], {
+    message: "the two sources must be distinct primitives",
+    path: ["sources"],
+  });
+
 const voxelSchema = z.strictObject({
   id: primitiveId,
   type: z.literal("voxel"),
@@ -326,6 +341,7 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   ringSchema,
   ellipseSchema,
   labelSchema,
+  overlapFillSchema,
 ]);
 
 const threeDPrimitiveSchema = z.discriminatedUnion("type", [
@@ -379,6 +395,32 @@ export const documentSchema = z
       }
       seen.add(primitive.id);
     }
+    // overlapFill 的源是跨条目引用：必须指向已存在的可填充封闭图元。
+    // 悬空即拒——删源必须级联删条目（removePrimitive 依赖此约束兜底）。
+    const byId = new Map(
+      document.primitives.map((primitive) => [primitive.id, primitive] as const),
+    );
+    for (const [index, primitive] of document.primitives.entries()) {
+      if (primitive.type !== "overlapFill") continue;
+      for (const [slot, sourceId] of primitive.sources.entries()) {
+        const source = byId.get(sourceId);
+        if (source === undefined) {
+          ctx.addIssue({
+            code: "custom",
+            message: `overlapFill "${primitive.id}" references missing primitive "${sourceId}"`,
+            path: ["primitives", index, "sources", slot],
+          });
+          continue;
+        }
+        if (!fillable2dTypes.has(source.type)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `overlapFill "${primitive.id}" source "${sourceId}" (${source.type}) is not a fillable closed primitive`,
+            path: ["primitives", index, "sources", slot],
+          });
+        }
+      }
+    }
   })
   .describe(
     "2D coordinates are (x,y) with Y-up. 3D coordinates are (x,y,z) with Y as height and XZ as the ground. Angles are degrees, 0° at +X, counterclockwise positive. A voxel's integer (x,y,z) is the minimum corner of the unit cube occupying [x,x+1]×[y,y+1]×[z,z+1]. Standing solids (box, cylinder, cone, pyramid, triangularPrism) are anchored at the bottom-face center: y is the base height, height grows along +Y; rotationDegY/X/Z are euler degrees composed in Y→X→Z order, 0 = base facing down. A sphere's (x,y,z) is its center. A triangularPrism's base is three {x,z} points in the bottom face's local XZ plane (the default base is an equilateral triangle of side 1 with its centroid at the local origin).",
@@ -404,6 +446,18 @@ function typeNamesOf(
 }
 
 const twoDTypes = typeNamesOf(twoDPrimitiveSchema);
+
+/** 可填充封闭族 = 带 fill 字段的 2D 几何图元（overlapFill 除外——它是引用条目不是几何面）。
+ *  从判别联合推导，不手报名单；hit.ts 的封闭判定与此同源，改 schema 即同步。 */
+export const fillable2dTypes: ReadonlySet<string> = new Set(
+  twoDPrimitiveSchema.options
+    .filter(
+      (option) =>
+        (option.shape as Record<string, unknown>).fill !== undefined &&
+        option.shape.type.value !== "overlapFill",
+    )
+    .map((option) => option.shape.type.value),
+);
 
 const threeDTypes = typeNamesOf(threeDPrimitiveSchema);
 

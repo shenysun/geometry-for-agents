@@ -82,6 +82,13 @@ describe("editor store", () => {
     store.setSpace("3d");
     expect(store.tool).toBe("select");
 
+    // 重叠填充是 2D 拾取工具（ADR 0019），同样带不进 3D
+    store.setSpace("2d");
+    store.setTool("overlapFill");
+    expect(store.tool).toBe("overlapFill");
+    store.setSpace("3d");
+    expect(store.tool).toBe("select");
+
     // 选择工具跨空间保持
     store.setSpace("2d");
     expect(store.tool).toBe("select");

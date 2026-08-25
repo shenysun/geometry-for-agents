@@ -8,7 +8,13 @@ import type { SessionUnderlay } from "../viewport2d/draw-underlay.ts";
 import type { ClosablePanelId } from "../components/layout.ts";
 import { SOLID_TOOLS, type SolidToolId } from "../viewport3d/solid-commit.ts";
 
-export type EditorTool = "select" | DrawTool | "voxel" | SolidToolId | null;
+export type EditorTool =
+  | "select"
+  | DrawTool
+  | "overlapFill"
+  | "voxel"
+  | SolidToolId
+  | null;
 
 /** 顶栏发给停靠宿主的布局指令；nonce 保证重复点同一项也触发 */
 export type LayoutCommand =
@@ -40,9 +46,10 @@ export const useEditorStore = defineStore("editor", () => {
 
   function setSpace(next: "2d" | "3d"): void {
     space.value = next;
-    // 别的空间的创建工具带不过去：2D 创建工具进 3D、3D 工具进 2D 都退回选择
+    // 别的空间的创建工具带不过去：2D 创建工具（含重叠填充拾取）进 3D、
+    // 3D 工具进 2D 都退回选择
     const fromOtherSpace =
-      (next === "3d" && isDrawTool(tool.value)) ||
+      (next === "3d" && (isDrawTool(tool.value) || tool.value === "overlapFill")) ||
       (next === "2d" && threeDTools.has(tool.value));
     if (fromOtherSpace) {
       tool.value = "select";

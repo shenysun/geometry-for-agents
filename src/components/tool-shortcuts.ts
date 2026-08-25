@@ -22,6 +22,7 @@ const SINGLE_KEY_SHORTCUTS: Record<"2d" | "3d", Record<string, EditorTool>> = {
     p: "polygon",
     n: "regularPolygon",
     z: "trapezoid",
+    f: "overlapFill",
   },
   "3d": {
     v: "select",

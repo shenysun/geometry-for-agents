@@ -598,3 +598,56 @@ describe("hitTest 命中容差", () => {
     expect(hitTest(document, { x: 1.2, y: 1 })).toBeNull();
   });
 });
+
+describe("hitTest 重叠填充区域（ADR 0019 引用式）", () => {
+  const overlapDoc = (extra: unknown[] = []) =>
+    doc2d([
+      { id: "circle-a", type: "circle", cx: 0, cy: 0, r: 4, fill: "none" },
+      { id: "rect-b", type: "rectangle", x: 2, y: 0, width: 4, height: 6, fill: "none" },
+      { id: "fill-1", type: "overlapFill", sources: ["circle-a", "rect-b"], fill: "hatch" },
+      ...extra,
+    ]);
+
+  test("a click inside both sources returns the overlapFill entry, not a source", () => {
+    // 圆 (r=4, 圆心 0,0) 与矩形 (中心 2,0, 4×6) 的交集内取 (2,0)。
+    const hit = hitTest(overlapDoc(), { x: 2, y: 0 });
+
+    expect(hit?.id).toBe("fill-1");
+  });
+
+  test("a click inside only one source returns that source", () => {
+    expect(hitTest(overlapDoc(), { x: -2, y: 0 })?.id).toBe("circle-a");
+    // (3.8,2.8) 在矩形内、圆外（离圆心 4.72 > 4）。
+    expect(hitTest(overlapDoc(), { x: 3.8, y: 2.8 })?.id).toBe("rect-b");
+  });
+
+  test("a click inside a smaller nested shape still beats the overlapFill region", () => {
+    // 交集里再放一个小圆：面内命中按面积小者优先的现行规则不该被引用条目劫走。
+    const document = doc2d([
+      { id: "circle-a", type: "circle", cx: 0, cy: 0, r: 4, fill: "none" },
+      { id: "rect-b", type: "rectangle", x: 2, y: 0, width: 4, height: 6, fill: "none" },
+      { id: "tiny", type: "circle", cx: 2, cy: 0, r: 0.5, fill: "none" },
+      { id: "fill-1", type: "overlapFill", sources: ["circle-a", "rect-b"], fill: "hatch" },
+    ]);
+
+    expect(hitTest(document, { x: 2, y: 0 })?.id).toBe("tiny");
+  });
+
+  test("stacked overlapFill entries: the later one in document order wins", () => {
+    const document = overlapDoc([
+      { id: "fill-2", type: "overlapFill", sources: ["circle-a", "rect-b"], fill: "solid" },
+    ]);
+
+    expect(hitTest(document, { x: 2, y: 0 })?.id).toBe("fill-2");
+  });
+
+  test("a stale entry whose sources no longer intersect is never hit", () => {
+    const document = doc2d([
+      { id: "circle-a", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+      { id: "rect-b", type: "rectangle", x: 50, y: 50, width: 4, height: 6, fill: "none" },
+      { id: "fill-1", type: "overlapFill", sources: ["circle-a", "rect-b"], fill: "hatch" },
+    ]);
+
+    expect(hitTest(document, { x: 0, y: 0 })?.id).toBe("circle-a");
+  });
+});

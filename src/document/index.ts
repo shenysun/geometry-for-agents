@@ -1,5 +1,6 @@
 export {
   documentSchema,
+  fillable2dTypes,
   parseDocument,
 } from "./parse-document.ts";
 export type {

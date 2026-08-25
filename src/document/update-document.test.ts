@@ -2381,3 +2381,60 @@ describe("addVertex / removeVertex (document-level)", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("removePrimitive / 变换恒等：重叠填充（ADR 0019）", () => {
+  function overlapDoc(): GeometryDocument {
+    return mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        circle("circle-a", 2),
+        {
+          id: "fill-1",
+          type: "overlapFill",
+          sources: ["circle-a", "bow-b"],
+          fill: "hatch",
+        },
+        bow("bow-b"),
+        circle("circle-c", 5),
+      ],
+    });
+  }
+
+  test("removing a source cascades away the overlapFill that references it", () => {
+    const result = removePrimitive(overlapDoc(), "circle-a");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.id)).toEqual([
+      "bow-b",
+      "circle-c",
+    ]);
+  });
+
+  test("removing the overlapFill itself removes only the entry", () => {
+    const result = removePrimitive(overlapDoc(), "fill-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+      "circle-c",
+    ]);
+  });
+
+  test("translate/rotate/scale/control-point are all identity on overlapFill", () => {
+    const doc = overlapDoc();
+    const entry = doc.primitives[1];
+    if (entry.type !== "overlapFill") throw new Error("fixture");
+
+    expect(translatePrimitiveGeometry(entry, 3, -4)).toBe(entry);
+    expect(rotatePrimitiveGeometry(entry, 45)).toBe(entry);
+    expect(scalePrimitiveGeometry(entry, 2)).toBe(entry);
+    expect(moveControlPointGeometry(entry, "vertex-0", { x: 9, y: 9 })).toBe(
+      entry,
+    );
+  });
+});

@@ -379,3 +379,32 @@ describe("document hash", () => {
     expect(result.error.length).toBeGreaterThan(0);
   });
 });
+
+describe("document hash 重叠填充往返（ADR 0019）", () => {
+  test("an overlapFill entry survives the lz-string roundtrip untouched", () => {
+    const document = parsed("2d", [
+      { id: "circle-1", type: "circle", cx: 0, cy: 1, r: 2, fill: "none" },
+      {
+        id: "rect-1",
+        type: "rectangle",
+        x: 1,
+        y: 1,
+        width: 3,
+        height: 2,
+        fill: "none",
+      },
+      {
+        id: "fill-1",
+        type: "overlapFill",
+        sources: ["circle-1", "rect-1"],
+        fill: "hatch",
+      },
+    ]);
+
+    const restored = hashToDocument(documentToHash(document));
+
+    expect(restored.success).toBe(true);
+    if (!restored.success) return;
+    expect(restored.document).toEqual(document);
+  });
+});
