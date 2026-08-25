@@ -2,10 +2,11 @@ import type { Point2, Primitive2d } from "../document/index.ts";
 
 /**
  * 控制点的语义分类：目录顺序即命中优先级（重叠时先列出的先赢）。
- * 顶点只是折线/多边形的控制点，圆族露出圆心/半径/角度。
+ * 顶点只是折线/多边形的控制点，圆族露出圆心/半径/角度，矩形露出四角。
  */
 export type ControlPointKind =
   | "vertex"
+  | "corner"
   | "center"
   | "radius"
   | "innerRadius"
@@ -67,6 +68,25 @@ export function controlPoints(primitive: Primitive2d): ControlPoint[] {
     case "line":
     case "polygon":
       return vertexPoints(primitive.points);
+    case "rectangle": {
+      // 四角按局部逆时针排列，随 rotationDeg 旋到世界；拖角改宽高（中心不动），
+      // 平移走拖本体，故中心不进目录。
+      const center = { x: primitive.x, y: primitive.y };
+      const offsets: Point2[] = [
+        { x: primitive.width / 2, y: primitive.height / 2 },
+        { x: -primitive.width / 2, y: primitive.height / 2 },
+        { x: -primitive.width / 2, y: -primitive.height / 2 },
+        { x: primitive.width / 2, y: -primitive.height / 2 },
+      ];
+      return offsets.map((offset, index) => {
+        const rotated = rotateOffset(offset, primitive.rotationDeg);
+        return {
+          id: `corner-${index}`,
+          kind: "corner" as const,
+          point: { x: center.x + rotated.x, y: center.y + rotated.y },
+        };
+      });
+    }
     case "circle": {
       const center = { x: primitive.cx, y: primitive.cy };
       return [

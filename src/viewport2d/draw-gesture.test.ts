@@ -481,3 +481,132 @@ describe("nextLabelText", () => {
   });
 });
 
+describe("rectangle 工具", () => {
+  test("拖对角线提交矩形：中心=对角中点，宽高=对角投影", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("rectangle", { x: 0, y: 0 }, 1, "rect-1"),
+    );
+    expect(started.commit).toBeNull();
+    const moved = moveDraw(
+      started.state,
+      ctx("rectangle", { x: 4, y: 2 }, 1, "rect-1"),
+    );
+    expect(moved.commit).toBeNull();
+    expect(moved.preview).toEqual({
+      type: "rectangle",
+      x: 2,
+      y: 1,
+      width: 4,
+      height: 2,
+      rotationDeg: 0,
+    });
+
+    const committed = upDraw(
+      moved.state,
+      ctx("rectangle", { x: 4, y: 2 }, 1, "rect-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "rect-1",
+      type: "rectangle",
+      x: 2,
+      y: 1,
+      width: 4,
+      height: 2,
+      rotationDeg: 0,
+      fill: "none",
+    });
+    expect(committed.preview).toBeNull();
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("反向拖（右上→左下）同样成立：中心与宽高取绝对值", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("rectangle", { x: 2, y: 3 }, 1, "rect-1"),
+    );
+    const committed = upDraw(
+      started.state,
+      ctx("rectangle", { x: -2, y: 1 }, 1, "rect-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "rect-1",
+      type: "rectangle",
+      x: 0,
+      y: 2,
+      width: 4,
+      height: 2,
+      rotationDeg: 0,
+      fill: "none",
+    });
+  });
+
+  test("零宽或零高的退化拖动不提交", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("rectangle", { x: 0, y: 0 }, 1, "rect-1"),
+    );
+    const flat = upDraw(
+      started.state,
+      ctx("rectangle", { x: 3, y: 0 }, 1, "rect-1"),
+    );
+    expect(flat.commit).toBeNull();
+    expect(flat.state).toEqual(idleDrawState());
+  });
+
+  test("起点与终点都吃当前格", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("rectangle", { x: 1.4, y: -1.6 }, 1, "rect-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("rectangle", { x: 3.5, y: 0.2 }, 1, "rect-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "rectangle",
+      x: 2.5,
+      y: -1,
+      width: 3,
+      height: 2,
+      rotationDeg: 0,
+    });
+  });
+
+  test("Alt 不落格（grid off 保留原始点）", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("rectangle", { x: 0.5, y: -0.5 }, "off", "rect-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("rectangle", { x: 2.25, y: 1 }, "off", "rect-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "rectangle",
+      x: 1.375,
+      y: 0.25,
+      width: 1.75,
+      height: 1.5,
+      rotationDeg: 0,
+    });
+  });
+
+  test("esc 取消矩形预览且不提交", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("rectangle", { x: 0, y: 0 }, 1, "rect-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("rectangle", { x: 4, y: 2 }, 1, "rect-1"),
+    );
+    expect(moved.preview).not.toBeNull();
+
+    const cancelled = escDraw(moved.state);
+    expect(cancelled.commit).toBeNull();
+    expect(cancelled.preview).toBeNull();
+    expect(cancelled.state).toEqual(idleDrawState());
+  });
+});
+

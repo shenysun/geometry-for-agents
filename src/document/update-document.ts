@@ -111,6 +111,7 @@ export function translatePrimitiveGeometry(
         })),
       };
     case "label":
+    case "rectangle":
       return { ...primitive, x: primitive.x + dx, y: primitive.y + dy };
     case "circle":
     case "sector":
@@ -163,12 +164,13 @@ function centroid(points: readonly Point2[]): Point2 {
   return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
-/** 图元自身锚点：折线/多边形取顶点质心，圆族取圆心，标签取其位置。 */
+/** 图元自身锚点：折线/多边形取顶点质心，圆族取圆心，矩形/标签取其位置。 */
 export function primitiveAnchor(primitive: Primitive2d): Point2 {
   switch (primitive.type) {
     case "line":
     case "polygon":
       return centroid(primitive.points);
+    case "rectangle":
     case "label":
       return { x: primitive.x, y: primitive.y };
     default:
@@ -233,6 +235,7 @@ export function rotatePrimitiveGeometry(
       };
     }
     case "ellipse":
+    case "rectangle":
       return {
         ...primitive,
         rotationDeg: normalizeDeg(primitive.rotationDeg + deg),
@@ -287,6 +290,12 @@ export function scalePrimitiveGeometry(
         ...primitive,
         rx: primitive.rx * factor,
         ry: primitive.ry * factor,
+      };
+    case "rectangle":
+      return {
+        ...primitive,
+        width: primitive.width * factor,
+        height: primitive.height * factor,
       };
     case "label":
       return primitive;
@@ -370,6 +379,19 @@ function ellipseLocalOffset(
   return { x: local.x - center.x, y: local.y - center.y };
 }
 
+/** 世界点转进矩形局部系（逆旋转 rotationDeg）后的中心偏移。 */
+function rectangleLocalOffset(
+  primitive: Extract<Primitive2d, { type: "rectangle" }>,
+  world: Point2,
+): Point2 {
+  const center = { x: primitive.x, y: primitive.y };
+  const local = rotatePoint(world, center, -primitive.rotationDeg);
+  return { x: local.x - center.x, y: local.y - center.y };
+}
+
+/** 矩形四角控制点 id：corner-0..3，与控制点目录同源。 */
+const CORNER_ID = /^corner-([0-3])$/;
+
 const VERTEX_ID = /^vertex-(\d+)$/;
 
 /**
@@ -449,6 +471,18 @@ export function moveControlPointGeometry(
         return {
           ...primitive,
           ry: Math.abs(ellipseLocalOffset(primitive, world).y),
+        };
+      }
+      return primitive;
+    }
+    case "rectangle": {
+      // 拖任一角都以中心为不动点改宽高：局部偏移翻倍即尺寸，两轴独立。
+      if (CORNER_ID.test(pointId)) {
+        const offset = rectangleLocalOffset(primitive, world);
+        return {
+          ...primitive,
+          width: Math.abs(offset.x) * 2,
+          height: Math.abs(offset.y) * 2,
         };
       }
       return primitive;

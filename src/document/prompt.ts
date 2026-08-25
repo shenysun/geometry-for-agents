@@ -14,6 +14,7 @@ const SYNTAX = [
   "Primitive syntax (closed set):",
   "- line: 2+ {x,y} points",
   "- polygon: 3+ {x,y} points, fill none|solid|hatch",
+  "- rectangle: x, y (center), width (X), height (Y), rotationDeg (optional, defaults to 0 = axis-aligned; counterclockwise), fill",
   "- circle: cx, cy, r, fill",
   "- sector: cx, cy, r, startDeg, endDeg, fill",
   "- bow: circular segment, cx, cy, r, startDeg, endDeg, fill",

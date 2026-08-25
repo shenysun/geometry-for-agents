@@ -228,6 +228,72 @@ describe("hitTest", () => {
   });
 });
 
+describe("hitTest 矩形", () => {
+  test("轴对齐矩形：内点与边界命中，外点落空", () => {
+    const document = doc2d([
+      {
+        id: "rect-1",
+        type: "rectangle",
+        x: 1,
+        y: 2,
+        width: 4,
+        height: 2,
+        rotationDeg: 0,
+        fill: "none",
+      },
+    ]);
+
+    expect(hitTest(document, { x: 1, y: 2 })?.id).toBe("rect-1");
+    expect(hitTest(document, { x: 3, y: 3 })?.id).toBe("rect-1");
+    expect(hitTest(document, { x: 3.1, y: 2 })).toBeNull();
+    expect(hitTest(document, { x: 1, y: 3.1 })).toBeNull();
+  });
+
+  test("旋转矩形：把点反旋转到局部系再判", () => {
+    const document = doc2d([
+      {
+        id: "rect-1",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 2,
+        rotationDeg: 45,
+        fill: "none",
+      },
+    ]);
+
+    // 转过 45° 后长轴指向世界 (+,+) 方向：局部 (1.9, 0) 落在长轴内。
+    const onLongAxis = {
+      x: 1.9 * Math.cos(Math.PI / 4),
+      y: 1.9 * Math.sin(Math.PI / 4),
+    };
+    expect(hitTest(document, onLongAxis)?.id).toBe("rect-1");
+
+    // 世界 +X 上的同距离点反旋转后 |局部 y| 超过半高，落空。
+    expect(hitTest(document, { x: 1.9, y: 0 })).toBeNull();
+  });
+
+  test("矩形是闭合图元：面积 width×height 参与小者优先", () => {
+    const document = doc2d([
+      { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 4, fill: "none" },
+      {
+        id: "rect-1",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 2,
+        height: 1,
+        rotationDeg: 0,
+        fill: "solid",
+      },
+    ]);
+
+    expect(hitTest(document, { x: 0.3, y: 0.2 })?.id).toBe("rect-1");
+    expect(hitTest(document, { x: 3, y: 0 })?.id).toBe("circle-1");
+  });
+});
+
 describe("hitTest 命中容差", () => {
   test("细线在容差内可命中，零容差保持精确", () => {
     const document = doc2d([

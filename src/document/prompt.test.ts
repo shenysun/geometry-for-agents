@@ -185,6 +185,31 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the rectangle syntax with center anchor and rotationDeg and projects it deterministically", () => {
+    const rectangle = {
+      id: "rect-1",
+      type: "rectangle",
+      x: 2,
+      y: 3,
+      width: 4,
+      height: 1,
+      rotationDeg: 30,
+      fill: "solid",
+    };
+    const document = parsed("2d", [rectangle]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法行写明锚点（中心）与全部字段（沿椭圆写法）
+    expect(prompt).toMatch(/rectangle:.*center/);
+    expect(prompt).toMatch(/rectangle:.*width \(X\), height \(Y\)/);
+    expect(prompt).toMatch(/rectangle:.*rotationDeg/);
+    // 投影含该矩形且两次生成相等
+    expect(prompt).toContain("rect-1");
+    expect(prompt).toContain("30");
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("documents the box anchor and every field in the syntax and projects it deterministically", () => {
     const box = {
       id: "box-1",

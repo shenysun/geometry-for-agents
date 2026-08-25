@@ -26,6 +26,7 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
     ],
   },
   polygon: { paths: ["M8 2.5l5.2 3.8-2 6.2H4.8l-2-6.2z"] },
+  rectangle: { paths: ["M3 4.5h10v7H3z"] },
   circle: { paths: ["M3 8a5 5 0 1 0 10 0a5 5 0 1 0-10 0"] },
   sector: { paths: ["M8 13L4 9a6 6 0 0 1 8.5-3.5z"] },
   bow: { paths: ["M3 11a5.2 5.2 0 0 1 10 0z"] },

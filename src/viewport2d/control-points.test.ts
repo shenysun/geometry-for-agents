@@ -202,8 +202,59 @@ describe("controlPoints 椭圆", () => {
   });
 });
 
-describe("controlPoints 标签", () => {
-  test("标签没有控制点（位置靠拖本体平移）", () => {
+describe("controlPoints 矩形", () => {
+  test("四角控制点按局部逆时针排列，中心不进目录（平移靠拖本体）", () => {
+    const rectangle = primitive2d({
+      id: "rect-1",
+      type: "rectangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 2,
+      rotationDeg: 0,
+      fill: "none",
+    });
+
+    const points = controlPoints(rectangle);
+    expect(points.map((point) => point.id)).toEqual([
+      "corner-0",
+      "corner-1",
+      "corner-2",
+      "corner-3",
+    ]);
+    expect(points.map((point) => point.kind)).toEqual([
+      "corner",
+      "corner",
+      "corner",
+      "corner",
+    ]);
+    // 局部 (+x,+y) 起，逆时针：右上 → 左上 → 左下 → 右下。
+    expectPointCloseTo(points[0]!.point, { x: 3, y: 3 });
+    expectPointCloseTo(points[1]!.point, { x: -1, y: 3 });
+    expectPointCloseTo(points[2]!.point, { x: -1, y: 1 });
+    expectPointCloseTo(points[3]!.point, { x: 3, y: 1 });
+  });
+
+  test("带 rotationDeg 时四角跟随旋转", () => {
+    const rectangle = primitive2d({
+      id: "rect-1",
+      type: "rectangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 2,
+      rotationDeg: 90,
+      fill: "none",
+    });
+
+    const points = controlPoints(rectangle);
+    // 局部 (+2,+1) 转 90° 后落到世界中心左上方向 (0,4)。
+    expectPointCloseTo(points[0]!.point, { x: 0, y: 4 });
+    expectPointCloseTo(points[2]!.point, { x: 2, y: 0 });
+  });
+});
+
+describe("controlPoints 标签", () => {  test("标签没有控制点（位置靠拖本体平移）", () => {
     const label = primitive2d({
       id: "label-1",
       type: "label",

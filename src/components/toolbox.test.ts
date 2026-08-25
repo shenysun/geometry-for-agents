@@ -44,6 +44,15 @@ describe("toolsForSpace", () => {
     expect(solid).toContain("select");
   });
 
+  test("2D 目录含 rectangle 且紧跟 polygon（与线段/多边形相邻），3D 不含", () => {
+    const planar = toolsForSpace("2d").map((tool) => tool.id);
+    const solid = toolsForSpace("3d").map((tool) => tool.id);
+
+    expect(planar).toContain("rectangle");
+    expect(planar.indexOf("rectangle")).toBe(planar.indexOf("polygon") + 1);
+    expect(solid).not.toContain("rectangle");
+  });
+
   test("每项都带 i18n key 与图标数据", () => {
     for (const space of ["2d", "3d"] as const) {
       for (const tool of toolsForSpace(space)) {

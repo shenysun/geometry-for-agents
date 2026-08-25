@@ -2,7 +2,12 @@
 import { computed } from "vue";
 import { ToggleGroupItem, ToggleGroupRoot } from "reka-ui";
 import { useI18n } from "vue-i18n";
-import { FILLS, withFill, type Fill } from "../document/index.ts";
+import {
+  FILLS,
+  withFill,
+  type Fill,
+  type Primitive,
+} from "../document/index.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
 import {
@@ -56,6 +61,24 @@ const HEIGHT_FIELD: SolidField = {
   positive: true,
 };
 
+/** 矩形数字字段目录的键：中心位置、两轴尺寸与旋转角 */
+type RectangleFieldKey = "x" | "y" | "width" | "height" | "rotationDeg";
+
+type RectangleField = {
+  key: RectangleFieldKey;
+  labelKey: `field.${RectangleFieldKey}`;
+  step: number;
+  positive: boolean;
+};
+
+const RECTANGLE_FIELDS: readonly RectangleField[] = [
+  { key: "x", labelKey: "field.x", step: 0.5, positive: false },
+  { key: "y", labelKey: "field.y", step: 0.5, positive: false },
+  { key: "width", labelKey: "field.width", step: 0.5, positive: true },
+  { key: "height", labelKey: "field.height", step: 0.5, positive: true },
+  { key: "rotationDeg", labelKey: "field.rotationDeg", step: 15, positive: false },
+];
+
 /** 按类型穷尽的字段目录：长方体/四棱锥三尺寸，圆柱/圆锥 r+height+旋转，
  * 三棱柱 base 三点单独一节，球只有位置和 r */
 function solidFields(type: SolidPrimitive["type"]): readonly SolidField[] {
@@ -81,20 +104,45 @@ function solidFields(type: SolidPrimitive["type"]): readonly SolidField[] {
 
 /** 联合上按键读数字字段：字段目录按类型穷尽，读不到该键返回 null */
 function numericFieldOf(
-  primitive: SolidPrimitive,
-  key: SolidFieldKey,
+  primitive: Primitive,
+  key: string,
 ): number | null {
   const value = (primitive as Record<string, unknown>)[key];
   return typeof value === "number" ? value : null;
 }
 
-/** 字段目录按类型穷尽，键与数字值成对出现；联合上收窄交给这一处 */
-function withNumericField(
-  primitive: SolidPrimitive,
-  key: SolidFieldKey,
-  value: number,
-): SolidPrimitive {
-  return { ...primitive, [key]: value };
+/** 数字字段提交的校验形状：提交校验只看键与是否必须为正 */
+type NumericFieldEntry = {
+  key: string;
+  positive: boolean;
+};
+
+/** 通用数字字段提交：非数字或非法值不写说明书，输入框回退为当前值 */
+function commitNumericField(
+  primitive: Primitive,
+  fields: readonly NumericFieldEntry[],
+  key: string,
+  event: Event,
+): void {
+  const input = event.target as HTMLInputElement;
+  const present = numericFieldOf(primitive, key);
+  if (present === null) return;
+  const value = Number(input.value);
+  const field = fields.find((entry) => entry.key === key);
+  const valid =
+    Number.isFinite(value) &&
+    (field === undefined || !field.positive || value > 0);
+  if (!valid || present === value) {
+    input.value = String(present);
+    return;
+  }
+  const result = documentStore.updatePrimitive(primitive.id, {
+    ...primitive,
+    [key]: value,
+  });
+  if (!result.success) {
+    input.value = String(present);
+  }
 }
 
 const documentStore = useDocumentStore();
@@ -118,6 +166,11 @@ const solid = computed(() => {
 const solidFieldList = computed(() =>
   solid.value === null ? [] : solidFields(solid.value.type),
 );
+
+const rectangle = computed(() => {
+  const primitive = selected.value;
+  return primitive !== null && primitive.type === "rectangle" ? primitive : null;
+});
 
 const prism = computed(() => {
   const primitive = solid.value;
@@ -157,22 +210,14 @@ function onBasePointChange(
 function onSolidFieldChange(key: SolidFieldKey, event: Event): void {
   const current = solid.value;
   if (current === null) return;
-  const present = numericFieldOf(current, key);
-  if (present === null) return;
-  const input = event.target as HTMLInputElement;
-  const value = Number(input.value);
-  const field = solidFieldList.value.find((entry) => entry.key === key);
-  const valid =
-    Number.isFinite(value) && (field === undefined || !field.positive || value > 0);
-  if (!valid || present === value) {
-    input.value = String(present);
-    return;
-  }
-  const next = withNumericField(current, key, value);
-  const result = documentStore.updatePrimitive(next.id, next);
-  if (!result.success) {
-    input.value = String(present);
-  }
+  commitNumericField(current, solidFieldList.value, key, event);
+}
+
+/** 矩形字段编辑：与参数体共用数字字段提交路径，非法宽高被契约拒绝 */
+function onRectangleFieldChange(key: RectangleFieldKey, event: Event): void {
+  const current = rectangle.value;
+  if (current === null) return;
+  commitNumericField(current, RECTANGLE_FIELDS, key, event);
 }
 
 const fill = computed((): Fill | null => {
@@ -208,6 +253,23 @@ function onFillChange(value: string | string[] | undefined): void {
           :aria-label="t(field.labelKey)"
           class="w-full rounded border border-zinc-300 px-2 py-1"
           @change="onSolidFieldChange(field.key, $event)"
+        />
+      </label>
+    </div>
+    <div v-if="rectangle !== null" class="grid grid-cols-2 gap-2">
+      <label
+        v-for="field in RECTANGLE_FIELDS"
+        :key="field.key"
+        class="space-y-1"
+      >
+        <span class="block text-zinc-500">{{ t(field.labelKey) }}</span>
+        <input
+          type="number"
+          :step="field.step"
+          :value="numericFieldOf(rectangle, field.key) ?? 0"
+          :aria-label="t(field.labelKey)"
+          class="w-full rounded border border-zinc-300 px-2 py-1"
+          @change="onRectangleFieldChange(field.key, $event)"
         />
       </label>
     </div>

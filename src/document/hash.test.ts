@@ -118,6 +118,31 @@ describe("document hash", () => {
     );
   });
 
+  test("roundtrips a rectangle with rotationDeg and fill", () => {
+    const document = parsed("2d", [
+      {
+        id: "rect-1",
+        type: "rectangle",
+        x: 1,
+        y: 2,
+        width: 4,
+        height: 2,
+        rotationDeg: 30,
+        fill: "hatch",
+      },
+    ]);
+
+    const decoded = hashToDocument(documentToHash(document));
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) return;
+    expect(decoded.document).toEqual(document);
+
+    const reparsed = parseDocument(JSON.stringify(decoded.document));
+    expect(reparsed.success).toBe(true);
+    if (!reparsed.success) return;
+    expect(reparsed.document).toEqual(document);
+  });
+
   test("roundtrips a 3d document mixing box and voxel", () => {
     const document = parsed("3d", [
       {

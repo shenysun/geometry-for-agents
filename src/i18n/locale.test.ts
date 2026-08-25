@@ -54,4 +54,14 @@ describe("createAppI18n", () => {
     expect(i18n.global.t("space.confirm")).toBe("Clear and switch");
     expect(i18n.global.t("tool.line")).not.toMatch(/[\u4e00-\u9fff]/);
   });
+
+  test("\u77e9\u5f62\u5de5\u5177\u540d\u4e0e\u65cb\u8f6c\u89d2\u5b57\u6bb5\u5728\u4e24\u79cd\u8bed\u8a00\u4e0b\u90fd\u6709\u6587\u6848", () => {
+    const i18n = createAppI18n(["zh-CN"]);
+    expect(i18n.global.t("tool.rectangle")).toBe("\u77e9\u5f62");
+    expect(i18n.global.t("field.rotationDeg")).toBe("\u65cb\u8f6c\uff08\u5ea6\uff09");
+
+    i18n.global.locale.value = "en";
+    expect(i18n.global.t("tool.rectangle")).toBe("Rectangle");
+    expect(i18n.global.t("field.rotationDeg")).toBe("Rotation (deg)");
+  });
 });

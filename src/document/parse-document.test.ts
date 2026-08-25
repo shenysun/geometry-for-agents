@@ -30,6 +30,16 @@ const closed2dPrimitives = [
     fill: "hatch",
   },
   {
+    id: "rect-1",
+    type: "rectangle",
+    x: 1,
+    y: -2,
+    width: 4,
+    height: 2,
+    rotationDeg: 30,
+    fill: "hatch",
+  },
+  {
     id: "circle-1",
     type: "circle",
     cx: 0,
@@ -134,6 +144,7 @@ describe("parseDocument", () => {
     expect(result.document.primitives.map((p) => p.type)).toEqual([
       "line",
       "polygon",
+      "rectangle",
       "circle",
       "sector",
       "bow",
@@ -705,5 +716,60 @@ describe("parseDocument 参数体：四棱锥与三棱柱", () => {
     expect(description).toContain("pyramid");
     expect(description).toContain("triangularPrism");
     expect(description).toMatch(/triangularPrism[^\n]{0,80}base/i);
+  });
+});
+
+const validRectangle = {
+  id: "rect-1",
+  type: "rectangle",
+  x: 1,
+  y: -2,
+  width: 4,
+  height: 2,
+  rotationDeg: 30,
+  fill: "hatch",
+};
+
+describe("parseDocument 矩形", () => {
+  test("parses a rectangle anchored at its center with size and rotation", () => {
+    const result = parseDocument(spec("2d", [validRectangle]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual(validRectangle);
+  });
+
+  test("opens a rectangle without rotationDeg as rotation 0", () => {
+    const { rotationDeg: _omitted, ...withoutRotation } = validRectangle;
+    const result = parseDocument(spec("2d", [withoutRotation]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual({
+      ...withoutRotation,
+      rotationDeg: 0,
+    });
+  });
+
+  test("rejects a rectangle with non-positive width or height", () => {
+    for (const field of ["width", "height"] as const) {
+      expect(
+        parseDocument(spec("2d", [{ ...validRectangle, [field]: 0 }])).success,
+        field,
+      ).toBe(false);
+    }
+    expect(
+      parseDocument(spec("2d", [{ ...validRectangle, height: -1 }])).success,
+    ).toBe(false);
+  });
+
+  test("rejects a rectangle in space 3d", () => {
+    const result = parseDocument(spec("3d", [validRectangle]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain(
+      'type "rectangle" is not allowed in space "3d"',
+    );
   });
 });

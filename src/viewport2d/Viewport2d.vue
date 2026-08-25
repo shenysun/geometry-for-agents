@@ -423,6 +423,7 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
   }
   if (
     gesture.kind === "line" ||
+    gesture.kind === "rectangle" ||
     gesture.kind === "circle" ||
     gesture.kind === "ellipse" ||
     gesture.kind === "ring"

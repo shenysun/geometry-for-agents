@@ -6,6 +6,7 @@ import {
   escSelect,
   idleSelectState,
   moveSelect,
+  selectPreview,
   startSelect,
   transformHandles,
   upSelect,
@@ -835,5 +836,123 @@ describe("select-gesture 拖控制点", () => {
     expect(moved.state).toEqual(idleSelectState());
     expect(moved.preview).toBeNull();
     expect(moved.commit).toBeNull();
+  });
+});
+
+const rectangleDoc = (): GeometryDocument =>
+  doc2d([
+    {
+      id: "rect-1",
+      type: "rectangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 2,
+      rotationDeg: 30,
+      fill: "none",
+    },
+  ]);
+
+describe("select-gesture 矩形", () => {
+  test("命中矩形本体进入拖动，平移预览只改中心", () => {
+    const document = rectangleDoc();
+    const snapshot = structuredClone(document);
+
+    const down = startSelect(idleSelectState(), ctx({ x: 1, y: 2 }, { document }));
+    expect(down.state).toEqual({
+      kind: "drag",
+      id: "rect-1",
+      start: { x: 1, y: 2 },
+    });
+
+    const moved = moveSelect(
+      down.state,
+      ctx({ x: 2.2, y: 3.1 }, { document }),
+    );
+    expect(moved.commit).toBeNull();
+    expect(moved.preview).toEqual({
+      type: "rectangle",
+      x: 2,
+      y: 3,
+      width: 4,
+      height: 2,
+      rotationDeg: 30,
+    });
+    expect(document).toEqual(snapshot);
+  });
+
+  test("selectPreview 携带 x/y/width/height/rotationDeg", () => {
+    expect(selectPreview(rectangleDoc(), "rect-1")).toEqual({
+      type: "rectangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 2,
+      rotationDeg: 30,
+    });
+  });
+
+  test("变换柄：reach 为半对角线长，矩形旋转缩放两柄齐备", () => {
+    const handles = transformHandles(
+      primitiveOf(rectangleDoc(), "rect-1"),
+      0.5,
+    );
+
+    const offset = Math.hypot(2, 1) + 4 * 0.5;
+    expect(handles?.center).toEqual({ x: 1, y: 2 });
+    expect(handles?.rotate).toEqual({ x: 1, y: 2 + offset });
+    expect(handles?.scale).toEqual({ x: 1 + offset, y: 2 });
+  });
+
+  test("拖角控制点：预览只改宽高，松手一次提交吸附后的目标点", () => {
+    const document = doc2d([
+      {
+        id: "rect-1",
+        type: "rectangle",
+        x: 1,
+        y: 2,
+        width: 4,
+        height: 2,
+        rotationDeg: 0,
+        fill: "none",
+      },
+    ]);
+
+    // corner-0 在世界 (3,3)。
+    const down = startSelect(
+      idleSelectState(),
+      controlCtx({ x: 3, y: 3 }, { document, selectionId: "rect-1" }),
+    );
+    expect(down.state).toEqual({
+      kind: "control",
+      id: "rect-1",
+      pointId: "corner-0",
+    });
+
+    const moved = moveSelect(
+      down.state,
+      controlCtx({ x: 3.2, y: 4.6 }, { document, selectionId: "rect-1" }),
+    );
+    expect(moved.commit).toBeNull();
+    expect(moved.preview).toEqual({
+      type: "rectangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 6,
+      rotationDeg: 0,
+    });
+
+    const up = upSelect(
+      down.state,
+      controlCtx({ x: 3.2, y: 4.6 }, { document, selectionId: "rect-1" }),
+    );
+    expect(up.commit).toEqual({
+      kind: "controlPoint",
+      id: "rect-1",
+      pointId: "corner-0",
+      point: { x: 3, y: 5 },
+    });
+    expect(up.state).toEqual(idleSelectState());
   });
 });

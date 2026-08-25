@@ -39,6 +39,19 @@ const polygonSchema = z.strictObject({
   fill: fillSchema,
 });
 
+// 参数化矩形：(x,y) 是矩形中心（与圆/椭圆锚点一致），width 沿 X、height 沿 Y。
+const rectangleSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("rectangle"),
+  x: z.number(),
+  y: z.number(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  // 沿椭圆先例：缺省 0 即轴对齐（ADR 0015：变换直写几何）。
+  rotationDeg: z.number().default(0),
+  fill: fillSchema,
+});
+
 const circleSchema = z.strictObject({
   ...disk2d,
   type: z.literal("circle"),
@@ -192,6 +205,7 @@ const triangularPrismSchema = z.strictObject({
 const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   lineSchema,
   polygonSchema,
+  rectangleSchema,
   circleSchema,
   sectorSchema,
   bowSchema,
@@ -259,7 +273,7 @@ export const documentSchema = z
 
 export type GeometryDocument = z.infer<typeof documentSchema>;
 
-/** 2D 说明书里的图元（折线、多边形、圆族、椭圆、标签），由 schema 推导，不手报名单。 */
+/** 2D 说明书里的图元（折线、多边形、矩形、圆族、椭圆、标签），由 schema 推导，不手报名单。 */
 export type Primitive2d = z.infer<typeof twoDPrimitiveSchema>;
 
 /** 3D 说明书里的图元（体素、长方体等立体），由 schema 推导，不手报名单。 */

@@ -1558,3 +1558,110 @@ describe("3D 参数体变换（票 11）", () => {
     ).toBe(false);
   });
 });
+
+describe("矩形更新", () => {
+  const rectangle: Primitive2d = {
+    id: "rect-1",
+    type: "rectangle",
+    x: 1,
+    y: 2,
+    width: 4,
+    height: 2,
+    rotationDeg: 0,
+    fill: "none",
+  };
+
+  const rectDoc = (): GeometryDocument =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [rectangle],
+    });
+
+  test("translatePrimitiveGeometry 只平移中心 x y，宽高与旋转角原样", () => {
+    const rotated = { ...rectangle, rotationDeg: 30 };
+    const moved = translatePrimitiveGeometry(rotated, -1, 3);
+
+    expect(moved).toEqual({ ...rotated, x: 0, y: 5 });
+    expect(rotated.x).toBe(1);
+  });
+
+  test("rotatePrimitiveGeometry 写 rotationDeg 并归一到 [0,360)，中心与尺寸不动", () => {
+    const quarter = rotatePrimitiveGeometry(rectangle, 90);
+    const wrap = rotatePrimitiveGeometry({ ...rectangle, rotationDeg: 270 }, 90);
+    const back = rotatePrimitiveGeometry({ ...rectangle, rotationDeg: 30 }, -60);
+
+    expect(quarter).toEqual({ ...rectangle, rotationDeg: 90 });
+    expect(wrap).toEqual({ ...rectangle, rotationDeg: 0 });
+    expect(back).toEqual({ ...rectangle, rotationDeg: 330 });
+  });
+
+  test("scalePrimitiveGeometry 宽高同乘因子（等比缩放），旋转角与中心保留", () => {
+    const rotated = { ...rectangle, rotationDeg: 30 };
+    const moved = scalePrimitiveGeometry(rotated, 1.5);
+
+    expect(moved).toEqual({
+      ...rotated,
+      width: 6,
+      height: 3,
+    });
+  });
+
+  test("moveControlPointGeometry 拖角只改宽高：中心不动，沿局部轴度量", () => {
+    // 角点 corner-0 在局部 (+2,+1) 即世界 (3,3)；拖到 (3,5) → 局部 (2,3)。
+    const moved = moveControlPointGeometry(rectangle, "corner-0", {
+      x: 3,
+      y: 5,
+    });
+
+    expect(moved).toEqual({ ...rectangle, width: 4, height: 6 });
+  });
+
+  test("moveControlPointGeometry 旋转过的矩形先把世界点逆旋转回局部再度量", () => {
+    // rotationDeg 90：局部 +X 轴指向世界 +Y。角点 corner-0 在世界 (0,4)；
+    // 沿世界 +Y 拖到 (0,8) 即局部 x 距离 6、y 距离 1 → 宽 12 高 2。
+    const rotated = { ...rectangle, rotationDeg: 90 };
+    const moved = moveControlPointGeometry(rotated, "corner-0", { x: 0, y: 8 });
+
+    if (moved.type !== "rectangle") return;
+    expectCloseTo(moved.width, 12);
+    expectCloseTo(moved.height, 2);
+    expect(moved.x).toBe(1);
+    expect(moved.y).toBe(2);
+    expect(moved.rotationDeg).toBe(90);
+  });
+
+  test("moveControlPointGeometry 未知控制点 id 是恒等变换", () => {
+    expect(
+      moveControlPointGeometry(rectangle, "vertex-0", { x: 9, y: 9 }),
+    ).toBe(rectangle);
+  });
+
+  test("moveControlPoint 先吸附当前格再提交，新说明书仍能通过契约解析", () => {
+    const original = rectDoc();
+    const snapshot = structuredClone(original);
+
+    const result = moveControlPoint(original, "rect-1", "corner-0", {
+      x: 3.4,
+      y: 4.6,
+    }, 1);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual({
+      ...rectangle,
+      height: 6,
+    });
+    expect(original).toEqual(snapshot);
+    expect(parseDocument(JSON.stringify(result.document)).success).toBe(true);
+  });
+
+  test("拖角把宽拖成 0 被契约拒绝，不进说明书", () => {
+    const result = moveControlPoint(rectDoc(), "rect-1", "corner-0", {
+      x: 1,
+      y: 3,
+    }, "off");
+    expect(result.success).toBe(false);
+  });
+});

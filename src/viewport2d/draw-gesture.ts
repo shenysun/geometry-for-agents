@@ -8,6 +8,7 @@ import {
 export const DRAW_TOOLS = [
   "line",
   "polygon",
+  "rectangle",
   "circle",
   "sector",
   "bow",
@@ -21,6 +22,7 @@ export type DrawTool = (typeof DRAW_TOOLS)[number];
 
 const DRAG_TOOLS: ReadonlySet<DrawTool> = new Set([
   "line",
+  "rectangle",
   "circle",
   "ellipse",
   "ring",
@@ -45,6 +47,14 @@ export type DrawContext = {
 export type DrawPreview =
   | { type: "line"; points: Point2[] }
   | { type: "polygon"; points: Point2[] }
+  | {
+      type: "rectangle";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      rotationDeg: number;
+    }
   | { type: "circle"; cx: number; cy: number; r: number }
   | {
       type: "ellipse";
@@ -87,6 +97,7 @@ export type DrawGestureState =
   | { kind: "idle" }
   | { kind: "line"; start: Point2; cursor: Point2 }
   | { kind: "polygon"; vertices: Point2[]; cursor: Point2 }
+  | { kind: "rectangle"; start: Point2; cursor: Point2 }
   | { kind: "circle"; center: Point2; cursor: Point2 }
   | { kind: "ellipse"; start: Point2; cursor: Point2 }
   | { kind: "ring"; center: Point2; rOuter: number | null; cursor: Point2 }
@@ -139,6 +150,19 @@ function ellipseFromBox(
   };
 }
 
+/** 拖对角线画矩形：起止点为对角，中心取中点，宽高为对角在两轴上的投影。 */
+function rectangleFromDiagonal(
+  a: Point2,
+  b: Point2,
+): { x: number; y: number; width: number; height: number } {
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+    width: Math.abs(b.x - a.x),
+    height: Math.abs(b.y - a.y),
+  };
+}
+
 function columnName(index: number): string {
   let n = index + 1;
   let text = "";
@@ -166,6 +190,13 @@ function previewFrom(state: DrawGestureState): DrawPreview {
   }
   if (state.kind === "polygon") {
     return { type: "polygon", points: [...state.vertices, state.cursor] };
+  }
+  if (state.kind === "rectangle") {
+    return {
+      type: "rectangle",
+      rotationDeg: 0,
+      ...rectangleFromDiagonal(state.start, state.cursor),
+    };
   }
   if (state.kind === "circle") {
     return {
@@ -240,6 +271,9 @@ export function startDraw(
   if (ctx.tool === "line") {
     return result({ kind: "line", start: point, cursor: point });
   }
+  if (ctx.tool === "rectangle") {
+    return result({ kind: "rectangle", start: point, cursor: point });
+  }
   if (ctx.tool === "circle") {
     return result({ kind: "circle", center: point, cursor: point });
   }
@@ -271,6 +305,9 @@ export function moveDraw(
       vertices: state.vertices,
       cursor,
     });
+  }
+  if (state.kind === "rectangle") {
+    return result({ kind: "rectangle", start: state.start, cursor });
   }
   if (state.kind === "circle") {
     return result({ kind: "circle", center: state.center, cursor });
@@ -355,6 +392,19 @@ export function upDraw(
     return commitAndIdle({
       id: ctx.id,
       type: "ellipse",
+      ...box,
+      rotationDeg: 0,
+      fill: "none",
+    });
+  }
+  if (state.kind === "rectangle") {
+    const box = rectangleFromDiagonal(state.start, end);
+    if (box.width === 0 || box.height === 0) {
+      return result(idleDrawState());
+    }
+    return commitAndIdle({
+      id: ctx.id,
+      type: "rectangle",
       ...box,
       rotationDeg: 0,
       fill: "none",

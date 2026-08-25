@@ -155,6 +155,28 @@ function drawPrimitive(
       return [
         strokeLine(toScreenPoints(primitive.points, view), true, primitive.fill),
       ];
+    case "rectangle": {
+      const center = centerScreen(primitive.x, primitive.y, view);
+      const width = primitive.width * view.scale;
+      const height = primitive.height * view.scale;
+      return [
+        new Konva.Rect({
+          x: center.x,
+          y: center.y,
+          width,
+          height,
+          // 矩形以中心定位：offset 把局部原点挪到左上角，旋转绕中心。
+          offsetX: width / 2,
+          offsetY: height / 2,
+          // 世界系逆时针为正，Konva 屏幕系顺时针为正，符号取反。
+          rotation: -primitive.rotationDeg,
+          stroke: STROKE,
+          strokeWidth: STROKE_WIDTH,
+          listening: false,
+          ...fillConfig(primitive.fill),
+        }),
+      ];
+    }
     case "circle":
       return [
         drawDisk(primitive.cx, primitive.cy, primitive.r, primitive.fill, view),
@@ -253,6 +275,10 @@ function previewPrimitive(preview: DrawPreview): Primitive2d | null {
     if (preview.r <= 0) return null;
     return { id: "preview", ...preview, fill: "none" };
   }
+  if (preview.type === "rectangle") {
+    if (preview.width <= 0 || preview.height <= 0) return null;
+    return { id: "preview", ...preview, fill: "none" };
+  }
   if (preview.type === "ellipse") {
     if (preview.rx <= 0 || preview.ry <= 0) return null;
     return { id: "preview", ...preview, fill: "none" };
@@ -289,7 +315,7 @@ function previewGuidePoints(preview: DrawPreview): Point2[] {
   if (preview.type === "line" || preview.type === "polygon" || preview.type === "guide") {
     return preview.points;
   }
-  if (preview.type === "label") {
+  if (preview.type === "label" || preview.type === "rectangle") {
     return [{ x: preview.x, y: preview.y }];
   }
   return [{ x: preview.cx, y: preview.cy }];

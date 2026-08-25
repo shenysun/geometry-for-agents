@@ -95,6 +95,30 @@ function inEllipse(
   return nx * nx + ny * ny <= 1;
 }
 
+/** 旋转矩形命中：把点绕中心反旋转 rotationDeg 到局部系，再按半宽半高判定。 */
+function inRectangle(
+  point: Point2,
+  rectangle: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotationDeg: number;
+  },
+): boolean {
+  const rad = -rectangle.rotationDeg * DEG;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = point.x - rectangle.x;
+  const dy = point.y - rectangle.y;
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+  return (
+    Math.abs(localX) <= rectangle.width / 2 &&
+    Math.abs(localY) <= rectangle.height / 2
+  );
+}
+
 function inRing(
   point: Point2,
   ring: { cx: number; cy: number; rInner: number; rOuter: number },
@@ -188,6 +212,8 @@ function contains(
       return inDisk(point, primitive);
     case "ellipse":
       return inEllipse(point, primitive);
+    case "rectangle":
+      return inRectangle(point, primitive);
     case "ring":
       return inRing(point, primitive);
     case "polygon":
@@ -207,6 +233,7 @@ function contains(
 
 const closedTypes = new Set<Primitive2d["type"]>([
   "polygon",
+  "rectangle",
   "circle",
   "sector",
   "bow",
@@ -224,6 +251,8 @@ function area(primitive: Primitive2d): number {
       return Math.PI * primitive.r * primitive.r;
     case "ellipse":
       return Math.PI * primitive.rx * primitive.ry;
+    case "rectangle":
+      return primitive.width * primitive.height;
     case "ring":
       return Math.PI * (primitive.rOuter ** 2 - primitive.rInner ** 2);
     case "polygon":

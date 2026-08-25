@@ -95,6 +95,8 @@ function handleReach(primitive: Primitive2d, center: Point2): number {
       return Math.max(
         ...primitive.points.map((point) => distance(point, center)),
       );
+    case "rectangle":
+      return Math.hypot(primitive.width / 2, primitive.height / 2);
     case "circle":
     case "sector":
     case "bow":
@@ -188,6 +190,15 @@ function previewFromPrimitive(primitive: Primitive2d): DrawPreview {
       return { type: "line", points: primitive.points };
     case "polygon":
       return { type: "polygon", points: primitive.points };
+    case "rectangle":
+      return {
+        type: "rectangle",
+        x: primitive.x,
+        y: primitive.y,
+        width: primitive.width,
+        height: primitive.height,
+        rotationDeg: primitive.rotationDeg,
+      };
     case "circle":
       return {
         type: "circle",

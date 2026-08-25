@@ -21,6 +21,26 @@ describe("withFill", () => {
     expect(circle).toEqual(snapshot);
   });
 
+  test("returns a new rectangle with the chosen fill, keeping size and rotation", () => {
+    const rectangle: Primitive = {
+      id: "rect-1",
+      type: "rectangle",
+      x: 1,
+      y: 2,
+      width: 4,
+      height: 2,
+      rotationDeg: 30,
+      fill: "none",
+    };
+    const snapshot = structuredClone(rectangle);
+
+    const next = withFill(rectangle, "solid");
+
+    expect(next).toEqual({ ...rectangle, fill: "solid" });
+    expect(next).not.toBe(rectangle);
+    expect(rectangle).toEqual(snapshot);
+  });
+
   test("returns null for line, arc, and label", () => {
     const line: Primitive = {
       id: "line-1",
