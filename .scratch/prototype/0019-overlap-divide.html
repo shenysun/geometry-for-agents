@@ -1,0 +1,459 @@
+<!doctype html>
+<!-- ============================================================
+PROTOTYPE — 用完即弃（throwaway）· ADR 0019 交互与状态模型验证
+不做产品代码，不进 src/。
+
+回答的问题：
+1. 重叠填充（引用式）：两步拾取顺手吗？拖动源图元阴影跟随、
+   拖到不相交「渲染为空但条目保留」、删源级联删——这套语义看着对吗？
+   曲边交集用离屏合成渲染，月牙形是否精确？
+2. 拆分（烘焙式）：点被切图元、点线段刀具，碎片独立可拖、
+   线段刀具切完消失、曲边/没切过去被拒——感觉对吗？
+3. 画完即回选择（ADR 0018）在这两个工具上是否成立。
+
+不在本 demo 验证：图元刀具布尔（那是 Clipper2 的事）、3D、Prompt 投影。
+运行：open .scratch/prototype/0019-overlap-divide.html
+============================================================ -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>PROTOTYPE · ADR 0019 重叠填充 + 拆分</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.5 ui-monospace, Menlo, monospace; background: #f3f4f6; color: #111827; }
+  header { padding: 10px 16px; background: #111827; color: #f9fafb; }
+  header .proto { color: #fbbf24; font-weight: 700; }
+  header h1 { font-size: 14px; margin: 4px 0; }
+  header p { margin: 2px 0; color: #d1d5db; font: 12px/1.6 inherit; }
+  .wrap { display: flex; gap: 12px; padding: 12px 16px; align-items: flex-start; }
+  .left { flex: 1; min-width: 0; }
+  .toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .toolbar button { font: inherit; padding: 5px 12px; border: 1px solid #9ca3af; background: #fff; border-radius: 6px; cursor: pointer; }
+  .toolbar button.on { background: #111827; color: #fff; border-color: #111827; }
+  .toolbar .key { opacity: .55; margin-left: 4px; }
+  #status { flex-basis: 100%; min-height: 18px; color: #374151; }
+  #status.err { color: #dc2626; font-weight: 700; }
+  canvas { background: #fff; border: 1px solid #d1d5db; border-radius: 8px; display: block; cursor: default; }
+  canvas.pick { cursor: crosshair; }
+  .panel { width: 340px; flex-shrink: 0; }
+  .panel h2 { font-size: 12px; margin: 0 0 4px; color: #6b7280; letter-spacing: .08em; }
+  .panel pre { margin: 0 0 14px; padding: 8px 10px; background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+               white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow: auto; }
+  #log div { padding: 1px 0; border-bottom: 1px dashed #e5e7eb; }
+  #log .rej { color: #dc2626; }
+  #log .ok { color: #059669; }
+  .hint { margin-top: 10px; padding: 8px 10px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; }
+  .hint b { color: #92400e; }
+</style>
+</head>
+<body>
+<header>
+  <span class="proto">PROTOTYPE · 用完即弃</span> — ADR 0019「阴影走引用，割补走烘焙」交互验证
+  <h1>重叠填充（引用式）+ 拆分（烘焙式）</h1>
+  <p>验证：两步拾取 · 拖源跟随 · 不相交渲染为空 · 级联删除 · 曲边精确合成 · 碎片独立可拖 · 线段刀具消失 · 画完即回选择</p>
+</header>
+
+<div class="wrap">
+  <div class="left">
+    <div class="toolbar">
+      <button data-tool="select" class="on">选择<span class="key">1</span></button>
+      <button data-tool="overlap">重叠填充<span class="key">2</span></button>
+      <button data-tool="divide">拆分<span class="key">3</span></button>
+      <button id="reset">重置</button>
+      <span id="status"></span>
+    </div>
+    <canvas id="cv"></canvas>
+    <div class="hint">
+      <b>阴影</b>：工具「重叠填充」→ 点圆 → 点三角形 → 月牙形阴影（曲边精确）。切回「选择」拖走圆：阴影跟随；拖到不相交：阴影消失但条目仍在；Del 删圆：条目级联消失（看右侧日志）。<br>
+      <b>割补</b>：工具「拆分」→ 点平行四边形 → 点竖线段 → 两块碎片各自可拖、线段消失。点圆当被切图元 → 被拒。<br>
+      <b>反例</b>：重叠填充点线段 / 同一图元点两次 / 两图元不相交 → 契约拒绝。选中后 Del 删除。
+    </div>
+  </div>
+  <div class="panel">
+    <h2>说明书（每次操作后刷新）</h2>
+    <pre id="docDump"></pre>
+    <h2>事件日志</h2>
+    <pre id="log"></pre>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+ * 纯模型区 —— 不碰 DOM，定稿后可整体搬进 src/document/
+ * 说明书条目：
+ *   { id, kind: "circle",  x, y, r }
+ *   { id, kind: "tri",     x, y, w, h, apex }        锚点=底边中点
+ *   { id, kind: "para",    x, y, w, h, skew }        锚点=底边中点
+ *   { id, kind: "segment", x1, y1, x2, y2 }
+ *   { id, kind: "polygon", pts: [[x,y]…], parent }   拆分碎片，继承描边
+ *   { id, kind: "overlapFill", sources: [idA, idB], fill: "hatch"|"solid" }
+ * ============================================================ */
+
+function initialDoc() {
+  return {
+    nextId: 1,
+    entries: [
+      { id: "p0", kind: "para", x: 200, y: 380, w: 240, h: 130, skew: 45 },   // 割补靶子
+      { id: "s0", kind: "segment", x1: 210, y1: 180, x2: 210, y2: 500 },      // 刀具：竖切线
+      { id: "c0", kind: "circle", x: 640, y: 190, r: 95 },                    // 阴影源 A（曲边）
+      { id: "t0", kind: "tri", x: 600, y: 300, w: 170, h: 120, apex: 20 },    // 阴影源 B
+    ],
+  };
+}
+
+const CLOSED = new Set(["circle", "tri", "para", "polygon"]);          // 可填充/可被拾取为源
+const STRAIGHT_CLOSED = new Set(["tri", "para", "polygon"]);           // 可被拆分
+
+function polyOf(e) { // 直边封闭 → 顶点环；其余 null
+  if (e.kind === "para") {
+    const { x, y, w, h, skew } = e;
+    return [[x - w / 2, y], [x + w / 2, y], [x + w / 2 - skew, y - h], [x - w / 2 - skew, y - h]];
+  }
+  if (e.kind === "tri") {
+    const { x, y, w, h, apex } = e;
+    return [[x - w / 2, y], [x + w / 2, y], [x + apex, y - h]];
+  }
+  if (e.kind === "polygon") return e.pts;
+  return null;
+}
+
+function moveEntry(doc, id, dx, dy) {
+  for (const e of doc.entries) {
+    if (e.id !== id) continue;
+    if (e.kind === "segment") { e.x1 += dx; e.y1 += dy; e.x2 += dx; e.y2 += dy; }
+    else if (e.kind === "polygon") e.pts = e.pts.map(([x, y]) => [x + dx, y + dy]);
+    else { e.x += dx; e.y += dy; }
+  }
+}
+
+// —— 拆分几何（Sutherland–Hodgman 半平面裁剪，凸多边形够用）——
+function clipHalf(poly, p1, n) { // 保留 dot(v-p1, n) >= 0 的一侧
+  const out = [];
+  const d = (v) => (v[0] - p1[0]) * n[0] + (v[1] - p1[1]) * n[1];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const da = d(a), db = d(b);
+    if (da >= 0) out.push(a);
+    if ((da >= 0) !== (db >= 0)) {
+      const t = da / (da - db);
+      out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]);
+    }
+  }
+  return out;
+}
+const area = (poly) => Math.abs(poly.reduce((s, v, i) => {
+  const w = poly[(i + 1) % poly.length];
+  return s + v[0] * w[1] - w[0] * v[1];
+}, 0)) / 2;
+
+function segCrossings(poly, p1, p2) { // 刀具线段与多边形边的真交点数（「切过去」判据）
+  let c = 0;
+  const cr = (a, b) => a[0] * b[1] - a[1] * b[0];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const d1 = cr([p2[0] - p1[0], p2[1] - p1[1]], [a[0] - p1[0], a[1] - p1[1]]);
+    const d2 = cr([p2[0] - p1[0], p2[1] - p1[1]], [b[0] - p1[0], b[1] - p1[1]]);
+    const d3 = cr([b[0] - a[0], b[1] - a[1]], [p1[0] - a[0], p1[1] - a[1]]);
+    const d4 = cr([b[0] - a[0], b[1] - a[1]], [p2[0] - a[0], p2[1] - a[1]]);
+    if ((d1 > 0) !== (d2 > 0) && (d3 > 0) !== (d4 > 0)) c++;
+  }
+  return c;
+}
+
+// —— 三个动作（返回 { ok, doc?, removed?, msg }；拒绝不改动）——
+function createOverlapFill(doc, idA, idB) {
+  const a = doc.entries.find((e) => e.id === idA);
+  const b = doc.entries.find((e) => e.id === idB);
+  if (!CLOSED.has(a.kind) || !CLOSED.has(b.kind)) return { ok: false, msg: "拒绝：重叠填充只能拾取封闭图元" };
+  if (a.id === b.id) return { ok: false, msg: "拒绝：两个源不能是同一图元" };
+  if (!shapesIntersect(a, b)) return { ok: false, msg: "拒绝：两个源不相交（空集）" };
+  const id = "f" + doc.nextId++;
+  doc.entries.push({ id, kind: "overlapFill", sources: [a.id, b.id], fill: "hatch" });
+  return { ok: true, createdId: id, msg: `重叠填充 ${id} = ${a.id} ∩ ${b.id}（引用式，无几何）` };
+}
+
+function divideBySegment(doc, targetId, segId) {
+  const t = doc.entries.find((e) => e.id === targetId);
+  const s = doc.entries.find((e) => e.id === segId);
+  if (!STRAIGHT_CLOSED.has(t.kind)) return { ok: false, msg: `拒绝：${t.kind === "circle" ? "曲边图元" : "该图元"}不参与拆分（曲边无规范表达，ADR 0017/0019）` };
+  if (s.kind !== "segment") return { ok: false, msg: "拒绝：本 demo 刀具只支持线段（图元刀具走 Clipper2，不在验证范围）" };
+  const poly = polyOf(t);
+  const p1 = [s.x1, s.y1], p2 = [s.x2, s.y2];
+  if (segCrossings(poly, p1, p2) < 2) return { ok: false, msg: "拒绝：线段没有真正切过去（不足两个交点）" };
+  const n = [-(p2[1] - p1[1]), p2[0] - p1[0]];
+  const A = clipHalf(poly, p1, n);
+  const B = clipHalf(poly, p1, [-n[0], -n[1]]);
+  if (A.length < 3 || B.length < 3 || area(A) < 1 || area(B) < 1)
+    return { ok: false, msg: "拒绝：切口贴边，切不出两块" };
+  const ids = [];
+  for (const piece of [A, B]) {
+    const id = "g" + doc.nextId++;
+    ids.push(id);
+    doc.entries.push({ id, kind: "polygon", pts: piece, parent: t.id }); // 继承描边/填充（本 demo 全 none）
+  }
+  doc.entries = doc.entries.filter((e) => e.id !== t.id && e.id !== s.id); // 被切图元消失；线段刀具消失
+  return { ok: true, msg: `拆分：${t.id} → 碎片 ${ids.join("、")}（烘焙式，各自可拖）；线段 ${s.id} 已消失` };
+}
+
+function removeEntry(doc, id) { // 级联：删源 → 其重叠填充一并消失
+  const removed = [id];
+  const doomed = new Set(removed);
+  for (const e of doc.entries)
+    if (e.kind === "overlapFill" && e.sources.some((s) => doomed.has(s))) doomed.add(e.id);
+  doc.entries = doc.entries.filter((e) => !doomed.has(e.id));
+  return { removed: [...doomed] };
+}
+
+/* ============================================================
+ * UI 壳 —— 渲染、拾取、工具状态机（依赖上面的纯函数，不反向）
+ * ============================================================ */
+const W = 860, H = 540, DPR = window.devicePixelRatio || 1;
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+cv.width = W * DPR; cv.height = H * DPR;
+cv.style.width = W + "px"; cv.style.height = H + "px";
+const hitCtx = document.createElement("canvas").getContext("2d"); // 不缩放，isPointInPath 用 CSS 坐标
+
+let doc = initialDoc();
+let tool = "select";        // select | overlap | divide
+let pick1 = null;           // 两步拾取的第一拾取
+let selectedId = null;
+let drag = null;            // { id, lastX, lastY }
+const logEl = document.getElementById("log");
+const statusEl = document.getElementById("status");
+
+function log(msg, cls = "") {
+  const d = document.createElement("div");
+  if (cls) d.className = cls;
+  d.textContent = msg;
+  logEl.prepend(d);
+  while (logEl.children.length > 10) logEl.lastChild.remove();
+}
+function status(text, isErr = false) {
+  statusEl.textContent = text;
+  statusEl.className = isErr ? "err" : "";
+}
+
+function pathOf(e) {
+  const p = new Path2D();
+  const poly = polyOf(e);
+  if (poly) { p.moveTo(...poly[0]); for (let i = 1; i < poly.length; i++) p.lineTo(...poly[i]); p.closePath(); }
+  else if (e.kind === "circle") p.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+  else if (e.kind === "segment") { p.moveTo(e.x1, e.y1); p.lineTo(e.x2, e.y2); }
+  return p;
+}
+
+// 离屏合成：A ∩ B 的 alpha 遮罩 → 图案/颜色穿遮罩上屏（曲边精确，零几何）
+// x0,y0 = 画布原点对应的绝对坐标——路径是绝对坐标，不平移原点就会画到画布外（修过的 bug）
+function intersectionMask(a, b, x0, y0, w, h) {
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.ceil(w * DPR)); c.height = Math.max(1, Math.ceil(h * DPR));
+  const o = c.getContext("2d");
+  o.setTransform(DPR, 0, 0, DPR, -x0 * DPR, -y0 * DPR);
+  o.fillStyle = "#000";
+  o.fill(pathOf(a));
+  o.globalCompositeOperation = "source-in";
+  o.fill(pathOf(b));
+  return c;
+}
+function shapesIntersect(a, b) { // 创建时契约判据：遮罩里采到 alpha 即相交
+  const [x0, y0, w, h] = unionBBox(a, b) || [0, 0, 0, 0];
+  const m = intersectionMask(a, b, x0, y0, w, h);
+  const data = m.getContext("2d").getImageData(0, 0, m.width, m.height).data;
+  for (let i = 3; i < data.length; i += 4 * 3) if (data[i] > 0) return true;
+  return false;
+}
+function unionBBox(a, b) {
+  const boxes = [a, b].map(bboxOf).filter(Boolean);
+  if (boxes.length < 2) return null;
+  const [x0, y0] = [Math.min(...boxes.map((r) => r[0])), Math.min(...boxes.map((r) => r[1]))];
+  return [x0, y0, Math.max(...boxes.map((r) => r[2])) - x0, Math.max(...boxes.map((r) => r[3])) - y0];
+}
+function bboxOf(e) {
+  const poly = polyOf(e);
+  if (poly) {
+    const xs = poly.map((v) => v[0]), ys = poly.map((v) => v[1]);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  }
+  if (e.kind === "circle") return [e.x - e.r, e.y - e.r, e.x + e.r, e.y + e.r];
+  return null;
+}
+
+// 图案：斜线阴影
+const hatchTile = (() => {
+  const t = document.createElement("canvas");
+  t.width = t.height = 8 * DPR;
+  const c = t.getContext("2d");
+  c.scale(DPR, DPR);
+  c.strokeStyle = "#2563eb"; c.lineWidth = 1.4;
+  c.beginPath();
+  c.moveTo(-2, 10); c.lineTo(10, -2);
+  c.moveTo(-2, 2); c.lineTo(2, -2);
+  c.moveTo(6, 10); c.lineTo(10, 6);
+  c.stroke();
+  return t;
+})();
+
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  // 1) 图元（说明书顺序）
+  for (const e of doc.entries) {
+    if (e.kind === "overlapFill") continue;
+    const sel = e.id === selectedId, first = e.id === pick1;
+    ctx.lineWidth = sel ? 2.5 : 1.5;
+    ctx.strokeStyle = sel ? "#f59e0b" : first ? "#0ea5e9" : "#1f2937";
+    if (first) ctx.setLineDash([6, 4]);
+    ctx.stroke(pathOf(e));
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "11px ui-monospace, monospace";
+    const bb = bboxOf(e) || [e.x1, e.y1];
+    ctx.fillText(e.id, bb[0] - 4, bb[1] - 6);
+  }
+
+  // 2) 重叠填充（最上层；不相交时遮罩全透明 = 渲染为空，条目仍在）
+  for (const e of doc.entries) {
+    if (e.kind !== "overlapFill") continue;
+    const a = doc.entries.find((x) => x.id === e.sources[0]);
+    const b = doc.entries.find((x) => x.id === e.sources[1]);
+    if (!a || !b) continue; // 级联删除保证不该发生
+    const mask = intersectionMask(a, b, 0, 0, W, H);
+    const o = mask.getContext("2d");
+    o.globalCompositeOperation = "source-in";
+    if (e.fill === "solid") { o.fillStyle = "rgba(37,99,235,.28)"; o.fillRect(0, 0, W, H); }
+    else { o.fillStyle = o.createPattern(hatchTile, "repeat"); o.fillRect(0, 0, W, H); }
+    ctx.drawImage(mask, 0, 0, W, H);
+    if (e.id === selectedId) {
+      ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5;
+      ctx.stroke(intersectionPath(a, b)); // 选中描边：遮罩轮廓
+    }
+  }
+
+  // 3) 工具状态提示
+  if (tool !== "select" && !pick1) status(tool === "overlap" ? "点第一个封闭图元…" : "点被切的直边封闭图元…");
+  dumpDoc();
+}
+function intersectionPath(a, b) { // 仅用于选中描边：粗略取 A 的路径（选中态够用）
+  return pathOf(a);
+}
+
+// 命中：重叠填充区域最优先；其后两轮——先「面」后「线」。
+// 点在封闭图元内部永远赢过压在上面的细线（否则刀具线会偷走被切图元的点击）。
+function hitTest(x, y) {
+  for (let i = doc.entries.length - 1; i >= 0; i--) {
+    const e = doc.entries[i];
+    if (e.kind === "overlapFill") {
+      const a = doc.entries.find((x2) => x2.id === e.sources[0]);
+      const b = doc.entries.find((x2) => x2.id === e.sources[1]);
+      if (a && b && hitCtx.isPointInPath(pathOf(a), x, y) && hitCtx.isPointInPath(pathOf(b), x, y)) return e;
+    }
+  }
+  for (let i = doc.entries.length - 1; i >= 0; i--) { // 第一轮：面命中（内部点）
+    const e = doc.entries[i];
+    if (CLOSED.has(e.kind) && hitCtx.isPointInPath(pathOf(e), x, y)) return e;
+  }
+  for (let i = doc.entries.length - 1; i >= 0; i--) { // 第二轮：线命中（描边容差 / 线段 8px）
+    const e = doc.entries[i];
+    if (e.kind === "segment") {
+      if (distToSeg(x, y, e.x1, e.y1, e.x2, e.y2) < 8) return e;
+    } else if (CLOSED.has(e.kind)) {
+      hitCtx.lineWidth = 10;
+      if (hitCtx.isPointInStroke(pathOf(e), x, y)) return e;
+    }
+  }
+  return null;
+}
+function distToSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(px - x1 - t * dx, py - y1 - t * dy);
+}
+
+function dumpDoc() {
+  const lines = doc.entries.map((e) => {
+    if (e.kind === "overlapFill") {
+      const live = shapesIntersect(
+        doc.entries.find((x) => x.id === e.sources[0]),
+        doc.entries.find((x) => x.id === e.sources[1]));
+      return `${e.id}  overlapFill  sources=${e.sources.join("∩")}  fill=${e.fill}${live ? "" : "   ← 源已不相交：渲染为空，条目保留"}`;
+    }
+    if (e.kind === "polygon") return `${e.id}  polygon      ${e.pts.length} 顶点  ←${e.parent} 的碎片`;
+    if (e.kind === "segment") return `${e.id}  segment      (${e.x1},${e.y1})→(${e.x2},${e.y2})`;
+    const geo = e.kind === "circle" ? `r=${e.r}` : e.kind === "para" ? `底${e.w} 高${e.h} 斜移${e.skew}` : `底${e.w} 高${e.h} 顶偏${e.apex}`;
+    return `${e.id}  ${e.kind.padEnd(12)} ${geo}`;
+  });
+  document.getElementById("docDump").textContent = lines.join("\n") || "（空）";
+}
+
+// —— 指针 ——
+cv.addEventListener("pointerdown", (ev) => {
+  const x = ev.offsetX, y = ev.offsetY;
+  const hit = hitTest(x, y);
+
+  if (tool === "select") {
+    selectedId = hit ? hit.id : null;
+    if (hit) drag = { id: hit.id, x, y };
+    status(selectedId ? `选中 ${selectedId}（Del 删除）` : "");
+  } else if (tool === "overlap") {
+    if (!hit || !CLOSED.has(hit.kind)) { status("拾取无效：要封闭图元", true); return; }
+    if (!pick1) { pick1 = hit.id; status(`已拾取 ${pick1}，点第二个源`); }
+    else {
+      const r = createOverlapFill(doc, pick1, hit.id);
+      if (r.ok) { log(r.msg, "ok"); selectedId = r.createdId; switchTool("select"); } // 画完即回选择
+      else { log(r.msg, "rej"); status(r.msg, true); pick1 = null; }
+    }
+  } else if (tool === "divide") {
+    if (!hit) { status("没点到东西", true); return; }
+    if (!pick1) {
+      if (!STRAIGHT_CLOSED.has(hit.kind)) { const r = { msg: `拒绝：${hit.kind === "circle" ? "曲边" : "该"}图元不能被拆分` }; log(r.msg, "rej"); status(r.msg, true); return; }
+      pick1 = hit.id; status(`被切图元 ${pick1}，点线段刀具`);
+    } else {
+      const r = divideBySegment(doc, pick1, hit.id);
+      if (r.ok) { log(r.msg, "ok"); selectedId = null; switchTool("select"); }
+      else { log(r.msg, "rej"); status(r.msg, true); pick1 = null; }
+    }
+  }
+  render();
+});
+cv.addEventListener("pointermove", (ev) => {
+  if (!drag) return;
+  moveEntry(doc, drag.id, ev.offsetX - drag.x, ev.offsetY - drag.y); // 拖源 → 阴影自动跟随（每次全量重绘）
+  drag.x = ev.offsetX; drag.y = ev.offsetY;
+  render();
+});
+window.addEventListener("pointerup", () => { drag = null; });
+
+// —— 工具与键盘 ——
+function switchTool(t) {
+  tool = t; pick1 = null;
+  cv.classList.toggle("pick", t !== "select");
+  for (const b of document.querySelectorAll(".toolbar button[data-tool]"))
+    b.classList.toggle("on", b.dataset.tool === t);
+  status(t === "select" ? "" : t === "overlap" ? "点第一个封闭图元…" : "点被切的直边封闭图元…", false);
+}
+for (const b of document.querySelectorAll(".toolbar button[data-tool]"))
+  b.addEventListener("click", () => switchTool(b.dataset.tool));
+document.getElementById("reset").addEventListener("click", () => {
+  doc = initialDoc(); selectedId = null; switchTool("select");
+  log("重置场景", ""); render();
+});
+window.addEventListener("keydown", (ev) => {
+  if (ev.key === "1") switchTool("select");
+  if (ev.key === "2") switchTool("overlap");
+  if (ev.key === "3") switchTool("divide");
+  if ((ev.key === "Delete" || ev.key === "Backspace") && selectedId) {
+    const r = removeEntry(doc, selectedId);
+    log(`删除 ${r.removed.join("、")}${r.removed.length > 1 ? "（级联：重叠填充随之消失）" : ""}`, "ok");
+    selectedId = null; render();
+  }
+});
+
+log("初始场景：平行四边形 p0 + 竖切线 s0（割补组）｜圆 c0 + 三角形 t0（阴影组）", "");
+render();
+</script>
+</body>
+</html>
