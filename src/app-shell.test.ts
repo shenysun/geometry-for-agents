@@ -54,6 +54,27 @@ describe("app shell", () => {
     expect(source).toContain("bg-zinc-100");
   });
 
+  test("object list and properties show localized display names, raw id only in title", () => {
+    const objectList = readFileSync(
+      resolve(root, "src/components/ObjectListPanel.vue"),
+      "utf8",
+    );
+    const properties = readFileSync(
+      resolve(root, "src/components/PropertiesPanel.vue"),
+      "utf8",
+    );
+
+    // 显示名走同一套推导：同类型顺序编号（圆、圆1），随当前语言
+    expect(objectList).toContain("displayNamesById");
+    expect(properties).toContain("displayNamesById");
+    // 不再把 英文type · UUID 长串摊在界面上
+    expect(objectList).not.toContain("{{ primitive.type }} · {{ primitive.id }}");
+    expect(properties).not.toContain("{{ selected.type }} · {{ selected.id }}");
+    // id 藏进原生悬停提示，排查问题仍有抓手
+    expect(objectList).toMatch(/:title="primitive\.id"/);
+    expect(properties).toMatch(/:title="selected\.id"/);
+  });
+
   test("App 根组件接线全局工具快捷键：映射、空间、输入防都在", () => {
     const source = readFileSync(resolve(root, "src/App.vue"), "utf8");
 

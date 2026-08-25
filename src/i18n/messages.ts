@@ -69,6 +69,8 @@ export const messages = {
       pyramid: "四棱锥",
       triangularPrism: "三棱柱",
     },
+    /** 同类型图元的编号模板：zh 名字与序号间不留空格 */
+    objectName: "{name}{n}",
     field: {
       x: "X",
       y: "Y",
@@ -212,6 +214,8 @@ export const messages = {
       pyramid: "Pyramid",
       triangularPrism: "Triangular prism",
     },
+    /** Numbering template for same-type primitives: en separates name and index with a space */
+    objectName: "{name} {n}",
     field: {
       x: "X",
       y: "Y",

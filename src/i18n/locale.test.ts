@@ -120,4 +120,14 @@ describe("createAppI18n", () => {
     i18n.global.locale.value = "en";
     expect(i18n.global.t("tool.dimension")).toBe("Dimension line");
   });
+
+  test("显示名编号模板在两种语言下都有文案：zh 不留空格，en 留空格", () => {
+    const i18n = createAppI18n(["zh-CN"]);
+    expect(i18n.global.t("objectName", { name: "圆", n: 1 })).toBe("圆1");
+
+    i18n.global.locale.value = "en";
+    expect(i18n.global.t("objectName", { name: "Circle", n: 2 })).toBe(
+      "Circle 2",
+    );
+  });
 });

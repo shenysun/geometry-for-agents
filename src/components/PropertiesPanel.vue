@@ -15,6 +15,7 @@ import {
   isSolidPrimitive,
   type SolidPrimitive,
 } from "../viewport3d/solid-commit.ts";
+import { displayNamesById } from "./display-name.ts";
 import {
   validateNumericField,
   truncateToPrecision,
@@ -256,6 +257,16 @@ const selected = computed(() => {
   if (id === null) return null;
   return (
     documentStore.current.primitives.find((primitive) => primitive.id === id) ??
+    null
+  );
+});
+
+/** 选中图元的显示名（圆、圆1……）：随说明书与当前语言实时推导 */
+const selectedName = computed(() => {
+  const primitive = selected.value;
+  if (primitive === null) return null;
+  return (
+    displayNamesById(documentStore.current.primitives, t).get(primitive.id) ??
     null
   );
 });
@@ -671,7 +682,7 @@ function onFillChange(value: string | string[] | undefined): void {
     v-if="selected !== null"
     class="h-full space-y-3 overflow-auto px-3 py-3 text-sm"
   >
-    <p class="font-medium">{{ selected.type }} · {{ selected.id }}</p>
+    <p class="font-medium" :title="selected.id">{{ selectedName }}</p>
     <div v-if="solid !== null" class="grid grid-cols-2 gap-2">
       <label v-for="field in solidFieldList" :key="field.key" class="space-y-1">
         <span class="block text-zinc-500">{{ t(field.labelKey) }}</span>

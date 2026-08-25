@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
+import { displayNamesById } from "./display-name.ts";
 
 const { t } = useI18n();
 const documentStore = useDocumentStore();
@@ -10,6 +11,11 @@ const editor = useEditorStore();
 
 const primitiveCount = computed(
   () => documentStore.current.primitives.length,
+);
+
+/** id → 显示名（圆、圆1……）：随说明书与当前语言实时推导 */
+const displayNames = computed(() =>
+  displayNamesById(documentStore.current.primitives, t),
 );
 </script>
 
@@ -25,6 +31,7 @@ const primitiveCount = computed(
       >
         <button
           type="button"
+          :title="primitive.id"
           class="block w-full px-3 py-1.5 text-left"
           :class="
             primitive.id === editor.selectionId
@@ -34,7 +41,7 @@ const primitiveCount = computed(
           :aria-pressed="primitive.id === editor.selectionId"
           @click="editor.setSelectionId(primitive.id)"
         >
-          {{ primitive.type }} · {{ primitive.id }}
+          {{ displayNames.get(primitive.id) }}
         </button>
       </li>
     </ul>
