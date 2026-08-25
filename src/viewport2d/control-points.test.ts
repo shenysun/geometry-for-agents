@@ -384,6 +384,38 @@ describe("controlPoints 角", () => {
   });
 });
 
+describe("controlPoints 正多边形", () => {
+  test("n 个顶点带下标，中心不进目录（平移靠拖本体）", () => {
+    const pentagon = primitive2d({
+      id: "pent-1",
+      type: "regularPolygon",
+      x: 1,
+      y: 2,
+      sides: 5,
+      r: 2,
+      rotationDeg: 0,
+      fill: "none",
+    });
+
+    const points = controlPoints(pentagon);
+    expect(points.map((point) => point.id)).toEqual([
+      "vertex-0",
+      "vertex-1",
+      "vertex-2",
+      "vertex-3",
+      "vertex-4",
+    ]);
+    expect(points.every((point) => point.kind === "vertex")).toBe(true);
+    // 房顶尖（局部 90°）：世界 (1, 4)。
+    expectPointCloseTo(points[2]!.point, { x: 1, y: 4 });
+    // 底边右端（局部 -54°）：(1+2cos(-54°), 2+2sin(-54°))。
+    expectPointCloseTo(points[0]!.point, {
+      x: 1 + 2 * Math.cos((-54 * Math.PI) / 180),
+      y: 2 + 2 * Math.sin((-54 * Math.PI) / 180),
+    });
+  });
+});
+
 describe("controlPoints 标签", () => {  test("标签没有控制点（位置靠拖本体平移）", () => {
     const label = primitive2d({
       id: "label-1",

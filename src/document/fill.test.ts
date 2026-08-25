@@ -62,6 +62,26 @@ describe("withFill", () => {
     expect(triangle).toEqual(snapshot);
   });
 
+  test("returns a new regular polygon with the chosen fill, keeping sides", () => {
+    const polygon: Primitive = {
+      id: "pent-1",
+      type: "regularPolygon",
+      x: 1,
+      y: 2,
+      sides: 5,
+      r: 2,
+      rotationDeg: 15,
+      fill: "none",
+    };
+    const snapshot = structuredClone(polygon);
+
+    const next = withFill(polygon, "solid");
+
+    expect(next).toEqual({ ...polygon, fill: "solid" });
+    expect(next).not.toBe(polygon);
+    expect(polygon).toEqual(snapshot);
+  });
+
   test("returns null for line, arc, and label", () => {
     const line: Primitive = {
       id: "line-1",

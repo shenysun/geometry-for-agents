@@ -10,6 +10,7 @@ import {
   baseHeightLocalVertices,
 } from "./base-height-family.ts";
 import type { AnglePrimitive } from "./angle.ts";
+import { regularPolygonLocalVertices } from "./regular-polygon.ts";
 import {
   snap2d,
   snap3d,
@@ -121,6 +122,7 @@ export function translatePrimitiveGeometry(
     case "parallelogram":
     case "trapezoid":
     case "angle":
+    case "regularPolygon":
       return { ...primitive, x: primitive.x + dx, y: primitive.y + dy };
     case "circle":
     case "sector":
@@ -185,6 +187,7 @@ export function primitiveAnchor(primitive: Primitive2d): Point2 {
     case "parallelogram":
     case "trapezoid":
     case "angle":
+    case "regularPolygon":
       return { x: primitive.x, y: primitive.y };
     default:
       return { x: primitive.cx, y: primitive.cy };
@@ -252,6 +255,7 @@ export function rotatePrimitiveGeometry(
     case "triangle":
     case "parallelogram":
     case "trapezoid":
+    case "regularPolygon":
       return {
         ...primitive,
         rotationDeg: normalizeDeg(primitive.rotationDeg + deg),
@@ -338,6 +342,8 @@ export function scalePrimitiveGeometry(
       };
     case "angle":
       return { ...primitive, length: primitive.length * factor };
+    case "regularPolygon":
+      return { ...primitive, r: primitive.r * factor };
     case "label":
       return primitive;
   }
@@ -474,6 +480,19 @@ export function moveControlPointGeometry(
         return { ...primitive, endDeg: deg, length };
       }
       return primitive;
+    }
+    case "regularPolygon": {
+      // 拖顶点只改外接圆半径：角度朝向不动（旋转走旋转柄）。
+      const match = VERTEX_ID.exec(pointId);
+      if (match === null) return primitive;
+      const index = Number(match[1]);
+      if (index >= regularPolygonLocalVertices(primitive).length) {
+        return primitive;
+      }
+      return {
+        ...primitive,
+        r: distanceBetween({ x: primitive.x, y: primitive.y }, world),
+      };
     }
     case "label":
       return primitive;

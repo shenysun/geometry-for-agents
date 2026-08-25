@@ -67,11 +67,24 @@ describe("toolsForSpace", () => {
     expect(planar.indexOf("trapezoid")).toBe(planar.indexOf("angle") - 1);
   });
 
-  test("2D 目录含 angle，排在 trapezoid 后、circle 前", () => {
+  test("2D 目录含 angle，排在 trapezoid 后", () => {
     const planar = toolsForSpace("2d").map((tool) => tool.id);
 
     expect(planar.indexOf("angle")).toBe(planar.indexOf("trapezoid") + 1);
-    expect(planar.indexOf("angle")).toBe(planar.indexOf("circle") - 1);
+    expect(planar.indexOf("angle")).toBe(
+      planar.indexOf("regularPolygon") - 1,
+    );
+  });
+
+  test("2D 目录含 regularPolygon，排在 angle 后、circle 前", () => {
+    const planar = toolsForSpace("2d").map((tool) => tool.id);
+
+    expect(planar.indexOf("regularPolygon")).toBe(
+      planar.indexOf("angle") + 1,
+    );
+    expect(planar.indexOf("regularPolygon")).toBe(
+      planar.indexOf("circle") - 1,
+    );
   });
 
   test("每项都带 i18n key 与图标数据", () => {

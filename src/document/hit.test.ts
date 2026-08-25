@@ -453,6 +453,83 @@ describe("hitTest 角", () => {
   });
 });
 
+describe("hitTest 正多边形", () => {
+  test("平底六边形：形内与底边命中，外点落空", () => {
+    const document = doc2d([
+      {
+        id: "hex-1",
+        type: "regularPolygon",
+        x: 0,
+        y: 0,
+        sides: 6,
+        r: 2,
+        rotationDeg: 0,
+        fill: "none",
+      },
+    ]);
+
+    expect(hitTest(document, { x: 0, y: 0 })?.id).toBe("hex-1");
+    expect(hitTest(document, { x: 1, y: -1.5 })?.id).toBe("hex-1");
+    // 底边 y=-√3 上 |x|≤1：边界命中。
+    expect(hitTest(document, { x: 0.5, y: -Math.sqrt(3) }, 1e-9)?.id).toBe(
+      "hex-1",
+    );
+    // 腰外的点：六边形在 y=-1.5 处 |x| 上限约 1.13。
+    expect(hitTest(document, { x: 1.9, y: -1.5 })).toBeNull();
+    expect(hitTest(document, { x: 2.1, y: 0 })).toBeNull();
+  });
+
+  test("旋转过的五边形按世界顶点判定", () => {
+    const document = doc2d([
+      {
+        id: "pent-1",
+        type: "regularPolygon",
+        x: 0,
+        y: 0,
+        sides: 5,
+        r: 2,
+        rotationDeg: 90,
+        fill: "none",
+      },
+    ]);
+
+    // 旋 90° 后原顶点方向（90° 房顶尖）转到 180°：(-1.9,0) 在该尖内侧；
+    // (0,2) 原是尖、旋转后是腰外。
+    expect(hitTest(document, { x: -1.9, y: 0 })?.id).toBe("pent-1");
+    expect(hitTest(document, { x: 0, y: 2 })).toBeNull();
+  });
+
+  test("正多边形是闭合图元：面积 n/2·r²·sin(2π/n) 参与小者优先", () => {
+    // 五边形面积 (5/2)·(1.5²)·sin72° ≈ 5.36 小于三角 wh/2 = 6：重叠点选五边形。
+    const document = doc2d([
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        apexOffset: 0,
+        rotationDeg: 0,
+        fill: "none",
+      },
+      {
+        id: "pent-1",
+        type: "regularPolygon",
+        x: 0,
+        y: 0,
+        sides: 5,
+        r: 1.5,
+        rotationDeg: 0,
+        fill: "solid",
+      },
+    ]);
+
+    expect(hitTest(document, { x: 0, y: 0.5 })?.id).toBe("pent-1");
+    expect(hitTest(document, { x: 0, y: 2.5 })?.id).toBe("tri-1");
+  });
+});
+
 describe("hitTest 命中容差", () => {
   test("细线在容差内可命中，零容差保持精确", () => {
     const document = doc2d([

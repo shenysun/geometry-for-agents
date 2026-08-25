@@ -426,6 +426,38 @@ describe("select-gesture 家族预览", () => {
     expect(handles?.rotate).toEqual({ x: 0, y: 6 });
     expect(handles?.scale).toEqual({ x: 6, y: 0 });
   });
+
+  test("正多边形：reach 取外接圆半径，预览携带全部字段", () => {
+    const document = doc2d([
+      {
+        id: "pent-1",
+        type: "regularPolygon",
+        x: 0,
+        y: 0,
+        sides: 5,
+        r: 2,
+        rotationDeg: 15,
+        fill: "solid",
+      },
+    ]);
+
+    expect(selectPreview(document, "pent-1")).toEqual({
+      type: "regularPolygon",
+      x: 0,
+      y: 0,
+      sides: 5,
+      r: 2,
+      rotationDeg: 15,
+    });
+
+    // 正多边形有 n 重旋转对称但 n ≥ 5 时旋转柄仍有意义（朝向是几何字段）。
+    const handles = transformHandles(
+      primitiveOf(document, "pent-1"),
+      0.5,
+    );
+    expect(handles?.rotate).toEqual({ x: 0, y: 4 });
+    expect(handles?.scale).toEqual({ x: 4, y: 0 });
+  });
 });
 
 describe("select-gesture 柄命中", () => {

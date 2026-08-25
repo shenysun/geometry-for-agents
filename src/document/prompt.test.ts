@@ -286,6 +286,27 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the regular polygon syntax with circumcenter anchor and flat-bottom default", () => {
+    const polygon = {
+      id: "pent-1",
+      type: "regularPolygon",
+      x: 2,
+      y: 3,
+      sides: 5,
+      r: 4,
+      rotationDeg: 15,
+      fill: "solid",
+    };
+    const document = parsed("2d", [polygon]);
+
+    const prompt = documentToPrompt(document);
+
+    expect(prompt).toMatch(/regularPolygon:.*circumcenter/);
+    expect(prompt).toMatch(/regularPolygon:.*sides/);
+    expect(prompt).toMatch(/regularPolygon:.*flat-bottom/);
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
   test("documents the box anchor and every field in the syntax and projects it deterministically", () => {
     const box = {
       id: "box-1",

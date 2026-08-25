@@ -74,13 +74,19 @@ type PlanarFieldKey =
   | "rotationDeg"
   | "startDeg"
   | "endDeg"
-  | "length";
+  | "length"
+  | "sides"
+  | "r";
 
 type PlanarField = {
   key: PlanarFieldKey;
   labelKey: `field.${PlanarFieldKey}`;
   step: number;
   positive: boolean;
+  /** 整数约束（如正多边形边数）。 */
+  integer?: boolean;
+  /** 含下界（如 sides ≥ 5）。 */
+  min?: number;
 };
 
 const PLANAR_POSITION_FIELDS: readonly PlanarField[] = [
@@ -98,7 +104,14 @@ const PLANAR_ROTATION_FIELD: PlanarField = {
 /** 平面参数形类型：字段目录按类型取其子集 */
 type PlanarParametric = Extract<
   Primitive,
-  { type: "rectangle" | "triangle" | "parallelogram" | "trapezoid" }
+  {
+    type:
+      | "rectangle"
+      | "triangle"
+      | "parallelogram"
+      | "trapezoid"
+      | "regularPolygon";
+  }
 >;
 
 /** 按类型穷尽的字段目录：锚点、尺寸（正数）、家族偏移（可负）与旋转角 */
@@ -148,6 +161,13 @@ function planarFields(type: PlanarParametric["type"]): readonly PlanarField[] {
         { key: "topOffset", labelKey: "field.topOffset", step: 0.5, positive: false },
         PLANAR_ROTATION_FIELD,
       ];
+    case "regularPolygon":
+      return [
+        ...PLANAR_POSITION_FIELDS,
+        { key: "sides", labelKey: "field.sides", step: 1, positive: true, integer: true, min: 5 },
+        { key: "r", labelKey: "field.r", step: 0.5, positive: true },
+        PLANAR_ROTATION_FIELD,
+      ];
   }
 }
 
@@ -183,10 +203,12 @@ function numericFieldOf(
   return typeof value === "number" ? value : null;
 }
 
-/** 数字字段提交的校验形状：提交校验只看键与是否必须为正 */
+/** 数字字段提交的校验形状：提交校验只看键与数值约束 */
 type NumericFieldEntry = {
   key: string;
   positive: boolean;
+  integer?: boolean;
+  min?: number;
 };
 
 /** 通用数字字段提交：非数字或非法值不写说明书，输入框回退为当前值 */
@@ -203,7 +225,9 @@ function commitNumericField(
   const field = fields.find((entry) => entry.key === key);
   const valid =
     Number.isFinite(value) &&
-    (field === undefined || !field.positive || value > 0);
+    (field === undefined || !field.positive || value > 0) &&
+    (field === undefined || !field.integer || Number.isInteger(value)) &&
+    (field === undefined || field.min === undefined || value >= field.min);
   if (!valid || present === value) {
     input.value = String(present);
     return;
@@ -245,7 +269,8 @@ const planar = computed(() => {
     (primitive.type === "rectangle" ||
       primitive.type === "triangle" ||
       primitive.type === "parallelogram" ||
-      primitive.type === "trapezoid")
+      primitive.type === "trapezoid" ||
+      primitive.type === "regularPolygon")
     ? primitive
     : null;
 });

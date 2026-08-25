@@ -5,6 +5,7 @@ import type {
   Primitive2d,
 } from "../document/index.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
+import { regularPolygonWorldVertices } from "../document/regular-polygon.ts";
 import {
   angleArcRadius,
   angleEndPoint,
@@ -190,10 +191,16 @@ function drawPrimitive(
     case "triangle":
     case "parallelogram":
     case "trapezoid":
-      // 家族顶点已随 rotationDeg 旋到世界：闭合折线即形，无需 Konva rotation。
+    case "regularPolygon":
+      // 顶点已随 rotationDeg 旋到世界：闭合折线即形，无需 Konva rotation。
       return [
         strokeLine(
-          toScreenPoints(baseHeightWorldVertices(primitive), view),
+          toScreenPoints(
+            primitive.type === "regularPolygon"
+              ? regularPolygonWorldVertices(primitive)
+              : baseHeightWorldVertices(primitive),
+            view,
+          ),
           true,
           primitive.fill,
         ),
@@ -360,6 +367,10 @@ function previewPrimitive(preview: DrawPreview): Primitive2d | null {
     if (preview.length <= 0) return null;
     return { id: "preview", ...preview };
   }
+  if (preview.type === "regularPolygon") {
+    if (preview.r <= 0) return null;
+    return { id: "preview", ...preview, fill: "none" };
+  }
   if (preview.type === "label") {
     return { id: "preview", ...preview };
   }
@@ -384,7 +395,8 @@ function previewGuidePoints(preview: DrawPreview): Point2[] {
     preview.type === "triangle" ||
     preview.type === "parallelogram" ||
     preview.type === "trapezoid" ||
-    preview.type === "angle"
+    preview.type === "angle" ||
+    preview.type === "regularPolygon"
   ) {
     return [{ x: preview.x, y: preview.y }];
   }

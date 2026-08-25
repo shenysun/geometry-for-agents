@@ -11,6 +11,7 @@ export function withFill(primitive: Primitive, fill: Fill): Primitive | null {
     case "triangle":
     case "parallelogram":
     case "trapezoid":
+    case "regularPolygon":
     case "circle":
     case "sector":
     case "bow":

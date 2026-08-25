@@ -426,6 +426,7 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
     gesture.kind === "rectangle" ||
     gesture.kind === "box" ||
     gesture.kind === "circle" ||
+    gesture.kind === "regularPolygon" ||
     gesture.kind === "ellipse" ||
     gesture.kind === "ring"
   ) {

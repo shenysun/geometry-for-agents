@@ -117,6 +117,8 @@ function handleReach(primitive: Primitive2d, center: Point2): number {
       return Math.max(primitive.rx, primitive.ry);
     case "angle":
       return primitive.length;
+    case "regularPolygon":
+      return primitive.r;
     case "label":
       return 0;
   }
@@ -284,6 +286,15 @@ function previewFromPrimitive(primitive: Primitive2d): DrawPreview {
         startDeg: primitive.startDeg,
         endDeg: primitive.endDeg,
         length: primitive.length,
+      };
+    case "regularPolygon":
+      return {
+        type: "regularPolygon",
+        x: primitive.x,
+        y: primitive.y,
+        sides: primitive.sides,
+        r: primitive.r,
+        rotationDeg: primitive.rotationDeg,
       };
     case "label":
       return {

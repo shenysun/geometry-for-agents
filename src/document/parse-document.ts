@@ -127,6 +127,19 @@ const angleSchema = z
     },
   );
 
+// 正多边形（ADR 0017）：中心即外接圆心；sides ≥ 5（等边三角形与正方形
+// 各有唯一规范表达）；缺省朝向平底——一条边平行局部 X 且在下方。
+const regularPolygonSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("regularPolygon"),
+  x: z.number(),
+  y: z.number(),
+  sides: z.number().int().min(5),
+  r: z.number().positive(),
+  rotationDeg: z.number().default(0),
+  fill: fillSchema,
+});
+
 const circleSchema = z.strictObject({
   ...disk2d,
   type: z.literal("circle"),
@@ -285,6 +298,7 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   parallelogramSchema,
   trapezoidSchema,
   angleSchema,
+  regularPolygonSchema,
   circleSchema,
   sectorSchema,
   bowSchema,

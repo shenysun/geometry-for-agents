@@ -14,6 +14,7 @@ export const DRAW_TOOLS = [
   "parallelogram",
   "trapezoid",
   "angle",
+  "regularPolygon",
   "circle",
   "sector",
   "bow",
@@ -44,6 +45,7 @@ const DRAG_TOOLS: ReadonlySet<DrawTool> = new Set([
   "triangle",
   "parallelogram",
   "trapezoid",
+  "regularPolygon",
   "circle",
   "ellipse",
   "ring",
@@ -112,6 +114,14 @@ export type DrawPreview =
       endDeg: number;
       length: number;
     }
+  | {
+      type: "regularPolygon";
+      x: number;
+      y: number;
+      sides: number;
+      r: number;
+      rotationDeg: number;
+    }
   | { type: "circle"; cx: number; cy: number; r: number }
   | {
       type: "ellipse";
@@ -156,6 +166,7 @@ export type DrawGestureState =
   | { kind: "polygon"; vertices: Point2[]; cursor: Point2 }
   | { kind: "rectangle"; start: Point2; cursor: Point2 }
   | { kind: "box"; tool: BoxTool; start: Point2; cursor: Point2 }
+  | { kind: "regularPolygon"; center: Point2; cursor: Point2 }
   | { kind: "circle"; center: Point2; cursor: Point2 }
   | { kind: "ellipse"; start: Point2; cursor: Point2 }
   | { kind: "ring"; center: Point2; rOuter: number | null; cursor: Point2 }
@@ -349,6 +360,17 @@ function previewFrom(state: DrawGestureState): DrawPreview {
       r: distance(state.center, state.cursor),
     };
   }
+  if (state.kind === "regularPolygon") {
+    // 拖出的边数缺省 6（平底六边形），边数靠属性面板改。
+    return {
+      type: "regularPolygon",
+      x: state.center.x,
+      y: state.center.y,
+      sides: 6,
+      r: distance(state.center, state.cursor),
+      rotationDeg: 0,
+    };
+  }
   if (state.kind === "ellipse") {
     return {
       type: "ellipse",
@@ -433,6 +455,9 @@ export function startDraw(
   if (ctx.tool === "circle") {
     return result({ kind: "circle", center: point, cursor: point });
   }
+  if (ctx.tool === "regularPolygon") {
+    return result({ kind: "regularPolygon", center: point, cursor: point });
+  }
   if (ctx.tool === "ellipse") {
     return result({ kind: "ellipse", start: point, cursor: point });
   }
@@ -470,6 +495,9 @@ export function moveDraw(
   }
   if (state.kind === "circle") {
     return result({ kind: "circle", center: state.center, cursor });
+  }
+  if (state.kind === "regularPolygon") {
+    return result({ kind: "regularPolygon", center: state.center, cursor });
   }
   if (state.kind === "ellipse") {
     return result({ kind: "ellipse", start: state.start, cursor });
@@ -540,6 +568,22 @@ export function upDraw(
       cx: state.center.x,
       cy: state.center.y,
       r,
+      fill: "none",
+    });
+  }
+  if (state.kind === "regularPolygon") {
+    const r = distance(state.center, end);
+    if (r === 0) {
+      return result(idleDrawState());
+    }
+    return commitAndIdle({
+      id: ctx.id,
+      type: "regularPolygon",
+      x: state.center.x,
+      y: state.center.y,
+      sides: 6,
+      r,
+      rotationDeg: 0,
       fill: "none",
     });
   }

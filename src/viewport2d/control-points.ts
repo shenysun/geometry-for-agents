@@ -1,5 +1,6 @@
 import type { Point2, Primitive2d } from "../document/index.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
+import { regularPolygonWorldVertices } from "../document/regular-polygon.ts";
 import {
   angleEndPoint,
   angleStartPoint,
@@ -185,6 +186,15 @@ export function controlPoints(primitive: Primitive2d): ControlPoint[] {
           point: angleEndPoint(primitive),
         },
       ];
+    }
+    case "regularPolygon": {
+      // n 个顶点与世界顶点同源；拖顶点改外接圆半径。中心（外接圆心）
+      // 不进目录，平移走拖本体。
+      return regularPolygonWorldVertices(primitive).map((point, index) => ({
+        id: `vertex-${index}`,
+        kind: "vertex" as const,
+        point,
+      }));
     }
     case "label":
       return [];

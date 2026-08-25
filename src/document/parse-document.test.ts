@@ -83,6 +83,16 @@ const closed2dPrimitives = [
     length: 3,
   },
   {
+    id: "regularPolygon-1",
+    type: "regularPolygon",
+    x: 0,
+    y: 0,
+    sides: 6,
+    r: 2,
+    rotationDeg: 15,
+    fill: "hatch",
+  },
+  {
     id: "circle-1",
     type: "circle",
     cx: 0,
@@ -192,6 +202,7 @@ describe("parseDocument", () => {
       "parallelogram",
       "trapezoid",
       "angle",
+      "regularPolygon",
       "circle",
       "sector",
       "bow",
@@ -996,6 +1007,71 @@ describe("parseDocument 角", () => {
     if (result.success) return;
     expect(result.error).toContain(
       'type "angle" is not allowed in space "3d"',
+    );
+  });
+});
+
+const validRegularPolygon = {
+  id: "regularPolygon-1",
+  type: "regularPolygon",
+  x: 1,
+  y: -2,
+  sides: 5,
+  r: 2,
+  rotationDeg: 30,
+  fill: "hatch",
+};
+
+describe("parseDocument 正多边形", () => {
+  test("parses a regular polygon centered at its circumcenter", () => {
+    const result = parseDocument(spec("2d", [validRegularPolygon]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual(validRegularPolygon);
+  });
+
+  test("opens a regular polygon without rotationDeg as rotation 0", () => {
+    const { rotationDeg: _omitted, ...withoutRotation } = validRegularPolygon;
+    const result = parseDocument(spec("2d", [withoutRotation]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual({
+      ...withoutRotation,
+      rotationDeg: 0,
+    });
+  });
+
+  test("rejects sides below 5 (triangle and square have canonical forms)", () => {
+    for (const sides of [2, 3, 4]) {
+      expect(
+        parseDocument(spec("2d", [{ ...validRegularPolygon, sides }])).success,
+        `sides ${sides}`,
+      ).toBe(false);
+    }
+    expect(
+      parseDocument(spec("2d", [{ ...validRegularPolygon, sides: 5.5 }]))
+        .success,
+    ).toBe(false);
+  });
+
+  test("rejects non-positive circumradius", () => {
+    expect(
+      parseDocument(spec("2d", [{ ...validRegularPolygon, r: 0 }])).success,
+    ).toBe(false);
+    expect(
+      parseDocument(spec("2d", [{ ...validRegularPolygon, r: -1 }])).success,
+    ).toBe(false);
+  });
+
+  test("rejects a regular polygon in space 3d", () => {
+    const result = parseDocument(spec("3d", [validRegularPolygon]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain(
+      'type "regularPolygon" is not allowed in space "3d"',
     );
   });
 });

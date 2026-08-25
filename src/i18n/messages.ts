@@ -52,6 +52,7 @@ export const messages = {
       parallelogram: "平行四边形",
       trapezoid: "梯形",
       angle: "角",
+      regularPolygon: "正多边形",
       circle: "圆",
       sector: "扇形",
       bow: "弓形",
@@ -88,6 +89,7 @@ export const messages = {
       startDeg: "起始角",
       endDeg: "终止角",
       length: "边长",
+      sides: "边数",
     },
     fill: {
       label: "填充",
@@ -184,6 +186,7 @@ export const messages = {
       parallelogram: "Parallelogram",
       trapezoid: "Trapezoid",
       angle: "Angle",
+      regularPolygon: "Regular polygon",
       circle: "Circle",
       sector: "Sector",
       bow: "Bow",
@@ -220,6 +223,7 @@ export const messages = {
       startDeg: "Start angle",
       endDeg: "End angle",
       length: "Side length",
+      sides: "Sides",
     },
     fill: {
       label: "Fill",

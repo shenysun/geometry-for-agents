@@ -2037,3 +2037,91 @@ describe("角更新", () => {
     ).toBe(false);
   });
 });
+
+describe("正多边形更新", () => {
+  const hexagon: Primitive2d = {
+    id: "hex-1",
+    type: "regularPolygon",
+    x: 1,
+    y: 2,
+    sides: 6,
+    r: 2,
+    rotationDeg: 0,
+    fill: "none",
+  };
+
+  const polygonDoc = (): GeometryDocument =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [hexagon],
+    });
+
+  test("translatePrimitiveGeometry 只平移中心", () => {
+    const moved = translatePrimitiveGeometry({ ...hexagon, rotationDeg: 30 }, -1, 3);
+
+    expect(moved).toEqual({ ...hexagon, rotationDeg: 30, x: 0, y: 5 });
+    expect(hexagon.x).toBe(1);
+  });
+
+  test("rotatePrimitiveGeometry 写 rotationDeg 并归一，中心与尺寸不动", () => {
+    const quarter = rotatePrimitiveGeometry(hexagon, 90);
+    const wrap = rotatePrimitiveGeometry({ ...hexagon, rotationDeg: 270 }, 90);
+
+    expect(quarter).toEqual({ ...hexagon, rotationDeg: 90 });
+    expect(wrap).toEqual({ ...hexagon, rotationDeg: 0 });
+  });
+
+  test("scalePrimitiveGeometry 只乘外接圆半径，形状保持相似", () => {
+    const moved = scalePrimitiveGeometry(hexagon, 1.5);
+
+    expect(moved).toEqual({ ...hexagon, r: 3 });
+  });
+
+  test("moveControlPointGeometry 拖顶点只改外接圆半径（角度朝向不动）", () => {
+    // 顶点 vertex-0 世界 (2, 2-√3)；拖到中心正下方 1 单位的 (1,1) → r=1。
+    const moved = moveControlPointGeometry(hexagon, "vertex-0", {
+      x: 1,
+      y: 1,
+    });
+
+    if (moved.type !== "regularPolygon") return;
+    expectCloseTo(moved.r, 1);
+    expect(moved.sides).toBe(6);
+    expect(moved.rotationDeg).toBe(0);
+  });
+
+  test("moveControlPointGeometry 旋转过的多边形按中心距离度量半径", () => {
+    // 旋转 30° 不改变顶点到中心的距离：拖到距中心 3 处 → r=3。
+    const rotated = { ...hexagon, rotationDeg: 30 };
+    const moved = moveControlPointGeometry(rotated, "vertex-2", {
+      x: 1 + 3 * Math.cos((90 * Math.PI) / 180),
+      y: 2 + 3 * Math.sin((90 * Math.PI) / 180),
+    });
+
+    if (moved.type !== "regularPolygon") return;
+    expectCloseTo(moved.r, 3);
+    expect(moved.rotationDeg).toBe(30);
+  });
+
+  test("moveControlPointGeometry 未知控制点 id 是恒等变换", () => {
+    expect(
+      moveControlPointGeometry(hexagon, "vertex-9", { x: 9, y: 9 }),
+    ).toBe(hexagon);
+    expect(
+      moveControlPointGeometry(hexagon, "center", { x: 9, y: 9 }),
+    ).toBe(hexagon);
+  });
+
+  test("moveControlPoint 拖顶点到中心（r=0）被契约拒绝", () => {
+    const result = moveControlPoint(
+      polygonDoc(),
+      "hex-1",
+      "vertex-0",
+      { x: 1, y: 2 },
+      "off",
+    );
+    expect(result.success).toBe(false);
+  });
+});

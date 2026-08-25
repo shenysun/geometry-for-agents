@@ -968,4 +968,102 @@ describe("角工具", () => {
   });
 });
 
+describe("正多边形工具", () => {
+  test("中心拖半径提交平底六边形（sides 缺省 6）", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("regularPolygon", { x: 0, y: 0 }, 1, "pent-1"),
+    );
+    expect(started.commit).toBeNull();
+    const moved = moveDraw(
+      started.state,
+      ctx("regularPolygon", { x: 3, y: 4 }, 1, "pent-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "regularPolygon",
+      x: 0,
+      y: 0,
+      sides: 6,
+      r: 5,
+      rotationDeg: 0,
+    });
+
+    const committed = upDraw(
+      moved.state,
+      ctx("regularPolygon", { x: 3, y: 4 }, 1, "pent-1"),
+    );
+    expect(committed.commit).toEqual({
+      id: "pent-1",
+      type: "regularPolygon",
+      x: 0,
+      y: 0,
+      sides: 6,
+      r: 5,
+      rotationDeg: 0,
+      fill: "none",
+    });
+    expect(committed.state).toEqual(idleDrawState());
+  });
+
+  test("零半径不提交；起点与终点吃格；Alt 关格", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("regularPolygon", { x: 0.2, y: 0.2 }, 1, "pent-1"),
+    );
+    const flat = upDraw(
+      started.state,
+      ctx("regularPolygon", { x: 0.4, y: 0.3 }, 1, "pent-1"),
+    );
+    expect(flat.commit).toBeNull();
+    expect(flat.state).toEqual(idleDrawState());
+
+    const moved = moveDraw(
+      started.state,
+      ctx("regularPolygon", { x: 3.5, y: 0.2 }, 1, "pent-1"),
+    );
+    expect(moved.preview).toEqual({
+      type: "regularPolygon",
+      x: 0,
+      y: 0,
+      sides: 6,
+      r: 4,
+      rotationDeg: 0,
+    });
+
+    const freeStart = startDraw(
+      idleDrawState(),
+      ctx("regularPolygon", { x: 0.5, y: -0.5 }, "off", "pent-1"),
+    );
+    const freeMoved = moveDraw(
+      freeStart.state,
+      ctx("regularPolygon", { x: 2.5, y: -0.5 }, "off", "pent-1"),
+    );
+    expect(freeMoved.preview).toEqual({
+      type: "regularPolygon",
+      x: 0.5,
+      y: -0.5,
+      sides: 6,
+      r: 2,
+      rotationDeg: 0,
+    });
+  });
+
+  test("esc 取消正多边形预览且不提交", () => {
+    const started = startDraw(
+      idleDrawState(),
+      ctx("regularPolygon", { x: 0, y: 0 }, 1, "pent-1"),
+    );
+    const moved = moveDraw(
+      started.state,
+      ctx("regularPolygon", { x: 3, y: 0 }, 1, "pent-1"),
+    );
+    expect(moved.preview).not.toBeNull();
+
+    const cancelled = escDraw(moved.state);
+    expect(cancelled.commit).toBeNull();
+    expect(cancelled.preview).toBeNull();
+    expect(cancelled.state).toEqual(idleDrawState());
+  });
+});
+
 

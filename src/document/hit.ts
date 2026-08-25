@@ -10,6 +10,7 @@ import {
   angleEndPoint,
   angleStartPoint,
 } from "./angle.ts";
+import { regularPolygonWorldVertices } from "./regular-polygon.ts";
 import type { Point2 } from "./snap.ts";
 
 const DEG = Math.PI / 180;
@@ -223,8 +224,14 @@ function contains(
     case "triangle":
     case "parallelogram":
     case "trapezoid":
-      // 家族顶点已随 rotationDeg 旋到世界：点在多边形判定与坐标系无关。
-      return pointInPolygon(point, baseHeightWorldVertices(primitive));
+    case "regularPolygon":
+      // 顶点已随 rotationDeg 旋到世界：点在多边形判定与坐标系无关。
+      return pointInPolygon(
+        point,
+        primitive.type === "regularPolygon"
+          ? regularPolygonWorldVertices(primitive)
+          : baseHeightWorldVertices(primitive),
+      );
     case "ring":
       return inRing(point, primitive);
     case "polygon":
@@ -269,6 +276,7 @@ const closedTypes = new Set<Primitive2d["type"]>([
   "triangle",
   "parallelogram",
   "trapezoid",
+  "regularPolygon",
   "circle",
   "sector",
   "bow",
@@ -294,6 +302,13 @@ function area(primitive: Primitive2d): number {
       return primitive.width * primitive.height;
     case "trapezoid":
       return ((primitive.width + primitive.topWidth) / 2) * primitive.height;
+    case "regularPolygon":
+      return (
+        (primitive.sides / 2) *
+        primitive.r *
+        primitive.r *
+        Math.sin((2 * Math.PI) / primitive.sides)
+      );
     case "ring":
       return Math.PI * (primitive.rOuter ** 2 - primitive.rInner ** 2);
     case "polygon":

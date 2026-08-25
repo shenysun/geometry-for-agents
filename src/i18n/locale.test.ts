@@ -100,4 +100,16 @@ describe("createAppI18n", () => {
     expect(i18n.global.t("field.endDeg")).toBe("End angle");
     expect(i18n.global.t("field.length")).toBe("Side length");
   });
+
+  test("正多边形工具与字段在两种语言下都有文案", () => {
+    const i18n = createAppI18n(["zh-CN"]);
+    expect(i18n.global.t("tool.regularPolygon")).toBe("正多边形");
+    expect(i18n.global.t("field.sides")).toBe("边数");
+    expect(i18n.global.t("field.r")).toBe("半径 r");
+
+    i18n.global.locale.value = "en";
+    expect(i18n.global.t("tool.regularPolygon")).toBe("Regular polygon");
+    expect(i18n.global.t("field.sides")).toBe("Sides");
+    expect(i18n.global.t("field.r")).toBe("Radius (r)");
+  });
 });
