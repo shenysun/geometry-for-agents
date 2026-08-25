@@ -36,4 +36,11 @@ describe("2d viewport host", () => {
     expect(source).toContain("removePrimitive");
     expect(source).not.toMatch(/vue-konva|v-circle|v-layer|TresCanvas/i);
   });
+
+  test("draw commit returns to select (ADR 0018): only inside the success branch", () => {
+    const source = readFileSync(resolve(dir, "Viewport2d.vue"), "utf8");
+
+    expect(source).toMatch(/added\.success[\s\S]{0,200}setTool\("select"\)/);
+    expect(source.match(/setTool\("select"\)/g)).toHaveLength(1);
+  });
 });

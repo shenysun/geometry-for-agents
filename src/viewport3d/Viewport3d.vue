@@ -116,7 +116,8 @@ function selectContext(
         ? pick.world.y
         : 0);
   const point = projector.pickOnPlane(screen, y);
-  const world = point ?? (pick.kind === "none" ? { x: 0, y: 0, z: 0 } : pick.world);
+  const world =
+    point ?? (pick.kind === "none" ? { x: 0, y: 0, z: 0 } : pick.world);
   const perPixel = projector.worldPerPixel(world);
   return {
     tool: "select",
@@ -136,7 +137,14 @@ function commitSolidTransform(commit: Select3dCommit, grid: GridSnap): void {
   const current = documentStore.current;
   const transformed =
     commit.kind === "translateSolid"
-      ? translateSolid(current, commit.id, commit.dx, commit.dy, commit.dz, grid)
+      ? translateSolid(
+          current,
+          commit.id,
+          commit.dx,
+          commit.dy,
+          commit.dz,
+          grid,
+        )
       : commit.kind === "rotateSolid"
         ? rotateSolid(current, commit.id, commit.axis, commit.deg)
         : commit.kind === "scaleSolid"
@@ -213,12 +221,10 @@ function refreshSolidOverlays(): void {
     { axis: "rotateZ", point: toScreen(handles.rotateZ) },
   ];
   solidScaleHandleScreen.value = toScreen(handles.scale);
-  solidControlScreens.value = solidControlPoints(primitive).flatMap(
-    (point) => {
-      const screen = view.toScreen(point.world);
-      return screen === null ? [] : [{ id: point.id, point: screen }];
-    },
-  );
+  solidControlScreens.value = solidControlPoints(primitive).flatMap((point) => {
+    const screen = view.toScreen(point.world);
+    return screen === null ? [] : [{ id: point.id, point: screen }];
+  });
 }
 
 /** 拖柄/控制点期间宿主光标保持控件语义；选择工具本体是 grab，创建工具回默认。 */
@@ -255,9 +261,7 @@ function previewPlace(pick: Viewport3dPick): void {
       editor.grid,
       "preview",
     );
-    projector?.setPreview(
-      solid === null ? null : solidPlacementPreview(solid),
-    );
+    projector?.setPreview(solid === null ? null : solidPlacementPreview(solid));
     return;
   }
   // 体素只落在地面或体素邻格：悬在参数体上没有整数角可放
@@ -318,7 +322,9 @@ watch(
     projector?.render(document);
     if (
       editor.selectionId !== null &&
-      !document.primitives.some((primitive) => primitive.id === editor.selectionId)
+      !document.primitives.some(
+        (primitive) => primitive.id === editor.selectionId,
+      )
     ) {
       editor.setSelectionId(null);
     }
@@ -366,10 +372,7 @@ useEventListener(window, "pointermove", (event: PointerEvent) => {
     // 参数体/体素的每种手势都跟着指针走：平移类用按下时同高的平面
     const context = selectContext(event, gesturePlaneY(selectGesture));
     if (context !== null) {
-      applySelectGesture3d(
-        moveSelect3d(selectGesture, context),
-        context.grid,
-      );
+      applySelectGesture3d(moveSelect3d(selectGesture, context), context.grid);
     }
     return;
   }
@@ -444,6 +447,8 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
     const placed = documentStore.addPrimitive(solid);
     if (placed.success) {
       editor.setSelectionId(solid.id);
+      // ADR 0018：参数体一次放置，画完即回选择；体素是连续操作，不切。
+      editor.setTool("select");
     }
     return;
   }

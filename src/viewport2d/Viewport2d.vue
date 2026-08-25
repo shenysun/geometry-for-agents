@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { useEventListener, useResizeObserver } from "@vueuse/core";
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import {
-  type GridSnap,
-  type Point2,
-} from "../document/index.ts";
+import { type GridSnap, type Point2 } from "../document/index.ts";
 import {
   moveControlPoint,
   rotatePrimitive,
@@ -13,6 +10,7 @@ import {
 } from "../document/update-document.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
+import { isTypingTarget } from "../components/tool-shortcuts.ts";
 import {
   clickDraw,
   escDraw,
@@ -188,8 +186,7 @@ function refreshOverlays(): void {
     if (primitive !== undefined) {
       const handles = transformHandles(primitive, handleToleranceWorld());
       if (handles !== null) {
-        rotate =
-          handles.rotate === null ? null : worldToScreen(handles.rotate);
+        rotate = handles.rotate === null ? null : worldToScreen(handles.rotate);
         scale = worldToScreen(handles.scale);
       }
       controls = controlPoints(primitive).flatMap((point) => {
@@ -229,10 +226,7 @@ function syncHandleCursor(): void {
   host.style.cursor = "grab";
 }
 
-function applySelectGesture(
-  result: SelectGestureResult,
-  grid: GridSnap,
-): void {
+function applySelectGesture(result: SelectGestureResult, grid: GridSnap): void {
   selectGesture = result.state;
   if (result.selectionId !== undefined) {
     editor.setSelectionId(result.selectionId);
@@ -266,19 +260,13 @@ function applyGesture(result: DrawGestureResult): void {
   const added = documentStore.addPrimitive(result.commit);
   if (added.success) {
     editor.setSelectionId(result.commit.id);
+    // ADR 0018：画完即回选择，刚画的图元保持选中可立即调整。
+    editor.setTool("select");
   }
 }
 
 function cancelPreview(): void {
   applyGesture(escDraw(gesture));
-}
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    (target instanceof HTMLElement && target.isContentEditable)
-  );
 }
 
 onMounted(() => {
@@ -319,7 +307,9 @@ watch(
     projector?.render(document);
     if (
       editor.selectionId !== null &&
-      !document.primitives.some((primitive) => primitive.id === editor.selectionId)
+      !document.primitives.some(
+        (primitive) => primitive.id === editor.selectionId,
+      )
     ) {
       editor.setSelectionId(null);
     }

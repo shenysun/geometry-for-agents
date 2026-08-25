@@ -51,4 +51,13 @@ describe("3d viewport host", () => {
     expect(source).toContain("LEFT: null");
     expect(source).toContain("THREE.MOUSE.ROTATE");
   });
+
+  test("solid 放置后画完即回，voxel 保持粘性（ADR 0018）", () => {
+    const source = readFileSync(resolve(dir, "Viewport3d.vue"), "utf8");
+
+    // 参数体一次放置，成功后切回选择
+    expect(source).toMatch(/placed\.success[\s\S]{0,200}setTool\("select"\)/);
+    // 体素连续刷格子，提交成功块内不切工具
+    expect(source).not.toMatch(/added\.success[\s\S]{0,200}setTool/);
+  });
 });

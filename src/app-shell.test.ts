@@ -9,7 +9,9 @@ const root = resolve(import.meta.dirname, "..");
 
 describe("app shell", () => {
   test("package.json exposes vite dev, build, and preview scripts", () => {
-    const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")) as {
+    const pkg = JSON.parse(
+      readFileSync(resolve(root, "package.json"), "utf8"),
+    ) as {
       scripts?: Record<string, string>;
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
@@ -52,6 +54,16 @@ describe("app shell", () => {
     expect(source).toContain("bg-zinc-100");
   });
 
+  test("App 根组件接线全局工具快捷键：映射、空间、输入防都在", () => {
+    const source = readFileSync(resolve(root, "src/App.vue"), "utf8");
+
+    expect(source).toContain("toolFromShortcut");
+    expect(source).toContain("isTypingTarget");
+    expect(source).toContain("setTool");
+    expect(source).toContain("editor.space");
+    expect(source).toMatch(/useEventListener\(window, "keydown"/);
+  });
+
   test("shell toggles 2d/3d and mounts the 3d viewport from 说明书 space", () => {
     const shell = readFileSync(
       resolve(root, "src/components/EditorShell.vue"),
@@ -92,9 +104,9 @@ describe("app shell", () => {
     ]) {
       expect(layout).toContain(`"${id}"`);
     }
-    expect(layout).toContain("views: [\"toolbox\", \"object-list\"]");
+    expect(layout).toContain('views: ["toolbox", "object-list"]');
     expect(layout).toContain("views: [VIEWPORT_PANEL_ID]");
-    expect(layout).toContain("views: [\"properties\", \"underlay\"]");
+    expect(layout).toContain('views: ["properties", "underlay"]');
     expect(dockHost).toContain("factoryLayoutSnapshot");
     expect(dockHost).toContain("fromJSON");
   });
@@ -163,7 +175,9 @@ describe("app shell", () => {
     expect(source).toContain("withFill");
     expect(source).toContain("updatePrimitive");
     expect(source).toContain("FILLS");
-    expect(source).toContain('value !== "none" && value !== "solid" && value !== "hatch"');
+    expect(source).toContain(
+      'value !== "none" && value !== "solid" && value !== "hatch"',
+    );
   });
 
   test("toolbox panel lists toolsForSpace and the top bar drops creation tools", () => {
@@ -196,7 +210,10 @@ describe("app shell", () => {
     useDocumentStore();
     useEditorStore();
 
-    expect(Object.keys(pinia.state.value).sort()).toEqual(["document", "editor"]);
+    expect(Object.keys(pinia.state.value).sort()).toEqual([
+      "document",
+      "editor",
+    ]);
 
     const storeFiles = Object.keys(import.meta.glob("./stores/*.ts"))
       .map((path) => path.replace("./stores/", ""))
