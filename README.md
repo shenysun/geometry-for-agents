@@ -28,10 +28,10 @@ An open-source geometry spec editor: operators draw geometric structures, and th
 ## 快速开始
 
 ```bash
-npm install
-npm run dev        # 开发服
-npm test           # 全量测试
-npm run typecheck  # 类型检查
+pnpm install
+pnpm dev        # 开发服
+pnpm test       # 全量测试
+pnpm typecheck  # 类型检查
 ```
 
 ## 文档
