@@ -1,9 +1,14 @@
 {
-  "name": "geometry-helpers",
+  "name": "geometry-for-agents",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
+  "description": "开源几何说明书编辑器：画几何结构，产出结构化 JSON 说明书供 Agent 生成互动课件",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shenysun/geometry-for-agents.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
