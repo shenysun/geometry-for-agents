@@ -9,6 +9,7 @@
     "type": "git",
     "url": "git+https://github.com/shenysun/geometry-for-agents.git"
   },
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
