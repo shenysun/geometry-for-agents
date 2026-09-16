@@ -759,6 +759,27 @@ export function sourcesIntersect(
 }
 
 /**
+ * 世界 → 遮罩画布像素的仿射参数（ctx.setTransform 的六个数）。
+ * 遮罩画布左上角对应屏幕 (x, y)：任意世界点 w 必须映射为
+ * (worldToScreen(w) − (x, y)) · pixelRatio，与贴回的 Konva.Image 对齐。
+ */
+export function overlapMaskTransform(
+  view: ViewTransform,
+  x: number,
+  y: number,
+  pixelRatio: number,
+): [number, number, number, number, number, number] {
+  return [
+    view.scale * pixelRatio,
+    0,
+    0,
+    -view.scale * pixelRatio,
+    (view.originX - x) * pixelRatio,
+    (view.originY - y) * pixelRatio,
+  ];
+}
+
+/**
  * 一条重叠填充的渲染节点：交集遮罩离屏合成后以 Konva.Image 上层贴回。
  * 源被拖到不相交时遮罩全透明——渲染为空，条目仍在说明书里。
  */
@@ -799,16 +820,8 @@ function drawOverlapFill(
   canvas.height = Math.ceil(height * pixelRatio);
   const ctx = canvas.getContext("2d");
   if (ctx === null) return [];
-  // 世界 → 遮罩画布像素（含 dpr）：screen = origin + (x·scale, −y·scale)，
-  // 画布原点相对 screen 平移 (x, y)。
-  ctx.setTransform(
-    view.scale * pixelRatio,
-    0,
-    0,
-    -view.scale * pixelRatio,
-    -x * pixelRatio,
-    -y * pixelRatio,
-  );
+  // 世界 → 遮罩画布像素（含 dpr 与视口原点平移），与贴回的图像矩形对齐。
+  ctx.setTransform(...overlapMaskTransform(view, x, y, pixelRatio));
   ctx.fillStyle = "#000";
   paintSource(ctx, a);
   ctx.globalCompositeOperation = "source-in";
