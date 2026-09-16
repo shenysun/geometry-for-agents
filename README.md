@@ -4,6 +4,8 @@
 
 An open-source geometry spec editor: operators draw geometric structures, and the tool produces a structured JSON spec for AI agents to consume and build interactive courseware from.
 
+**[在线体验](https://shenysun.github.io/geometry-for-agents/)**
+
 ## 它是什么,不是什么
 
 - **是**:几何结构的**生产工具**。一个页面,视口可在 2D / 3D 间切换,由可停靠面板组成(工具箱、对象列表、视口、属性面板、垫图)。
