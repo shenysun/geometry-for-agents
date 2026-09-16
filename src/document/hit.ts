@@ -405,3 +405,46 @@ export function hitTest(
 
   return geometricWinner;
 }
+
+/**
+ * 同点循环候选：视口里同一位置连点时逐个换选的排名列表（ADR 0019 后续——
+ * 交集内点击永远命中引用条目，另一个源原本无法通过视口选中）。
+ * 首位恒等于 hitTest 胜者（首击行为不变），其余依次为：引用条目（目录倒序）→
+ * 封闭命中（面积升序，延续「小者优先」）→ 笔画命中（目录序）。
+ */
+export function hitCandidates(
+  document: GeometryDocument,
+  point: HitPoint,
+  tolerance = 0,
+): Primitive[] {
+  if (document.space === "3d") {
+    const voxel = hitVoxels(document.primitives, point);
+    return voxel === null ? [] : [voxel];
+  }
+  const winner = hitTest(document, point, tolerance);
+  const rest: Primitive2d[] = [];
+  for (let i = document.primitives.length - 1; i >= 0; i--) {
+    const entry = document.primitives[i];
+    if (entry?.type !== "overlapFill") continue;
+    const [a, b] = entry.sources.map((id) =>
+      document.primitives.find((primitive) => primitive.id === id),
+    );
+    if (
+      a !== undefined &&
+      b !== undefined &&
+      contains(a, point, tolerance) &&
+      contains(b, point, tolerance)
+    ) {
+      rest.push(entry);
+    }
+  }
+  const hits = document.primitives.filter((primitive) =>
+    contains(primitive, point, tolerance),
+  );
+  const closed = hits.filter(isClosed).sort((x, y) => area(x) - area(y));
+  const strokes = hits.filter((primitive) => !isClosed(primitive));
+  const ranked = [...rest, ...closed, ...strokes].filter(
+    (primitive) => primitive !== winner,
+  );
+  return winner === null ? ranked : [winner, ...ranked];
+}

@@ -15,6 +15,14 @@ import type { DrawPreview } from "./draw-gesture.ts";
 import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
 
 const STROKE = "#18181b";
+/**
+ * 选中标记的强调色（indigo-500）与画法：低饱和靛蓝 + 连续细线 + 沿轮廓
+ * 柔光晕——「背光」质感来自分层克制，不是高饱和荧光色（虚线同理弃用：
+ * 虚线是草稿/选框的语言，不是精致工具的）。
+ */
+export const SELECTION_STROKE = "#6366f1";
+/** 预览标记：单形或数组（选中 overlapFill 时同时高亮两个源）。 */
+export type PreviewMark = DrawPreview | DrawPreview[];
 const FILL_SOLID = "rgba(24, 24, 27, 0.14)";
 const DEG = Math.PI / 180;
 const STROKE_WIDTH = 1.5;
@@ -487,17 +495,48 @@ function previewGuidePoints(preview: DrawPreview): Point2[] {
 
 export function drawGesturePreview(
   layer: Konva.Layer,
-  preview: DrawPreview,
+  preview: PreviewMark,
   view: ViewTransform,
+  selectionStroke?: string,
 ): void {
   layer.destroyChildren();
   if (preview === null) {
     return;
   }
+  if (Array.isArray(preview)) {
+    for (const item of preview) {
+      drawSinglePreview(layer, item, view, selectionStroke);
+    }
+    return;
+  }
+  drawSinglePreview(layer, preview, view, selectionStroke);
+}
+
+function drawSinglePreview(
+  layer: Konva.Layer,
+  preview: DrawPreview,
+  view: ViewTransform,
+  selectionStroke?: string,
+): void {
+  if (preview === null) return;
   const primitive = previewPrimitive(preview);
   if (primitive !== null) {
     for (const node of drawPrimitive(primitive, view)) {
-      node.dash([6, 4]);
+      if (selectionStroke === undefined) {
+        node.dash([6, 4]);
+      } else {
+        // 选中标记：连续细线 + 同色柔光晕（背光质感），弃虚线。
+        node.strokeWidth(2);
+        node.shadowColor(selectionStroke);
+        node.shadowBlur(8);
+        node.shadowOpacity(0.4);
+      }
+      // 换色：文本染色用 fill，其余形状描边换色。
+      if (node instanceof Konva.Text) {
+        node.fill(selectionStroke ?? STROKE);
+      } else {
+        node.stroke(selectionStroke ?? STROKE);
+      }
       layer.add(node);
     }
   } else if (
@@ -507,9 +546,20 @@ export function drawGesturePreview(
       preview.type === "guide") &&
     preview.points.length >= 2
   ) {
-    layer.add(
-      strokeLine(toScreenPoints(preview.points, view), false, undefined, [6, 4]),
+    const guide = strokeLine(
+      toScreenPoints(preview.points, view),
+      false,
+      undefined,
+      selectionStroke === undefined ? [6, 4] : undefined,
     );
+    guide.stroke(selectionStroke ?? STROKE);
+    if (selectionStroke !== undefined) {
+      guide.strokeWidth(2);
+      guide.shadowColor(selectionStroke);
+      guide.shadowBlur(8);
+      guide.shadowOpacity(0.4);
+    }
+    layer.add(guide);
   }
   for (const point of previewGuidePoints(preview)) {
     const screen = worldToScreen(point, view);
@@ -518,7 +568,9 @@ export function drawGesturePreview(
         x: screen.x,
         y: screen.y,
         radius: 3,
-        fill: STROKE,
+        fill: selectionStroke === undefined ? STROKE : "#ffffff",
+        stroke: selectionStroke,
+        strokeWidth: 1.5,
         listening: false,
       }),
     );

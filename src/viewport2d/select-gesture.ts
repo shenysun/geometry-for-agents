@@ -1,4 +1,5 @@
 import {
+  hitCandidates,
   hitTest,
   snap2d,
   type GeometryDocument,
@@ -16,6 +17,7 @@ import {
 import { controlPoints } from "./control-points.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
+import type { PreviewMark } from "./draw-primitives.ts";
 
 export type SelectGestureState =
   | { kind: "idle" }
@@ -53,6 +55,8 @@ export type SelectContext = {
   handleTolerance?: number;
   /** 世界单位的控制点命中半径；缺省 0 时控制点不参与命中。 */
   controlTolerance?: number;
+  /** 同点连点的循环目标：须在该点候选列表内，否则回退首位胜者。 */
+  preferId?: string;
 };
 
 export function idleSelectState(): SelectGestureState {
@@ -317,14 +321,24 @@ function previewFromPrimitive(primitive: Primitive2d): DrawPreview | null {
   }
 }
 
-/** 选中图元的虚线标记：拖动结束后仍能看出当前选中哪一条。 */
+/** 选中图元的虚线标记：拖动结束后仍能看出当前选中哪一条。
+ * 重叠填充条目无自身几何——高亮它的两个源，否则画面零反馈。 */
 export function selectPreview(
   document: GeometryDocument,
   id: string | null,
-): DrawPreview {
+): PreviewMark {
   if (id === null || document.space !== "2d") return null;
   const primitive = document.primitives.find((item) => item.id === id);
-  return primitive === undefined ? null : previewFromPrimitive(primitive);
+  if (primitive === undefined) return null;
+  if (primitive.type === "overlapFill") {
+    const marks = primitive.sources.flatMap((sourceId) => {
+      const source = document.primitives.find((item) => item.id === sourceId);
+      const mark = source === undefined ? null : previewFromPrimitive(source);
+      return mark === null ? [] : [mark];
+    });
+    return marks.length === 0 ? null : marks;
+  }
+  return previewFromPrimitive(primitive);
 }
 
 function draggedPrimitive(
@@ -543,11 +557,15 @@ export function clickSelect(
   if (handleHit !== null) {
     return { state, preview: null, selectionId: handleHit.id, commit: null };
   }
-  const hit = hitTest(ctx.document, ctx.point, ctx.tolerance ?? 0);
+  const candidates = hitCandidates(ctx.document, ctx.point, ctx.tolerance ?? 0);
+  const hit = ctx.preferId === undefined
+    ? candidates[0]
+    : candidates.find((candidate) => candidate.id === ctx.preferId) ??
+      candidates[0];
   return {
     state,
     preview: null,
-    selectionId: hit === null ? null : hit.id,
+    selectionId: hit === undefined ? null : hit.id,
     commit: null,
   };
 }

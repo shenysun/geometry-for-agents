@@ -32,8 +32,13 @@ import {
   type PickOverlapResult,
   type PickOverlapState,
 } from "./pick-overlap-gesture.ts";
-import { sourcesIntersect } from "./draw-primitives.ts";
+import {
+  SELECTION_STROKE,
+  sourcesIntersect,
+  type PreviewMark,
+} from "./draw-primitives.ts";
 import { controlPoints } from "./control-points.ts";
+import { hitCandidates } from "../document/index.ts";
 import {
   createViewport2dProjector,
   type Viewport2dProjector,
@@ -78,6 +83,9 @@ let pickOverlap: PickOverlapState = idlePickOverlapState();
 let dragStart: Point2 | null = null;
 let dragDistance = 0;
 let panSuppressed = false;
+// 同点循环选择：记上次点击位置与按下前的选中，连点时在候选列表里逐个换选。
+let lastClickScreen: Point2 | null = null;
+let selectionBeforeDown: string | null = null;
 
 function gridForEvent(event: PointerEvent | MouseEvent): GridSnap {
   if (event.altKey) {
@@ -172,8 +180,13 @@ function commitTransform(commit: SelectCommit, grid: GridSnap): void {
   }
 }
 
-function selectionMark(): DrawPreview {
+function selectionMark(): PreviewMark {
   return selectPreview(documentStore.current, editor.selectionId);
+}
+
+/** 选中标记统一上屏：强调色让「选中了哪条」一眼可辨（含拾取态第一源高亮）。 */
+function showSelectionMark(mark: PreviewMark): void {
+  projector?.setPreview(mark, SELECTION_STROKE);
 }
 
 /** 柄与控制点只在选择工具、有选中、无手势时出现；位置随视图换算更新。 */
@@ -215,11 +228,11 @@ function refreshSelectionMark(): void {
   if (projector === null) return;
   if (editor.tool === "overlapFill") {
     // 拾取态的预览（第一源高亮）随视图换算重画。
-    projector.setPreview(pickOverlapPreview());
+    showSelectionMark(pickOverlapPreview());
     return;
   }
   if (isDrawTool(editor.tool) || selectGesture.kind !== "idle") return;
-  projector.setPreview(selectionMark());
+  showSelectionMark(selectionMark());
 }
 
 /** 拖柄/控制点期间宿主光标保持控件语义，结束回到选择工具的 grab。 */
@@ -249,7 +262,12 @@ function applySelectGesture(result: SelectGestureResult, grid: GridSnap): void {
   if (result.commit !== null) {
     commitTransform(result.commit, grid);
   }
-  projector?.setPreview(result.preview ?? selectionMark());
+  // 手势自带预览（拖动变换）用默认色；回落到选中标记时用强调色。
+  if (result.preview === null) {
+    showSelectionMark(selectionMark());
+  } else {
+    projector?.setPreview(result.preview);
+  }
   refreshOverlays();
   syncHandleCursor();
 }
@@ -292,7 +310,7 @@ function cancelPreview(): void {
 /** 重叠填充两步拾取：进度/契约拒绝提示（模板直读），第一拾取高亮复用选中标记画法。 */
 const pickHint = ref<string | null>(null);
 
-function pickOverlapPreview(): DrawPreview {
+function pickOverlapPreview(): PreviewMark {
   return pickOverlap.kind === "first"
     ? selectPreview(documentStore.current, pickOverlap.id)
     : selectionMark();
@@ -336,7 +354,7 @@ function handlePickOverlapClick(event: MouseEvent): void {
     commitPrimitive(result.commit);
     return;
   }
-  projector?.setPreview(pickOverlapPreview());
+  showSelectionMark(pickOverlapPreview());
 }
 
 onMounted(() => {
@@ -419,6 +437,7 @@ useEventListener(hostRef, "pointerdown", (event: PointerEvent) => {
   if (editor.tool === "select" || editor.tool === null) {
     const context = selectContext(event);
     if (context === null) return;
+    selectionBeforeDown = editor.selectionId;
     applySelectGesture(startSelect(selectGesture, context), context.grid);
     // 任一选择手势（本体/柄/控制点）期间压制投影器的空白平移手势。
     panSuppressed = selectGesture.kind !== "idle";
@@ -517,8 +536,34 @@ useEventListener(hostRef, "click", (event: MouseEvent) => {
 
   const context = selectContext(event);
   if (context === null) return;
+  context.preferId = cyclePreferId(event, context);
+  lastClickScreen = { x: event.clientX, y: event.clientY };
   applySelectGesture(clickSelect(selectGesture, context), context.grid);
 });
+
+/**
+ * 同点循环：同一位置连点（≤4px，与拖动判定阈值一致）且按下前的选中在该点
+ * 候选列表里，就换选下一个候选（环绕）。首次点击或换位置不干预——
+ * clickSelect 无 preferId 时走 hitTest 胜者的现行行为。
+ */
+function cyclePreferId(event: MouseEvent, context: SelectContext): string | undefined {
+  const sameSpot = lastClickScreen !== null &&
+    Math.hypot(
+      event.clientX - lastClickScreen.x,
+      event.clientY - lastClickScreen.y,
+    ) <= 4;
+  if (!sameSpot || selectionBeforeDown === null) return undefined;
+  const candidates = hitCandidates(
+    context.document,
+    context.point,
+    context.tolerance ?? 0,
+  );
+  const current = candidates.findIndex(
+    (candidate) => candidate.id === selectionBeforeDown,
+  );
+  if (current < 0) return undefined;
+  return candidates[(current + 1) % candidates.length]?.id;
+}
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   if (isTypingTarget(event.target)) return;
@@ -528,7 +573,7 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
     applySelectGesture(escSelect(selectGesture), editor.grid);
     if (editor.tool === "overlapFill") {
       resetPickOverlap();
-      projector?.setPreview(pickOverlapPreview());
+      showSelectionMark(pickOverlapPreview());
     }
     return;
   }
@@ -571,7 +616,7 @@ onUnmounted(() => {
       <div
         v-for="control in controlPointScreens"
         :key="control.id"
-        class="pointer-events-auto absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-zinc-700 bg-white"
+        class="pointer-events-auto absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-indigo-500 bg-white shadow-[0_1px_4px_rgba(99,102,241,0.45)]"
         :style="{
           left: `${control.point.x}px`,
           top: `${control.point.y}px`,
@@ -581,7 +626,7 @@ onUnmounted(() => {
       />
       <div
         v-show="rotateHandleScreen !== null"
-        class="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-zinc-700 bg-white"
+        class="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-indigo-500 bg-white shadow-[0_1px_4px_rgba(99,102,241,0.45)]"
         :style="{
           left: `${rotateHandleScreen?.x ?? 0}px`,
           top: `${rotateHandleScreen?.y ?? 0}px`,
@@ -591,7 +636,7 @@ onUnmounted(() => {
       />
       <div
         v-show="scaleHandleScreen !== null"
-        class="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[2px] border border-zinc-700 bg-white"
+        class="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[2px] border border-indigo-500 bg-white shadow-[0_1px_4px_rgba(99,102,241,0.45)]"
         :style="{
           left: `${scaleHandleScreen?.x ?? 0}px`,
           top: `${scaleHandleScreen?.y ?? 0}px`,

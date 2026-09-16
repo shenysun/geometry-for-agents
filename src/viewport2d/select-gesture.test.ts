@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { parseDocument } from "../document/index.ts";
 import type { GeometryDocument, Point2 } from "../document/index.ts";
+import type { DrawPreview } from "./draw-gesture.ts";
 import {
   clickSelect,
   escSelect,
@@ -1141,5 +1142,50 @@ describe("select-gesture 矩形", () => {
       point: { x: 3, y: 5 },
     });
     expect(up.state).toEqual(idleSelectState());
+  });
+});
+
+describe("clickSelect 同点循环（preferId）", () => {
+  function overlapDoc(): GeometryDocument {
+    return doc2d([
+      { id: "circle-a", type: "circle", cx: 0, cy: 0, r: 4, fill: "none" },
+      { id: "rect-b", type: "rectangle", x: 2, y: 0, width: 4, height: 6, fill: "none" },
+      { id: "fill-1", type: "overlapFill", sources: ["circle-a", "rect-b"], fill: "hatch" },
+    ]);
+  }
+
+  test("preferId 命中该点候选时选中它", () => {
+    const result = clickSelect(
+      idleSelectState(),
+      ctx({ x: 2, y: 0 }, { document: overlapDoc(), preferId: "rect-b" }),
+    );
+    expect(result.selectionId).toBe("rect-b");
+  });
+
+  test("preferId 不在该点候选时回退 hitTest 胜者", () => {
+    const result = clickSelect(
+      idleSelectState(),
+      ctx({ x: 2, y: 0 }, { document: overlapDoc(), preferId: "circle-a-zombie" }),
+    );
+    expect(result.selectionId).toBe("fill-1");
+  });
+
+  test("无 preferId 时行为与现行一致：交集内选中条目", () => {
+    const result = clickSelect(idleSelectState(), ctx({ x: 2, y: 0 }, { document: overlapDoc() }));
+    expect(result.selectionId).toBe("fill-1");
+  });
+});
+
+describe("selectPreview 重叠填充条目高亮两源", () => {
+  test("选中 overlapFill 时预览两个源的形状（数组），不再返回 null", () => {
+    const document = doc2d([
+      { id: "circle-a", type: "circle", cx: 0, cy: 0, r: 4, fill: "none" },
+      { id: "rect-b", type: "rectangle", x: 2, y: 0, width: 4, height: 6, fill: "none" },
+      { id: "fill-1", type: "overlapFill", sources: ["circle-a", "rect-b"], fill: "hatch" },
+    ]);
+    const preview = selectPreview(document, "fill-1");
+    expect(Array.isArray(preview)).toBe(true);
+    const marks = preview as Extract<DrawPreview, { type: string }>[];
+    expect(marks.map((mark) => mark.type)).toEqual(["circle", "rectangle"]);
   });
 });

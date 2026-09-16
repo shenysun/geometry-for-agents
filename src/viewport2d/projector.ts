@@ -1,10 +1,11 @@
 import Konva from "konva";
 import type { GeometryDocument } from "../document/index.ts";
 import { drawGridAndAxes } from "./draw-grid.ts";
-import type { DrawPreview, DrawTool } from "./draw-gesture.ts";
+import type { DrawTool } from "./draw-gesture.ts";
 import {
   drawDocumentPrimitives,
   drawGesturePreview,
+  type PreviewMark,
 } from "./draw-primitives.ts";
 import {
   drawUnderlay,
@@ -27,7 +28,7 @@ type ProjectorTool = "select" | DrawTool | null;
 
 export type Viewport2dProjector = {
   render: (document: GeometryDocument) => void;
-  setPreview: (gesture: DrawPreview) => void;
+  setPreview: (gesture: PreviewMark, stroke?: string) => void;
   setTool: (tool: ProjectorTool) => void;
   setSessionUnderlay: (underlay: SessionUnderlay | null) => void;
   toWorld: (screen: Point2) => Point2;
@@ -63,7 +64,8 @@ export function createViewport2dProjector(
   let sessionUnderlay: SessionUnderlay | null = null;
   let lastPointer: { x: number; y: number } | null = null;
   let currentTool: ProjectorTool = "select";
-  let preview: DrawPreview = null;
+  let preview: PreviewMark = null;
+  let previewStroke: string | undefined;
   let destroyed = false;
 
   function applyCursor(): void {
@@ -101,7 +103,7 @@ export function createViewport2dProjector(
     if (currentDocument !== null) {
       drawDocumentPrimitives(primitiveLayer, currentDocument, view);
     }
-    drawGesturePreview(previewLayer, preview, view);
+    drawGesturePreview(previewLayer, preview, view, previewStroke);
     gridLayer.batchDraw();
     underlayLayer.batchDraw();
     primitiveLayer.batchDraw();
@@ -154,9 +156,10 @@ export function createViewport2dProjector(
       currentDocument = document;
       redraw();
     },
-    setPreview(gesture: DrawPreview): void {
+    setPreview(gesture: PreviewMark, stroke?: string): void {
       preview = gesture;
-      drawGesturePreview(previewLayer, preview, view);
+      previewStroke = stroke;
+      drawGesturePreview(previewLayer, preview, view, previewStroke);
       previewLayer.batchDraw();
     },
     setTool(tool: ProjectorTool): void {

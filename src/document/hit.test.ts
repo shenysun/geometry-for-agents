@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  hitCandidates,
   hitTest,
   parseDocument,
   type GeometryDocument,
@@ -649,5 +650,58 @@ describe("hitTest 重叠填充区域（ADR 0019 引用式）", () => {
     ]);
 
     expect(hitTest(document, { x: 0, y: 0 })?.id).toBe("circle-a");
+  });
+});
+
+describe("hitCandidates 同点循环候选（ADR 0019 选不中另一源的补全）", () => {
+  const overlapDoc = (extra: unknown[] = []) =>
+    doc2d([
+      { id: "circle-a", type: "circle", cx: 0, cy: 0, r: 4, fill: "none" },
+      { id: "rect-b", type: "rectangle", x: 2, y: 0, width: 4, height: 6, fill: "none" },
+      { id: "fill-1", type: "overlapFill", sources: ["circle-a", "rect-b"], fill: "hatch" },
+      ...extra,
+    ]);
+
+  test("首位候选恒等于 hitTest 胜者，现行首击行为不变", () => {
+    const document = overlapDoc();
+    const point = { x: 2, y: 0 };
+    const first = hitCandidates(document, point)[0];
+    expect(first?.id).toBe(hitTest(document, point)?.id);
+  });
+
+  test("交集内的循环序覆盖条目与全部源", () => {
+    // 条目（首）→ 封闭源按面积升序（rect 24 < circle 16π）→ 笔画无。
+    const ids = hitCandidates(overlapDoc(), { x: 2, y: 0 }).map((p) => p.id);
+    expect(ids).toEqual(["fill-1", "rect-b", "circle-a"]);
+  });
+
+  test("嵌套小面仍是首位，其后回到条目与源", () => {
+    const document = overlapDoc([
+      { id: "tiny", type: "circle", cx: 2, cy: 0, r: 0.5, fill: "none" },
+    ]);
+    const ids = hitCandidates(document, { x: 2, y: 0 }).map((p) => p.id);
+    expect(ids).toEqual(["tiny", "fill-1", "rect-b", "circle-a"]);
+  });
+
+  test("命中笔画与封闭并列时，循环序里封闭在前、笔画随后", () => {
+    const document = doc2d([
+      { id: "line-a", type: "line", points: [{ x: 0, y: 0 }, { x: 4, y: 0 }] },
+      { id: "rect-b", type: "rectangle", x: 2, y: 0, width: 4, height: 6, fill: "none" },
+    ]);
+    // y=0 在矩形边上（contains 含边界）：封闭 rect 首位，线段其次。
+    const ids = hitCandidates(document, { x: 2, y: 0 }).map((p) => p.id);
+    expect(ids).toEqual(["rect-b", "line-a"]);
+  });
+
+  test("空白处候选为空数组", () => {
+    expect(hitCandidates(overlapDoc(), { x: 40, y: 40 })).toEqual([]);
+  });
+
+  test("3D 体素退化为单候选", () => {
+    const document = doc3d([
+      { id: "voxel-a", type: "voxel", x: 0, y: 0, z: 0 },
+    ]);
+    const candidates = hitCandidates(document, { x: 0, y: 0, z: 0 });
+    expect(candidates.map((p) => p.id)).toEqual(["voxel-a"]);
   });
 });
