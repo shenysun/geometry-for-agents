@@ -40,6 +40,7 @@ describe("toolFromShortcut", () => {
     ["n", "regularPolygon"],
     ["z", "trapezoid"],
     ["f", "overlapFill"],
+    ["m", "measureArea"],
   ] as const)("2D 单键 %s → %s", (pressed, tool) => {
     expect(toolFromShortcut(key(pressed), "2d")).toBe(tool);
   });

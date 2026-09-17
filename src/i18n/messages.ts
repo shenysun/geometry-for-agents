@@ -47,6 +47,7 @@ export const messages = {
       notFillable: "重叠填充只能拾取封闭图元",
       sameSource: "两个源不能是同一个图元",
       noIntersection: "两个图元不相交，没有重叠部分",
+      notMeasurable: "度量标注只能拾取封闭图形",
     },
     tool: {
       select: "选择",
@@ -68,6 +69,9 @@ export const messages = {
       ellipse: "椭圆",
       label: "点名",
       overlapFill: "重叠填充",
+      measureArea: "面积标注",
+      // 周长工具是后续票：词条先落，显示名按 kind 取词条不留裸 key。
+      measurePerimeter: "周长标注",
       voxel: "单位立方体",
       box: "长方体",
       cylinder: "圆柱",
@@ -211,6 +215,7 @@ export const messages = {
       notFillable: "Overlap fill needs closed shapes",
       sameSource: "The two sources must be different shapes",
       noIntersection: "The two shapes do not overlap",
+      notMeasurable: "Measure labels need closed shapes",
     },
     tool: {
       select: "Select",
@@ -232,6 +237,10 @@ export const messages = {
       ellipse: "Ellipse",
       label: "Label",
       overlapFill: "Overlap fill",
+      measureArea: "Area label",
+      // The perimeter tool lands in a later ticket; the entry exists so
+      // kind-based display names never render a bare key.
+      measurePerimeter: "Perimeter label",
       voxel: "Unit cube",
       box: "Box",
       cylinder: "Cylinder",

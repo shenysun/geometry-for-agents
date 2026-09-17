@@ -72,6 +72,7 @@ function vertexPoints(
 export function controlPoints(primitive: Primitive2d): ControlPoint[] {
   switch (primitive.type) {
     case "overlapFill":
+    case "measure":
       // 引用条目没有可拖的几何锚点。
       return [];
     case "line":

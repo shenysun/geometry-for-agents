@@ -12,6 +12,7 @@ export type EditorTool =
   | "select"
   | DrawTool
   | "overlapFill"
+  | "measureArea"
   | "voxel"
   | SolidToolId
   | null;
@@ -26,6 +27,12 @@ export type LayoutCommand =
 const threeDTools: ReadonlySet<EditorTool> = new Set([
   "voxel",
   ...SOLID_TOOLS,
+]);
+
+/** 只属于 2D 空间的拾取工具（重叠填充、度量标注）：带进 3D 时退回选择 */
+const twoDPickTools: ReadonlySet<EditorTool> = new Set([
+  "overlapFill",
+  "measureArea",
 ]);
 
 export const useEditorStore = defineStore("editor", () => {
@@ -46,10 +53,11 @@ export const useEditorStore = defineStore("editor", () => {
 
   function setSpace(next: "2d" | "3d"): void {
     space.value = next;
-    // 别的空间的创建工具带不过去：2D 创建工具（含重叠填充拾取）进 3D、
+    // 别的空间的创建工具带不过去：2D 创建工具（含拾取族）进 3D、
     // 3D 工具进 2D 都退回选择
     const fromOtherSpace =
-      (next === "3d" && (isDrawTool(tool.value) || tool.value === "overlapFill")) ||
+      (next === "3d" &&
+        (isDrawTool(tool.value) || twoDPickTools.has(tool.value))) ||
       (next === "2d" && threeDTools.has(tool.value));
     if (fromOtherSpace) {
       tool.value = "select";

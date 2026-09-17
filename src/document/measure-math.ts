@@ -3,7 +3,8 @@ import {
   anchorRotatedVertex,
   baseHeightWorldVertices,
 } from "./base-height-family.ts";
-import type { Primitive2d } from "./parse-document.ts";
+import type { Primitive } from "./parse-document.ts";
+import { measurable2dTypes } from "./parse-document.ts";
 import { regularPolygonWorldVertices } from "./regular-polygon.ts";
 import type { Point2 } from "./snap.ts";
 
@@ -46,7 +47,7 @@ export type ImplementedMeasureKind = Exclude<MeasureKind, "length">;
 /** 可度量封闭图元（11 种 2D 参数封闭族）——schema 层白名单的数学层镜像；
  *  将来开放折线长度或重叠填充时在这里与 schema 同步单点增量。 */
 export type MeasurableShape = Extract<
-  Primitive2d,
+  Primitive,
   {
     type:
       | "polygon"
@@ -62,6 +63,15 @@ export type MeasurableShape = Extract<
       | "ellipse";
   }
 >;
+
+/** 图元是否属可度量封闭白名单：schema 层白名单（measurable2dTypes）的
+ *  数学层入口，渲染与手势据此把源收窄成 MeasurableShape（白名单只含
+ *  2D 类型，对全联合判别即收窄）。 */
+export function isMeasurableShape(
+  primitive: Primitive,
+): primitive is MeasurableShape {
+  return measurable2dTypes.has(primitive.type);
+}
 
 const DEG = Math.PI / 180;
 
@@ -214,4 +224,90 @@ export function measureText(
   kind: ImplementedMeasureKind,
 ): string {
   return formatMeasureNumber(measureValue(shape, kind));
+}
+
+/** 顶点均值：退化多边形（共线，面积形心公式分母为零）的回退锚点。 */
+function verticesCentroid(vertices: readonly Point2[]): Point2 {
+  const sum = vertices.reduce(
+    (total, point) => ({ x: total.x + point.x, y: total.y + point.y }),
+    { x: 0, y: 0 },
+  );
+  return { x: sum.x / vertices.length, y: sum.y / vertices.length };
+}
+
+/** 多边形族的面积形心（鞋带质心公式）：梯形等一般多边形的真形心，
+ *  不是顶点均值；顶点已随 rotationDeg 旋到世界，公式与坐标系无关。 */
+function polygonAreaCentroid(vertices: readonly Point2[]): Point2 {
+  let twiceArea = 0;
+  let xMoment = 0;
+  let yMoment = 0;
+  for (let i = 0; i < vertices.length; i++) {
+    const a = vertices[i];
+    const b = vertices[(i + 1) % vertices.length];
+    const cross = a.x * b.y - b.x * a.y;
+    twiceArea += cross;
+    xMoment += (a.x + b.x) * cross;
+    yMoment += (a.y + b.y) * cross;
+  }
+  if (twiceArea === 0) {
+    return verticesCentroid(vertices);
+  }
+  return { x: xMoment / (3 * twiceArea), y: yMoment / (3 * twiceArea) };
+}
+
+/** 圆心沿起止角平分线方向的偏移点：扇形/弓形形心都在平分线上。 */
+function bisectorPoint(
+  cx: number,
+  cy: number,
+  distance: number,
+  startDeg: number,
+  endDeg: number,
+): Point2 {
+  const mid = (startDeg + angleSweepDeg(startDeg, endDeg) / 2) * DEG;
+  return { x: cx + distance * Math.cos(mid), y: cy + distance * Math.sin(mid) };
+}
+
+/** 面积文本的锚点：源的面积形心（spec Implementation Decisions）——
+ *  多边形族走鞋带质心，扇形/弓形沿平分线取解析形心，圆/环/椭圆的中心
+ *  即形心。周长的包围盒上方放置是后续票。 */
+export function measureAreaAnchor(shape: MeasurableShape): Point2 {
+  switch (shape.type) {
+    case "polygon":
+    case "rectangle":
+    case "triangle":
+    case "parallelogram":
+    case "trapezoid":
+    case "regularPolygon":
+      return polygonAreaCentroid(worldVertices(shape));
+    case "circle":
+    case "ring":
+    case "ellipse":
+      return { x: shape.cx, y: shape.cy };
+    case "sector": {
+      // 扇形形心离圆心距离：4r·sin(θ/2) / 3θ（θ 为弧度）。
+      const theta = angleSweepDeg(shape.startDeg, shape.endDeg) * DEG;
+      const distance = (4 * shape.r * Math.sin(theta / 2)) / (3 * theta);
+      return bisectorPoint(
+        shape.cx,
+        shape.cy,
+        distance,
+        shape.startDeg,
+        shape.endDeg,
+      );
+    }
+    case "bow": {
+      // 弓形（圆缺）形心离圆心距离：4r·sin³(θ/2) / 3(θ − sinθ)。
+      const theta = angleSweepDeg(shape.startDeg, shape.endDeg) * DEG;
+      const distance =
+        (4 * shape.r * Math.sin(theta / 2) ** 3) /
+        (3 * (theta - Math.sin(theta)));
+      return bisectorPoint(
+        shape.cx,
+        shape.cy,
+        distance,
+        shape.startDeg,
+        shape.endDeg,
+      );
+    }
+  }
 }

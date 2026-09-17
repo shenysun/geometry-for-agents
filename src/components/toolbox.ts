@@ -67,6 +67,10 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
       "M6 6.2l1.6 1.6",
     ],
   },
+  measureArea: {
+    // 封闭形 + 形心处数值点：面积标注在源形心的直白图示。
+    paths: ["M3 4.5h10v7H3z", "M7.25 8a0.75 0.75 0 1 0 1.5 0a0.75 0.75 0 1 0-1.5 0"],
+  },
   voxel: {
     paths: ["M8 2l5 2.8v6.4L8 14l-5-2.8V4.8z", "M3 4.8L8 7.6l5-2.8", "M8 7.6V14"],
   },
@@ -132,10 +136,11 @@ export type ToolboxCatalog = {
   readonly groups: readonly ToolGroupSection[];
 };
 
-/** 2D 创建工具全集：全部平面绘制工具 + 重叠填充拾取（ADR 0019，二期图元） */
-const CREATION_TOOLS_2D: readonly (DrawTool | "overlapFill")[] = [
+/** 2D 创建工具全集：全部平面绘制工具 + 重叠填充拾取（ADR 0019）+ 面积标注（ADR 0020） */
+const CREATION_TOOLS_2D: readonly (DrawTool | "overlapFill" | "measureArea")[] = [
   ...DRAW_TOOLS,
   "overlapFill",
+  "measureArea",
 ];
 
 /** 3D 创建工具全集：单位立方体 + 全部参数体（名单与放置提交共用 SOLID_TOOLS） */
@@ -148,7 +153,10 @@ const CREATION_TOOLS_3D: readonly ("voxel" | SolidToolId)[] = [
  * 2D 创建工具 → 分组。穷尽 Record：新增 DrawTool 不归类、组序数组删组导致类别消失，
  * 都在这里编译报错，从机制上杜绝「新工具落不进组」。
  */
-const GROUP_BY_2D_TOOL: Record<DrawTool | "overlapFill", ToolGroupId2d> = {
+const GROUP_BY_2D_TOOL: Record<
+  DrawTool | "overlapFill" | "measureArea",
+  ToolGroupId2d
+> = {
   line: "linesAndArcs",
   arc: "linesAndArcs",
   polygon: "straightShapes",
@@ -167,6 +175,7 @@ const GROUP_BY_2D_TOOL: Record<DrawTool | "overlapFill", ToolGroupId2d> = {
   dimension: "measurement",
   label: "measurement",
   overlapFill: "special",
+  measureArea: "measurement",
 };
 
 /** 3D 创建工具 → 分组，穷尽 Record 同上 */

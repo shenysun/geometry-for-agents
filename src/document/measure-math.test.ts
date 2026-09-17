@@ -3,6 +3,7 @@ import {
   angleDegreeText,
   angleSweepDeg,
   formatMeasureNumber,
+  measureAreaAnchor,
   measureText,
   measureValue,
   type MeasureKind,
@@ -394,5 +395,82 @@ describe("kind: length 的类型结构预留（本期不实现）", () => {
     expectTypeOf<
       Parameters<typeof measureValue>[1]
     >().toEqualTypeOf<"area" | "perimeter">();
+  });
+});
+
+describe("度量文本锚点（面积在源形心）", () => {
+  test("圆族锚点即圆心", () => {
+    const circle: MeasurableShape = { id: "c", type: "circle", cx: 3, cy: -2, r: 1, fill };
+    expect(measureAreaAnchor(circle)).toEqual({ x: 3, y: -2 });
+  });
+
+  test("三角形形心随旋转走：局部 (0,1) 绕锚点转 90° 到 (-1,0)", () => {
+    const triangle: MeasurableShape = {
+      id: "t",
+      type: "triangle",
+      x: 0,
+      y: 0,
+      width: 3,
+      height: 3,
+      apexOffset: 0,
+      rotationDeg: 90,
+      fill,
+    };
+    const anchor = measureAreaAnchor(triangle);
+    expectCloseTo(anchor.x, -1);
+    expectCloseTo(anchor.y, 0);
+  });
+
+  test("梯形形心是面积形心，不是顶点均值", () => {
+    // 下底 4、上底 2、高 2：面积形心离下底 h(2a+b)/3(a+b) = 8/9。
+    const trapezoid: MeasurableShape = {
+      id: "z",
+      type: "trapezoid",
+      x: 0,
+      y: 0,
+      width: 4,
+      topWidth: 2,
+      height: 2,
+      topOffset: 0,
+      rotationDeg: 0,
+      fill,
+    };
+    const anchor = measureAreaAnchor(trapezoid);
+    expectCloseTo(anchor.x, 0);
+    expectCloseTo(anchor.y, 8 / 9);
+  });
+
+  test("90° 扇形形心沿平分线取解析距离", () => {
+    // r=2、θ=90°：d = 4r·sin(45°)/3θ ≈ 1.2003，平分线 45°。
+    const sector: MeasurableShape = {
+      id: "s",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 90,
+      fill,
+    };
+    const anchor = measureAreaAnchor(sector);
+    expectCloseTo(anchor.x, 0.8488263632);
+    expectCloseTo(anchor.y, 0.8488263632);
+  });
+
+  test("半圆弓形形心 = 4r/3π 离圆心沿平分线", () => {
+    // r=2、θ=180°：d = 8/3π ≈ 0.8488，平分线 90°（上半圆）。
+    const bow: MeasurableShape = {
+      id: "w",
+      type: "bow",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 0,
+      endDeg: 180,
+      fill,
+    };
+    const anchor = measureAreaAnchor(bow);
+    expectCloseTo(anchor.x, 0);
+    expectCloseTo(anchor.y, 8 / (3 * Math.PI));
   });
 });

@@ -2522,3 +2522,102 @@ describe("removePrimitive / 变换恒等：重叠填充（ADR 0019）", () => {
     );
   });
 });
+
+describe("removePrimitive / 变换恒等：度量标注（ADR 0020）", () => {
+  function measureDoc(): GeometryDocument {
+    return mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        circle("circle-a", 2),
+        { id: "measure-1", type: "measure", sourceId: "circle-a", kind: "area" },
+        bow("bow-b"),
+        circle("circle-c", 5),
+      ],
+    });
+  }
+
+  test("removing the source cascades away the measure that references it", () => {
+    const result = removePrimitive(measureDoc(), "circle-a");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.id)).toEqual([
+      "bow-b",
+      "circle-c",
+    ]);
+  });
+
+  test("removing the measure itself removes only the entry", () => {
+    const result = removePrimitive(measureDoc(), "measure-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+      "circle-c",
+    ]);
+  });
+
+  test("translate/rotate/scale/control-point are all identity on measure", () => {
+    const doc = measureDoc();
+    const entry = doc.primitives[1];
+    if (entry.type !== "measure") throw new Error("fixture");
+
+    expect(translatePrimitiveGeometry(entry, 3, -4)).toBe(entry);
+    expect(rotatePrimitiveGeometry(entry, 45)).toBe(entry);
+    expect(scalePrimitiveGeometry(entry, 2)).toBe(entry);
+    expect(moveControlPointGeometry(entry, "vertex-0", { x: 9, y: 9 })).toBe(
+      entry,
+    );
+  });
+
+  test("create and cascade delete are both undoable through the history pipeline", () => {
+    const base = mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [circle("circle-a", 2), bow("bow-b")],
+    });
+
+    let history = createHistory(base);
+    const added = addPrimitive(history.present, {
+      id: "measure-1",
+      type: "measure",
+      sourceId: "circle-a",
+      kind: "area",
+    });
+    expect(added.success).toBe(true);
+    if (!added.success) return;
+    history = commitSnapshot(history, added.document);
+
+    const removed = removePrimitive(history.present, "circle-a");
+    expect(removed.success).toBe(true);
+    if (!removed.success) return;
+    history = commitSnapshot(history, removed.document);
+    expect(history.present.primitives.map((p) => p.id)).toEqual(["bow-b"]);
+
+    // 级联删除可撤销：源与标注一起回来（addPrimitive 追加在表尾）。
+    history = undo(history);
+    expect(history.present.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+      "measure-1",
+    ]);
+
+    // 创建也可撤销/重做。
+    history = undo(history);
+    expect(history.present.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+    ]);
+    history = redo(history);
+    expect(history.present.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+      "measure-1",
+    ]);
+  });
+});

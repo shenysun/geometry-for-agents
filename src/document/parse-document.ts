@@ -230,6 +230,17 @@ const overlapFillSchema = z
     path: ["sources"],
   });
 
+// 度量标注（ADR 0020 引用式）：源 id + 度量种类，数值不存——面积/周长是
+// 渲染期的推导值。kind 一次落定两种（周长工具是后续票）；源必须存在且属
+// 可度量封闭白名单，由 documentSchema 的 superRefine 跨条目校验。
+// 无坐标、无 offset：可拖偏移是将来以缺省 0,0 向后兼容补入的增量，本期不做。
+const measureSchema = z.strictObject({
+  id: primitiveId,
+  type: z.literal("measure"),
+  sourceId: primitiveId,
+  kind: z.enum(["area", "perimeter"]),
+});
+
 const voxelSchema = z.strictObject({
   id: primitiveId,
   type: z.literal("voxel"),
@@ -344,6 +355,7 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   ellipseSchema,
   labelSchema,
   overlapFillSchema,
+  measureSchema,
 ]);
 
 const threeDPrimitiveSchema = z.discriminatedUnion("type", [
@@ -397,28 +409,47 @@ export const documentSchema = z
       }
       seen.add(primitive.id);
     }
-    // overlapFill 的源是跨条目引用：必须指向已存在的可填充封闭图元。
-    // 悬空即拒——删源必须级联删条目（removePrimitive 依赖此约束兜底）。
+    // 引用式条目（overlapFill、measure）的源是跨条目引用：必须指向已存在
+    // 的白名单图元。悬空即拒——删源必须级联删条目（removePrimitive 依赖
+    // 此约束兜底）。
     const byId = new Map(
       document.primitives.map((primitive) => [primitive.id, primitive] as const),
     );
     for (const [index, primitive] of document.primitives.entries()) {
-      if (primitive.type !== "overlapFill") continue;
-      for (const [slot, sourceId] of primitive.sources.entries()) {
-        const source = byId.get(sourceId);
+      if (primitive.type === "overlapFill") {
+        for (const [slot, sourceId] of primitive.sources.entries()) {
+          const source = byId.get(sourceId);
+          if (source === undefined) {
+            ctx.addIssue({
+              code: "custom",
+              message: `overlapFill "${primitive.id}" references missing primitive "${sourceId}"`,
+              path: ["primitives", index, "sources", slot],
+            });
+            continue;
+          }
+          if (!fillable2dTypes.has(source.type)) {
+            ctx.addIssue({
+              code: "custom",
+              message: `overlapFill "${primitive.id}" source "${sourceId}" (${source.type}) is not a fillable closed primitive`,
+              path: ["primitives", index, "sources", slot],
+            });
+          }
+        }
+        continue;
+      }
+      if (primitive.type === "measure") {
+        const source = byId.get(primitive.sourceId);
         if (source === undefined) {
           ctx.addIssue({
             code: "custom",
-            message: `overlapFill "${primitive.id}" references missing primitive "${sourceId}"`,
-            path: ["primitives", index, "sources", slot],
+            message: `measure "${primitive.id}" references missing primitive "${primitive.sourceId}"`,
+            path: ["primitives", index, "sourceId"],
           });
-          continue;
-        }
-        if (!fillable2dTypes.has(source.type)) {
+        } else if (!measurable2dTypes.has(source.type)) {
           ctx.addIssue({
             code: "custom",
-            message: `overlapFill "${primitive.id}" source "${sourceId}" (${source.type}) is not a fillable closed primitive`,
-            path: ["primitives", index, "sources", slot],
+            message: `measure "${primitive.id}" source "${primitive.sourceId}" (${source.type}) is not a measurable closed primitive`,
+            path: ["primitives", index, "sourceId"],
           });
         }
       }
@@ -429,6 +460,9 @@ export const documentSchema = z
   );
 
 export type GeometryDocument = z.infer<typeof documentSchema>;
+
+/** 度量标注条目（ADR 0020）：手势与渲染共用的 schema 推导类型，单点导出。 */
+export type MeasurePrimitive = z.infer<typeof measureSchema>;
 
 /** 2D 说明书里的图元（折线、多边形、矩形、圆族、椭圆、标签），由 schema 推导，不手报名单。 */
 export type Primitive2d = z.infer<typeof twoDPrimitiveSchema>;
@@ -460,6 +494,23 @@ export const fillable2dTypes: ReadonlySet<string> = new Set(
     )
     .map((option) => option.shape.type.value),
 );
+
+/** 可度量封闭白名单（spec：11 种 2D 参数封闭族）——schema 层集中一处、
+ *  穷尽可查，与 measure-math 的 MeasurableShape 镜像；将来开放折线长度
+ *  （kind: "length"）或重叠填充时在这里与数学层同步单点增量。 */
+export const measurable2dTypes: ReadonlySet<string> = new Set([
+  "polygon",
+  "rectangle",
+  "triangle",
+  "parallelogram",
+  "trapezoid",
+  "regularPolygon",
+  "circle",
+  "sector",
+  "bow",
+  "ring",
+  "ellipse",
+]);
 
 const threeDTypes = typeNamesOf(threeDPrimitiveSchema);
 

@@ -32,6 +32,7 @@ import {
   type PickOverlapResult,
   type PickOverlapState,
 } from "./pick-overlap-gesture.ts";
+import { clickPickMeasure } from "./pick-measure-gesture.ts";
 import {
   SELECTION_STROKE,
   sourcesIntersect,
@@ -357,6 +358,32 @@ function handlePickOverlapClick(event: MouseEvent): void {
   showSelectionMark(pickOverlapPreview());
 }
 
+/** 面积标注拾取：单步点白名单源即挂标注（ADR 0020），拒绝给提示不切工具。 */
+function handlePickMeasureClick(event: MouseEvent): void {
+  if (editor.tool !== "measureArea") return;
+  const point = eventWorld(event);
+  if (point === null) return;
+  const result = clickPickMeasure(
+    {
+      document: documentStore.current,
+      point,
+      tolerance: hitToleranceWorld(),
+      id: crypto.randomUUID(),
+    },
+    "area",
+  );
+  if (result.rejection === "not-measurable") {
+    pickHint.value = t("pickHint.notMeasurable");
+    return;
+  }
+  if (result.commit !== null) {
+    // 提交并回选择；工具切换的 watch 会清掉提示。
+    commitPrimitive(result.commit);
+    return;
+  }
+  pickHint.value = null;
+}
+
 onMounted(() => {
   const host = hostRef.value;
   if (host === null) return;
@@ -524,6 +551,10 @@ useEventListener(hostRef, "click", (event: MouseEvent) => {
     handlePickOverlapClick(event);
     return;
   }
+  if (editor.tool === "measureArea") {
+    handlePickMeasureClick(event);
+    return;
+  }
   if (isDrawTool(editor.tool)) {
     if (!isDragDrawTool(editor.tool)) {
       const context = drawContext(event);
@@ -574,6 +605,9 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
     if (editor.tool === "overlapFill") {
       resetPickOverlap();
       showSelectionMark(pickOverlapPreview());
+    }
+    if (editor.tool === "measureArea") {
+      pickHint.value = null;
     }
     return;
   }

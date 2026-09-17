@@ -74,3 +74,36 @@ describe("displayNamesById", () => {
     expect(names.get("c2")).toBe("圆1");
   });
 });
+
+/** measure 图元夹具：显示名只读 id、type 与 kind */
+function measure(id: string, kind: "area" | "perimeter"): Primitive {
+  return { id, type: "measure", sourceId: "c0", kind };
+}
+
+const measureZhT: Translate = (key, named) => {
+  if (key === "objectName") {
+    return `${named?.name}${named?.n}`;
+  }
+  const words: Record<string, string> = {
+    "tool.circle": "圆",
+    "tool.measureArea": "面积标注",
+    "tool.measurePerimeter": "周长标注",
+  };
+  return words[key] ?? key;
+};
+
+describe("displayNamesById：度量标注按 kind 取词条", () => {
+  test("area 与 perimeter 各取各的词条，同类各自编号（首个不加号）", () => {
+    const primitives = [
+      circle("c0"),
+      measure("m0", "area"),
+      measure("m1", "perimeter"),
+      measure("m2", "area"),
+    ];
+    const names = displayNamesById(primitives, measureZhT);
+
+    expect(names.get("m0")).toBe("面积标注");
+    expect(names.get("m1")).toBe("周长标注");
+    expect(names.get("m2")).toBe("面积标注1");
+  });
+});

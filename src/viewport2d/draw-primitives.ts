@@ -2,6 +2,7 @@ import Konva from "konva";
 import type {
   Fill,
   GeometryDocument,
+  MeasurePrimitive,
   Primitive2d,
 } from "../document/index.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
@@ -16,6 +17,9 @@ import {
   angleDegreeText,
   angleSweepDeg,
   formatMeasureNumber,
+  isMeasurableShape,
+  measureAreaAnchor,
+  measureText as measureDisplayText,
 } from "../document/measure-math.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
@@ -236,6 +240,10 @@ function drawPrimitive(
   switch (primitive.type) {
     case "overlapFill":
       // 引用条目不画自身：交集由投影器离屏合成（见 projector 的 overlap 层）。
+      return [];
+    case "measure":
+      // 引用条目不画自身：文本需要查源，由 drawDocumentPrimitives 的度量层
+      // 专趟处理（画在全部几何之上）。
       return [];
     case "line":
       return [strokeLine(toScreenPoints(primitive.points, view), false)];
@@ -615,6 +623,39 @@ export function drawDocumentPrimitives(
       layer.add(node);
     }
   }
+  // 度量标注画在最上层：数值是渲染期推导值（ADR 0020），每次重画随源
+  // 几何实时重算——拖动、控制点编辑、变换之后数字永远与几何一致。
+  for (const primitive of document.primitives) {
+    if (primitive.type !== "measure") continue;
+    for (const node of drawMeasure(primitive, document, view)) {
+      layer.add(node);
+    }
+  }
+}
+
+// —— 度量标注（ADR 0020 引用式）——
+// 无坐标纯跟随：条目自身不存几何，渲染时按 sourceId 查源、经度量数学层
+// 推导数值与锚点。面积文本在源形心；周长的包围盒上方放置是后续票。
+
+function drawMeasure(
+  entry: MeasurePrimitive,
+  document: GeometryDocument,
+  view: ViewTransform,
+): Konva.Shape[] {
+  const source = document.primitives.find(
+    (primitive) => primitive.id === entry.sourceId,
+  );
+  if (source === undefined || !isMeasurableShape(source)) return [];
+  if (entry.kind !== "area") return [];
+  const anchor = worldToScreen(measureAreaAnchor(source), view);
+  const text = measureText(
+    anchor.x,
+    anchor.y,
+    measureDisplayText(source, "area"),
+  );
+  // 形心锚点是文本中心：水平居中由 measureText 负责，这里再垂直居中。
+  text.offsetY(text.height() / 2);
+  return [text];
 }
 
 // —— 重叠填充（ADR 0019 引用式）——

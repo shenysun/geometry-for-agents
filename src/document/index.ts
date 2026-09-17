@@ -1,10 +1,12 @@
 export {
   documentSchema,
   fillable2dTypes,
+  measurable2dTypes,
   parseDocument,
 } from "./parse-document.ts";
 export type {
   GeometryDocument,
+  MeasurePrimitive,
   Primitive,
   Primitive2d,
   Primitive3d,

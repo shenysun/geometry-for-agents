@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   documentSchema,
   fillable2dTypes,
+  measurable2dTypes,
   parseDocument,
 } from "./index.ts";
 
@@ -1278,6 +1279,155 @@ describe("parseDocument 重叠填充（ADR 0019 引用式）", () => {
 
   test("fillable2dTypes derives the closed fill family, excluding overlapFill itself", () => {
     expect([...fillable2dTypes].sort()).toEqual(
+      [
+        "polygon",
+        "rectangle",
+        "triangle",
+        "parallelogram",
+        "trapezoid",
+        "regularPolygon",
+        "circle",
+        "sector",
+        "bow",
+        "ring",
+        "ellipse",
+      ].sort(),
+    );
+  });
+});
+
+// —— 度量标注（ADR 0020 引用式）——
+
+const measureSource = overlapSources[0];
+
+const validMeasure = {
+  id: "measure-1",
+  type: "measure",
+  sourceId: "circle-a",
+  kind: "area",
+};
+
+describe("parseDocument 度量标注（ADR 0020 引用式）", () => {
+  test("parses an area measure referencing a closed source", () => {
+    const result = parseDocument(spec("2d", [measureSource, validMeasure]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[1]).toEqual(validMeasure);
+  });
+
+  test("parses a perimeter measure：schema 一次落定两种 kind", () => {
+    const perimeter = { ...validMeasure, kind: "perimeter" };
+
+    expect(parseDocument(spec("2d", [measureSource, perimeter])).success).toBe(
+      true,
+    );
+  });
+
+  test("rejects a sourceId referencing a missing primitive", () => {
+    const dangling = { ...validMeasure, sourceId: "ghost-9" };
+
+    const result = parseDocument(spec("2d", [measureSource, dangling]));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain('references missing primitive "ghost-9"');
+  });
+
+  test("accepts every closed family in the measurable whitelist", () => {
+    const closed = [
+      { id: "poly-m", type: "polygon", points: [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 1, y: 1 }], fill: "none" },
+      { id: "rect-m", type: "rectangle", x: 0, y: 0, width: 2, height: 1, fill: "none" },
+      { id: "tri-m", type: "triangle", x: 0, y: 0, width: 2, height: 1, apexOffset: 0, fill: "none" },
+      { id: "para-m", type: "parallelogram", x: 0, y: 0, width: 2, height: 1, skew: 1, fill: "none" },
+      { id: "trap-m", type: "trapezoid", x: 0, y: 0, width: 2, topWidth: 1, height: 1, topOffset: 0, fill: "none" },
+      { id: "regp-m", type: "regularPolygon", x: 0, y: 0, sides: 5, r: 1, fill: "none" },
+      { id: "circ-m", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+      { id: "sect-m", type: "sector", cx: 0, cy: 0, r: 1, startDeg: 0, endDeg: 90, fill: "none" },
+      { id: "bow-m", type: "bow", cx: 0, cy: 0, r: 1, startDeg: 0, endDeg: 90, fill: "none" },
+      { id: "ring-m", type: "ring", cx: 0, cy: 0, rInner: 1, rOuter: 2, fill: "none" },
+      { id: "elli-m", type: "ellipse", cx: 0, cy: 0, rx: 2, ry: 1, fill: "none" },
+    ];
+    for (const source of closed) {
+      const result = parseDocument(
+        spec("2d", [source, { ...validMeasure, sourceId: source.id }]),
+      );
+      expect(result.success, source.type).toBe(true);
+    }
+  });
+
+  test("rejects stroke-family, reference-entry and self sources", () => {
+    const rejected = [
+      {
+        id: "line-m",
+        type: "line",
+        points: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+      },
+      {
+        id: "arc-m",
+        type: "arc",
+        cx: 0,
+        cy: 0,
+        r: 1,
+        startDeg: 0,
+        endDeg: 90,
+      },
+      {
+        id: "angle-m",
+        type: "angle",
+        x: 0,
+        y: 0,
+        startDeg: 0,
+        endDeg: 45,
+        length: 2,
+      },
+      {
+        id: "dim-m",
+        type: "dimension",
+        points: [{ x: 0, y: 0 }, { x: 1, y: 0 }],
+      },
+      { id: "label-m", type: "label", x: 0, y: 0, text: "A" },
+      validOverlapFill,
+      { ...validMeasure, id: "measure-other", sourceId: "circle-a" },
+    ];
+    const base = [...overlapSources, validOverlapFill];
+    for (const source of rejected) {
+      const entry = {
+        ...validMeasure,
+        sourceId:
+          source.type === "overlapFill" ? "fill-1" : source.id ?? source.type,
+      };
+      const result = parseDocument(spec("2d", [...base, source, entry]));
+      expect(result.success, JSON.stringify(entry)).toBe(false);
+      if (result.success) continue;
+      expect(result.error, entry.sourceId).toContain(
+        "is not a measurable closed primitive",
+      );
+    }
+  });
+
+  test("rejects measure in space 3d", () => {
+    const result = parseDocument(spec("3d", [validMeasure]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain('type "measure" is not allowed in space "3d"');
+  });
+
+  test("strictObject：未知 kind 与多余字段都被拒", () => {
+    expect(
+      parseDocument(
+        spec("2d", [measureSource, { ...validMeasure, kind: "length" }]),
+      ).success,
+    ).toBe(false);
+    expect(
+      parseDocument(
+        spec("2d", [measureSource, { ...validMeasure, value: 3.14 }]),
+      ).success,
+    ).toBe(false);
+  });
+
+  test("measurable2dTypes 白名单恰为 11 种参数封闭族", () => {
+    expect([...measurable2dTypes].sort()).toEqual(
       [
         "polygon",
         "rectangle",

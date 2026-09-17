@@ -218,6 +218,10 @@ function contains(
     case "overlapFill":
       // 引用条目自身无几何：区域命中（点在两源交集内）由 hitTest 顶层特判。
       return false;
+    case "measure":
+      // 度量标注的命中区是文本包围盒（渲染层语义），几何通道不参与。
+      // 点文本选中该标注是管理面后续票的职责；本期经对象列表选中。
+      return false;
     case "circle":
       return inDisk(point, primitive);
     case "ellipse":
@@ -332,6 +336,7 @@ function area(primitive: Primitive2d): number {
     case "dimension":
     case "label":
     case "overlapFill":
+    case "measure":
       return Number.POSITIVE_INFINITY;
   }
 }

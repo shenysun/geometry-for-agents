@@ -408,3 +408,29 @@ describe("document hash 重叠填充往返（ADR 0019）", () => {
     expect(restored.document).toEqual(document);
   });
 });
+
+describe("document hash：度量标注（ADR 0020）", () => {
+  test("带面积标注的说明书经分享链接往返结构不变", () => {
+    const document = parsed("2d", [
+      {
+        id: "circle-1",
+        type: "circle",
+        cx: 0,
+        cy: 0,
+        r: 1,
+        fill: "none",
+      },
+      {
+        id: "measure-1",
+        type: "measure",
+        sourceId: "circle-1",
+        kind: "area",
+      },
+    ]);
+
+    const restored = hashToDocument(documentToHash(document));
+    expect(restored.success).toBe(true);
+    if (!restored.success) return;
+    expect(restored.document).toEqual(document);
+  });
+});

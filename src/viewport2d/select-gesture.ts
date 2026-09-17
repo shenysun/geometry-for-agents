@@ -96,6 +96,7 @@ export type TransformHandles = {
 function handleReach(primitive: Primitive2d, center: Point2): number {
   switch (primitive.type) {
     case "overlapFill":
+    case "measure":
       // transformHandles 已对其返回 null，此处不可达。
       return 0;
     case "line":
@@ -141,8 +142,11 @@ export function transformHandles(
   handleTolerance: number,
 ): TransformHandles | null {
   if (primitive.type === "label") return null;
-  // 重叠填充不可变换（引用式，ADR 0019）：选中可删可改样式，但不布柄。
-  if (primitive.type === "overlapFill") return null;
+  // 重叠填充与度量标注不可变换（引用式，ADR 0019 / ADR 0020）：
+  // 选中可删，但不布柄——度量数值纯跟随源。
+  if (primitive.type === "overlapFill" || primitive.type === "measure") {
+    return null;
+  }
   const center = primitiveAnchor(primitive);
   const offset =
     handleReach(primitive, center) + HANDLE_GAP_FACTOR * handleTolerance;
@@ -210,6 +214,7 @@ function hitTransformHandle(ctx: SelectContext): HandleHit | null {
 function previewFromPrimitive(primitive: Primitive2d): DrawPreview | null {
   switch (primitive.type) {
     case "overlapFill":
+    case "measure":
       // 引用条目无自身几何可预览，也不可拖（变换恒等已兜底）。
       return null;
     case "line":

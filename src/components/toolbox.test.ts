@@ -27,7 +27,7 @@ describe("catalogForSpace（分组目录）", () => {
         "regularPolygon",
       ],
       ["circle", "sector", "bow", "ring", "ellipse"],
-      ["angle", "dimension", "label"],
+      ["angle", "dimension", "label", "measureArea"],
       ["overlapFill"],
     ]);
   });
@@ -64,7 +64,7 @@ describe("catalogForSpace（分组目录）", () => {
 
     expect(grouped.length).toBe(new Set(grouped).size);
     expect([...grouped].sort()).toEqual(
-      [...new Set([...DRAW_TOOLS, "overlapFill"])].sort(),
+      [...new Set([...DRAW_TOOLS, "overlapFill", "measureArea"])].sort(),
     );
   });
 
