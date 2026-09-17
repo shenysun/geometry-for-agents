@@ -1,8 +1,12 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import {
   angleDegreeText,
   angleSweepDeg,
   formatMeasureNumber,
+  measureText,
+  measureValue,
+  type MeasureKind,
+  type MeasurableShape,
 } from "./measure-math.ts";
 import type { AnglePrimitive } from "./angle.ts";
 
@@ -70,5 +74,325 @@ describe("角的显示度数文本", () => {
 
   test("跨 0° 的角取逆时针 sweep", () => {
     expect(angleDegreeText(angle(350, 10))).toBe("20°");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 面积/周长推导（ticket 02）：11 种封闭图元。锚点值全部手算/课本公式，
+// 不用被测实现复算（防同义反复）。
+// ---------------------------------------------------------------------------
+
+const fill = "none" as const;
+
+/** 3-4-5 直角三角形：底 4（局部 X）、高 3、直角顶点在 (2,0)。
+ *  底/高家族锚点，也是 spec Testing Decisions 钦定的锚点。 */
+const rightTriangle: MeasurableShape = {
+  id: "tri-1",
+  type: "triangle",
+  x: 0,
+  y: 0,
+  width: 4,
+  height: 3,
+  apexOffset: 2,
+  rotationDeg: 0,
+  fill,
+};
+
+/** L 形凹多边形（世界点，逆时针）：面积 = 4×1 条带 + 1×2 立柱 = 6。 */
+const lPolygon: MeasurableShape = {
+  id: "poly-1",
+  type: "polygon",
+  points: [
+    { x: 0, y: 0 },
+    { x: 4, y: 0 },
+    { x: 4, y: 1 },
+    { x: 1, y: 1 },
+    { x: 1, y: 3 },
+    { x: 0, y: 3 },
+  ],
+  fill,
+};
+
+describe("多边形族：世界顶点 → 鞋带面积 / 边长和周长", () => {
+  test("3-4-5 直角三角形面积 6、周长 12", () => {
+    expectCloseTo(measureValue(rightTriangle, "area"), 6);
+    expectCloseTo(measureValue(rightTriangle, "perimeter"), 12);
+  });
+
+  test("L 形凹多边形鞋带公式对凹形成立、顺时针取绝对值", () => {
+    expectCloseTo(measureValue(lPolygon, "area"), 6);
+    expectCloseTo(measureValue(lPolygon, "perimeter"), 14);
+    const clockwise = {
+      ...lPolygon,
+      points: [...lPolygon.points].reverse(),
+    } satisfies MeasurableShape;
+    expectCloseTo(measureValue(clockwise, "area"), 6);
+  });
+
+  test("矩形旋转后面积周长不变（12 / 14）", () => {
+    const rotated: MeasurableShape = {
+      id: "rect-1",
+      type: "rectangle",
+      x: -5,
+      y: 8,
+      width: 3,
+      height: 4,
+      rotationDeg: 37,
+      fill,
+    };
+    expectCloseTo(measureValue(rotated, "area"), 12);
+    expectCloseTo(measureValue(rotated, "perimeter"), 14);
+  });
+
+  test("平四面积 = 底×高（与斜移无关），周长含斜边", () => {
+    const shape: MeasurableShape = {
+      id: "para-1",
+      type: "parallelogram",
+      x: 0,
+      y: 0,
+      width: 4,
+      height: 3,
+      skew: 1,
+      rotationDeg: 0,
+      fill,
+    };
+    expectCloseTo(measureValue(shape, "area"), 12);
+    expectCloseTo(measureValue(shape, "perimeter"), 8 + 2 * Math.sqrt(10));
+  });
+
+  test("梯形面积 = 中位线×高，周长含两腰", () => {
+    const shape: MeasurableShape = {
+      id: "trap-1",
+      type: "trapezoid",
+      x: 0,
+      y: 0,
+      width: 6,
+      topWidth: 4,
+      height: 2,
+      topOffset: 0,
+      rotationDeg: 0,
+      fill,
+    };
+    expectCloseTo(measureValue(shape, "area"), 10);
+    expectCloseTo(measureValue(shape, "perimeter"), 10 + 2 * Math.sqrt(5));
+  });
+
+  test("正六边形 r=1：面积 3√3/2、周长 6（边长 = r）", () => {
+    const shape: MeasurableShape = {
+      id: "hex-1",
+      type: "regularPolygon",
+      x: 2,
+      y: -1,
+      sides: 6,
+      r: 1,
+      rotationDeg: 23,
+      fill,
+    };
+    expectCloseTo(measureValue(shape, "area"), (3 * Math.sqrt(3)) / 2);
+    expectCloseTo(measureValue(shape, "perimeter"), 6);
+  });
+});
+
+describe("圆族：解析闭式与边界全长语义", () => {
+  test("单位圆面积 π、周长 2π", () => {
+    const shape: MeasurableShape = {
+      id: "circle-1",
+      type: "circle",
+      cx: 3,
+      cy: -4,
+      r: 1,
+      fill,
+    };
+    expectCloseTo(measureValue(shape, "area"), Math.PI);
+    expectCloseTo(measureValue(shape, "perimeter"), 2 * Math.PI);
+  });
+
+  test("扇形（r=1、90°）：面积 = 扇形公式，周长 = 弧长 + 两半径（边界全长）", () => {
+    const shape: MeasurableShape = {
+      id: "sector-1",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 30,
+      endDeg: 120,
+      fill,
+    };
+    expectCloseTo(measureValue(shape, "area"), Math.PI / 4);
+    expectCloseTo(measureValue(shape, "perimeter"), Math.PI / 2 + 2);
+  });
+
+  test("弓形（r=1、90°）：面积 = 扇形 − 三角形，周长 = 弧长 + 弦长", () => {
+    const shape: MeasurableShape = {
+      id: "bow-1",
+      type: "bow",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 0,
+      endDeg: 90,
+      fill,
+    };
+    expectCloseTo(measureValue(shape, "area"), (Math.PI / 2 - 1) / 2);
+    expectCloseTo(measureValue(shape, "perimeter"), Math.PI / 2 + Math.SQRT2);
+  });
+
+  test("圆环（R=2、r=1）：面积 = π(R²−r²)、周长 = 内外两圈全长", () => {
+    const shape: MeasurableShape = {
+      id: "ring-1",
+      type: "ring",
+      cx: -1,
+      cy: 5,
+      rInner: 1,
+      rOuter: 2,
+      fill,
+    };
+    expectCloseTo(measureValue(shape, "area"), 3 * Math.PI);
+    expectCloseTo(measureValue(shape, "perimeter"), 6 * Math.PI);
+  });
+
+  test("椭圆（rx=2、ry=1）：面积 πab、周长 Ramanujan 近似、旋转不变", () => {
+    const base = {
+      id: "ellipse-1",
+      type: "ellipse",
+      cx: 0,
+      cy: 0,
+      rx: 2,
+      ry: 1,
+      fill,
+    } as const;
+    const rotated: MeasurableShape = { ...base, rotationDeg: 41 };
+    expectCloseTo(measureValue(rotated, "area"), 2 * Math.PI);
+    // 周长锚点是独立手算数值（Ramanujan 第一近似 ≈ 9.6884211，公差放宽到
+    // 1e-6 与手算位数相称），不用实现公式复算——防同义反复。
+    expect(
+      Math.abs(measureValue(rotated, "perimeter") - 9.6884211),
+    ).toBeLessThan(1e-6);
+  });
+
+  test("大弧（270°）：扇形 = 四分之三圆，弓形 = 圆减小弓形，弦按端点距离", () => {
+    const majorSector: MeasurableShape = {
+      id: "sector-270",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 0,
+      endDeg: 270,
+      fill,
+    };
+    const majorBow: MeasurableShape = {
+      id: "bow-270",
+      type: "bow",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 0,
+      endDeg: 270,
+      fill,
+    };
+    // 独立推导：270° 扇形是 3/4 圆（面积 3π/4，弧长 3π/2）；
+    // 大弓形 = 圆 − 90° 小弓形；弦是 (1,0)–(0,−1) 两端点距离 √2。
+    expectCloseTo(measureValue(majorSector, "area"), (3 * Math.PI) / 4);
+    expectCloseTo(measureValue(majorSector, "perimeter"), (3 * Math.PI) / 2 + 2);
+    expectCloseTo(
+      measureValue(majorBow, "area"),
+      Math.PI - (Math.PI / 2 - 1) / 2,
+    );
+    expectCloseTo(
+      measureValue(majorBow, "perimeter"),
+      (3 * Math.PI) / 2 + Math.SQRT2,
+    );
+  });
+
+  test("退化 sweep（起止重合）保持全：扇形周长 = 两半径、弓形归零", () => {
+    const degenerateSector: MeasurableShape = {
+      id: "sector-0",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 45,
+      endDeg: 45,
+      fill,
+    };
+    const degenerateBow: MeasurableShape = {
+      id: "bow-0",
+      type: "bow",
+      cx: 0,
+      cy: 0,
+      r: 2,
+      startDeg: 45,
+      endDeg: 45,
+      fill,
+    };
+    expectCloseTo(measureValue(degenerateSector, "area"), 0);
+    expectCloseTo(measureValue(degenerateSector, "perimeter"), 4);
+    expectCloseTo(measureValue(degenerateBow, "area"), 0);
+    expectCloseTo(measureValue(degenerateBow, "perimeter"), 0);
+  });
+
+  test("底/高族旋转后推导值不变（梯形 90°）", () => {
+    const rotated: MeasurableShape = {
+      id: "trap-r",
+      type: "trapezoid",
+      x: 7,
+      y: -3,
+      width: 6,
+      topWidth: 4,
+      height: 2,
+      topOffset: 0,
+      rotationDeg: 90,
+      fill,
+    };
+    expectCloseTo(measureValue(rotated, "area"), 10);
+    expectCloseTo(measureValue(rotated, "perimeter"), 10 + 2 * Math.sqrt(5));
+  });
+});
+
+describe("度量显示文本（两位去尾零、不带单位）", () => {
+  test("单位圆：面积 3.14、周长 6.28", () => {
+    const unitCircle: MeasurableShape = {
+      id: "circle-u",
+      type: "circle",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      fill,
+    };
+    expect(measureText(unitCircle, "area")).toBe("3.14");
+    expect(measureText(unitCircle, "perimeter")).toBe("6.28");
+  });
+
+  test("3-4-5 三角形取整无尾零：面积 6、周长 12", () => {
+    expect(measureText(rightTriangle, "area")).toBe("6");
+    expect(measureText(rightTriangle, "perimeter")).toBe("12");
+  });
+
+  test("弓形 90°：进位边界（0.285→0.29、2.985→2.99）", () => {
+    const shape: MeasurableShape = {
+      id: "bow-90",
+      type: "bow",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 0,
+      endDeg: 90,
+      fill,
+    };
+    expect(measureText(shape, "area")).toBe("0.29");
+    expect(measureText(shape, "perimeter")).toBe("2.99");
+  });
+});
+
+describe("kind: length 的类型结构预留（本期不实现）", () => {
+  test("MeasureKind 含 length 槽位，可调用种类只有 area/perimeter", () => {
+    expectTypeOf<MeasureKind>().toEqualTypeOf<
+      "area" | "perimeter" | "length"
+    >();
+    // 编译期约束：measureValue 只接受已实现种类，"length" 传不进去。
+    expectTypeOf<
+      Parameters<typeof measureValue>[1]
+    >().toEqualTypeOf<"area" | "perimeter">();
   });
 });

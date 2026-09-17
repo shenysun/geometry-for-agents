@@ -39,9 +39,11 @@ export function baseHeightLocalVertices(shape: BaseHeightShape): Point2[] {
   }
 }
 
-/** 局部偏移随 rotationDeg 旋到世界并加锚点（逆时针为正，与几何字段同一约定）。 */
-export function baseHeightWorldVertex(
-  shape: BaseHeightShape,
+/** ADR 0015 锚点旋转变换：局部偏移随 rotationDeg 绕锚点 (x,y) 旋到世界
+ *  （逆时针为正，与几何字段同一约定）。底/高族与矩形的度量层共用——
+ *  参数取结构锚点契约，凡「锚点 + rotationDeg」的图元皆可传入。 */
+export function anchorRotatedVertex(
+  shape: { readonly x: number; readonly y: number; readonly rotationDeg: number },
   offset: Point2,
 ): Point2 {
   const rad = shape.rotationDeg * DEG;
@@ -56,7 +58,7 @@ export function baseHeightWorldVertex(
 /** 世界顶点目录：局部顶点旋到世界，渲染与命中直接消费。 */
 export function baseHeightWorldVertices(shape: BaseHeightShape): Point2[] {
   return baseHeightLocalVertices(shape).map((vertex) =>
-    baseHeightWorldVertex(shape, vertex),
+    anchorRotatedVertex(shape, vertex),
   );
 }
 
