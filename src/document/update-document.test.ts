@@ -1,9 +1,13 @@
 import { describe, expect, test } from "vitest";
 import {
   addPrimitive,
+  commitSnapshot,
+  createHistory,
   parseDocument,
+  redo,
   removePrimitive,
   setUnderlay,
+  undo,
   updatePrimitive,
 } from "./index.ts";
 import type { GeometryDocument, Primitive, Primitive2d } from "./index.ts";
@@ -148,6 +152,86 @@ describe("updatePrimitive", () => {
     expect(original).toEqual(snapshot);
     expect(original.primitives[0]).toEqual(originalPrimitive);
     expect(result.document.primitives).toEqual([updated]);
+  });
+
+  test("角 showDeg 开关：勾选写入 true，取消勾选移除字段（老文档语义）", () => {
+    const anglePrimitive = {
+      id: "angle-1",
+      type: "angle",
+      x: 0,
+      y: 0,
+      startDeg: 0,
+      endDeg: 90,
+      length: 4,
+    } as const;
+    const base = mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [anglePrimitive],
+    });
+
+    const on = updatePrimitive(base, "angle-1", {
+      ...anglePrimitive,
+      showDeg: true,
+    });
+    expect(on.success).toBe(true);
+    if (!on.success) return;
+    expect(on.document.primitives[0]).toEqual({
+      ...anglePrimitive,
+      showDeg: true,
+    });
+
+    const off = updatePrimitive(on.document, "angle-1", anglePrimitive);
+    expect(off.success).toBe(true);
+    if (!off.success) return;
+    expect(off.document.primitives[0]).toEqual(anglePrimitive);
+  });
+
+  test("角 showDeg 开关经更新管线写入历史，撤销/重做可逆", () => {
+    const anglePrimitive: Primitive2d = {
+      id: "angle-1",
+      type: "angle",
+      x: 0,
+      y: 0,
+      startDeg: 0,
+      endDeg: 90,
+      length: 4,
+    };
+    const base = mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [anglePrimitive],
+    });
+
+    let history = createHistory(base);
+    const on = updatePrimitive(history.present, "angle-1", {
+      ...anglePrimitive,
+      showDeg: true,
+    });
+    expect(on.success).toBe(true);
+    if (!on.success) return;
+    history = commitSnapshot(history, on.document);
+    const switched = history.present.primitives[0] as Extract<
+      Primitive2d,
+      { type: "angle" }
+    >;
+    expect(switched.showDeg).toBe(true);
+
+    history = undo(history);
+    const restored = history.present.primitives[0] as Extract<
+      Primitive2d,
+      { type: "angle" }
+    >;
+    expect(restored.showDeg).toBeUndefined();
+
+    history = redo(history);
+    const redone = history.present.primitives[0] as Extract<
+      Primitive2d,
+      { type: "angle" }
+    >;
+    expect(redone.showDeg).toBe(true);
   });
 });
 

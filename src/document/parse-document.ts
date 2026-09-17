@@ -103,7 +103,8 @@ const trapezoidSchema = z
     path: ["topWidth"],
   });
 
-/** 角（笔画族）：无 fill；起止重合/差整周被拒（周角用圆 + 两条线拼）。 */
+/** 角（笔画族）：无 fill；起止重合/差整周被拒（周角用圆 + 两条线拼）。
+ *  showDeg 可选布尔、缺省关：度数是渲染期推导值，数值不进契约（ADR 0020）。 */
 const angleSchema = z
   .strictObject({
     id: primitiveId,
@@ -113,6 +114,7 @@ const angleSchema = z
     startDeg: z.number(),
     endDeg: z.number(),
     length: z.number().positive(),
+    showDeg: z.boolean().optional(),
   })
   .refine(
     (angle) => {

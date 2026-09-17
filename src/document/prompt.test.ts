@@ -286,6 +286,29 @@ describe("documentToPrompt", () => {
     expect(documentToPrompt(document)).toBe(prompt);
   });
 
+  test("documents the angle showDeg half-sentence without projecting derived degrees", () => {
+    const angle = {
+      id: "angle-1",
+      type: "angle",
+      x: 0,
+      y: 0,
+      startDeg: 0,
+      endDeg: 45,
+      length: 4,
+      showDeg: true,
+    };
+    const document = parsed("2d", [angle]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法行补「可显示推导度数」半句：Agent 知道度量语义存在。
+    expect(prompt).toMatch(/angle:.*showDeg/);
+    expect(prompt).toMatch(/angle:.*derived degree/);
+    // 实例随图元 JSON 全量出现（布尔开关在内），推导数值不进投影。
+    expect(prompt).toContain("showDeg");
+    expect(prompt).not.toContain("45°");
+  });
+
   test("documents the regular polygon syntax with circumcenter anchor and flat-bottom default", () => {
     const polygon = {
       id: "pent-1",

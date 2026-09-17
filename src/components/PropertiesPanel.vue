@@ -373,6 +373,20 @@ function onAngleFieldChange(key: PlanarFieldKey, event: Event): void {
   commitNumericField(current, ANGLE_FIELDS, key, event);
 }
 
+/** 度数开关（ADR 0020）：勾选写 showDeg，取消移除字段回到老文档形态；
+ *  数值是渲染期推导值，不设任何可编辑文字字段。 */
+function onAngleShowDegChange(event: Event): void {
+  const current = angle.value;
+  if (current === null) return;
+  const input = event.target as HTMLInputElement;
+  const { showDeg: _removed, ...rest } = current;
+  const next = input.checked ? { ...current, showDeg: true } : rest;
+  const result = documentStore.updatePrimitive(current.id, next);
+  if (!result.success) {
+    input.checked = !input.checked;
+  }
+}
+
 
 const circle = computed(() => {
   const primitive = selected.value;
@@ -735,6 +749,16 @@ function onFillChange(value: string | string[] | undefined): void {
           class="w-full rounded border border-zinc-300 px-2 py-1"
           @change="onAngleFieldChange(field.key, $event)"
         />
+      </label>
+      <label class="col-span-2 flex items-center gap-2">
+        <input
+          type="checkbox"
+          :checked="angle.showDeg === true"
+          :aria-label="t('field.showDeg')"
+          class="size-4 rounded border-zinc-300"
+          @change="onAngleShowDegChange"
+        />
+        <span class="text-zinc-500">{{ t("field.showDeg") }}</span>
       </label>
     </div>
     <!-- 圆 -->

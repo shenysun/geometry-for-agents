@@ -8,9 +8,15 @@ import { baseHeightWorldVertices } from "../document/base-height-family.ts";
 import { regularPolygonWorldVertices } from "../document/regular-polygon.ts";
 import {
   angleArcRadius,
+  angleDegreeAnchor,
   angleEndPoint,
   angleStartPoint,
 } from "../document/angle.ts";
+import {
+  angleDegreeText,
+  angleSweepDeg,
+  formatMeasureNumber,
+} from "../document/measure-math.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
 
@@ -35,20 +41,13 @@ type Sweep = {
   endDeg: number;
 };
 
-function sweepDeg(startDeg: number, endDeg: number): number {
-  if (startDeg === endDeg) return 0;
-  const raw = (endDeg - startDeg) % 360;
-  const sweep = raw < 0 ? raw + 360 : raw;
-  return sweep === 0 ? 360 : sweep;
-}
-
 function polar(cx: number, cy: number, r: number, deg: number): Point2 {
   const rad = deg * DEG;
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
 
 function arcWorldPoints(sweep: Sweep): Point2[] {
-  const span = sweepDeg(sweep.startDeg, sweep.endDeg);
+  const span = angleSweepDeg(sweep.startDeg, sweep.endDeg);
   const steps = Math.max(12, Math.ceil((span / 360) * 64));
   return Array.from({ length: steps + 1 }, (_, i) =>
     polar(
@@ -179,10 +178,26 @@ function arrowWings(
   ];
 }
 
-/** 标注数字：两点距离的推导值，保留两位并去尾零（5、4.25、3.1）。 */
+/** 标注数字：两点距离的推导值，统一走度量数学层的格式化（两位去尾零）。 */
 function dimensionLabel(primitive: Extract<Primitive2d, { type: "dimension" }>): string {
   const [a, b] = primitive.points;
-  return String(Number(Math.hypot(b.x - a.x, b.y - a.y).toFixed(2)));
+  return formatMeasureNumber(Math.hypot(b.x - a.x, b.y - a.y));
+}
+
+/** 度量数字文本（尺寸标注线与角度数共用）：统一字体字号，水平居中；
+ *  垂直位置由调用方定（需要垂直居中时再设 offsetY）。 */
+function measureText(x: number, y: number, text: string): Konva.Text {
+  const label = new Konva.Text({
+    x,
+    y,
+    text,
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    fill: STROKE,
+    listening: false,
+  });
+  label.offsetX(label.width() / 2);
+  return label;
 }
 
 function drawDimension(
@@ -199,16 +214,7 @@ function drawDimension(
     x: (screenA.x + screenB.x) / 2,
     y: (screenA.y + screenB.y) / 2,
   };
-  const label = new Konva.Text({
-    x: mid.x,
-    y: mid.y - 16,
-    text: dimensionLabel(primitive),
-    fontSize: 12,
-    fontFamily: "sans-serif",
-    fill: STROKE,
-    listening: false,
-  });
-  label.offsetX(label.width() / 2);
+  const label = measureText(mid.x, mid.y - 16, dimensionLabel(primitive));
   return [
     strokeLine([screenA.x, screenA.y, screenB.x, screenB.y], false),
     strokeLine(
@@ -324,7 +330,7 @@ function drawPrimitive(
         vertex,
         angleEndPoint(primitive),
       ];
-      return [
+      const shapes: Konva.Shape[] = [
         strokeLine(toScreenPoints(sides, view), false),
         drawSweepPath(
           {
@@ -338,6 +344,14 @@ function drawPrimitive(
           false,
         ),
       ];
+      // 度数是渲染期推导值：开关打开才画文本，数值不进契约（ADR 0020）。
+      if (primitive.showDeg === true) {
+        const anchor = worldToScreen(angleDegreeAnchor(primitive), view);
+        const text = measureText(anchor.x, anchor.y, angleDegreeText(primitive));
+        text.offsetY(text.height() / 2);
+        shapes.push(text);
+      }
+      return shapes;
     }
     case "sector":
       return [

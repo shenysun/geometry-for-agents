@@ -119,6 +119,7 @@ export const messages = {
       length: "边长",
       sides: "边数",
       text: "文字",
+      showDeg: "显示度数",
     },
     fill: {
       label: "填充",
@@ -282,6 +283,7 @@ export const messages = {
       length: "Side length",
       sides: "Sides",
       text: "Text",
+      showDeg: "Show degrees",
     },
     fill: {
       label: "Fill",

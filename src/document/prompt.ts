@@ -18,7 +18,7 @@ const SYNTAX = [
   "- triangle: x, y (base midpoint), width (base along X), height along +Y, apexOffset (apex X offset from the base midpoint; 0 = isosceles), rotationDeg (optional, defaults to 0; counterclockwise), fill",
   "- parallelogram: x, y (base midpoint), width (base along X), height along +Y, skew (top-base X shift, nonzero), rotationDeg (optional, defaults to 0; counterclockwise), fill",
   "- trapezoid: x, y (bottom-base midpoint), width (bottom base along X), topWidth (top base, differs from width), height along +Y, topOffset (top-base midpoint X offset; 0 = isosceles), rotationDeg (optional, defaults to 0; counterclockwise), fill",
-  "- angle: x, y (vertex), startDeg, endDeg (side directions in degrees; 0° at +X, counterclockwise; sweep within (0°,360°)), length (both sides equal)",
+  "- angle: x, y (vertex), startDeg, endDeg (side directions in degrees; 0° at +X, counterclockwise; sweep within (0°,360°)), length (both sides equal), showDeg (optional boolean, defaults to false; when true the derived degree measure is displayed beside the arc — the number is derived at render time, never stored)",
   "- regularPolygon: x, y (circumcenter), sides (integer ≥ 5), r (circumradius), rotationDeg (optional, defaults to 0 = flat-bottom: one edge parallel to X at the bottom), fill",
   "- dimension: exactly 2 {x,y} points (must not coincide); the displayed number is the derived distance between them (no text field, no unit)",
   "- circle: cx, cy, r, fill",

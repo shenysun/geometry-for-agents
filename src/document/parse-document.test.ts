@@ -1022,6 +1022,39 @@ describe("parseDocument 角", () => {
       'type "angle" is not allowed in space "3d"',
     );
   });
+
+  test("parses showDeg true and keeps the derived degree out of the contract", () => {
+    const result = parseDocument(
+      spec("2d", [{ ...validAngle, showDeg: true }]),
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual({
+      ...validAngle,
+      showDeg: true,
+    });
+  });
+
+  test("old documents without showDeg parse with the switch off (zero migration)", () => {
+    const result = parseDocument(spec("2d", [validAngle]));
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives[0]).toEqual(validAngle);
+    expect(
+      (result.document.primitives[0] as Record<string, unknown>).showDeg,
+    ).toBeUndefined();
+  });
+
+  test("rejects a non-boolean showDeg", () => {
+    expect(
+      parseDocument(spec("2d", [{ ...validAngle, showDeg: "yes" }])).success,
+    ).toBe(false);
+    expect(
+      parseDocument(spec("2d", [{ ...validAngle, showDeg: 1 }])).success,
+    ).toBe(false);
+  });
 });
 
 const validRegularPolygon = {
