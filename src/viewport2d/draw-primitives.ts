@@ -19,6 +19,7 @@ import {
   formatMeasureNumber,
   isMeasurableShape,
   measureAreaAnchor,
+  measurePerimeterAnchor,
   measureText as measureDisplayText,
 } from "../document/measure-math.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
@@ -635,7 +636,8 @@ export function drawDocumentPrimitives(
 
 // —— 度量标注（ADR 0020 引用式）——
 // 无坐标纯跟随：条目自身不存几何，渲染时按 sourceId 查源、经度量数学层
-// 推导数值与锚点。面积文本在源形心；周长的包围盒上方放置是后续票。
+// 推导数值与锚点。面积文本在源形心（文本中心对齐），周长文本在源紧
+// 包围盒上方中点（文本底边贴包络上沿，区别于面积的形心放置）。
 
 function drawMeasure(
   entry: MeasurePrimitive,
@@ -646,15 +648,18 @@ function drawMeasure(
     (primitive) => primitive.id === entry.sourceId,
   );
   if (source === undefined || !isMeasurableShape(source)) return [];
-  if (entry.kind !== "area") return [];
-  const anchor = worldToScreen(measureAreaAnchor(source), view);
+  // 水平居中由 measureText 负责；垂直位置按种类：形心 = 文本中心，
+  // 包围盒上方中点 = 文本底边（世界系 y 向上，上沿即 maxY）。
+  const anchor =
+    entry.kind === "area"
+      ? worldToScreen(measureAreaAnchor(source), view)
+      : worldToScreen(measurePerimeterAnchor(source), view);
   const text = measureText(
     anchor.x,
     anchor.y,
-    measureDisplayText(source, "area"),
+    measureDisplayText(source, entry.kind),
   );
-  // 形心锚点是文本中心：水平居中由 measureText 负责，这里再垂直居中。
-  text.offsetY(text.height() / 2);
+  text.offsetY(entry.kind === "area" ? text.height() / 2 : text.height());
   return [text];
 }
 

@@ -39,6 +39,7 @@ const SHIFT_COMBOS: Record<"2d" | "3d", Record<string, EditorTool>> = {
     a: "bow",
     t: "triangle",
     p: "parallelogram",
+    m: "measurePerimeter",
   },
   "3d": {
     b: "box",

@@ -6,6 +6,7 @@ import {
   type MeasurePrimitive,
 } from "../document/index.ts";
 import type { ImplementedMeasureKind } from "../document/measure-math.ts";
+import type { EditorTool } from "../stores/editor.ts";
 
 /** 度量标注条目：源 id + 度量种类，数值不进说明书（ADR 0020 引用式）。 */
 export type MeasureEntry = MeasurePrimitive;
@@ -56,4 +57,14 @@ export function clickPickMeasure(
     kind,
   };
   return { commit: entry, selectionId: ctx.id, rejection: null };
+}
+
+/** 拾取工具 id → 度量种类：两个度量标注工具与 kind 的一一对应
+ *  （spec US-17，m / Shift+M 同族变体）；非度量工具返回 null。 */
+export function measureKindForTool(
+  tool: EditorTool,
+): ImplementedMeasureKind | null {
+  if (tool === "measureArea") return "area";
+  if (tool === "measurePerimeter") return "perimeter";
+  return null;
 }

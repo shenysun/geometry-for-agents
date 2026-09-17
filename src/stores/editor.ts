@@ -13,6 +13,7 @@ export type EditorTool =
   | DrawTool
   | "overlapFill"
   | "measureArea"
+  | "measurePerimeter"
   | "voxel"
   | SolidToolId
   | null;
@@ -29,10 +30,11 @@ const threeDTools: ReadonlySet<EditorTool> = new Set([
   ...SOLID_TOOLS,
 ]);
 
-/** 只属于 2D 空间的拾取工具（重叠填充、度量标注）：带进 3D 时退回选择 */
+/** 只属于 2D 空间的拾取工具（重叠填充、度量标注族）：带进 3D 时退回选择 */
 const twoDPickTools: ReadonlySet<EditorTool> = new Set([
   "overlapFill",
   "measureArea",
+  "measurePerimeter",
 ]);
 
 export const useEditorStore = defineStore("editor", () => {

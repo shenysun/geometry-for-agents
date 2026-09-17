@@ -4,6 +4,7 @@ import {
   angleSweepDeg,
   formatMeasureNumber,
   measureAreaAnchor,
+  measurePerimeterAnchor,
   measureText,
   measureValue,
   type MeasureKind,
@@ -472,5 +473,131 @@ describe("度量文本锚点（面积在源形心）", () => {
     const anchor = measureAreaAnchor(bow);
     expectCloseTo(anchor.x, 0);
     expectCloseTo(anchor.y, 8 / (3 * Math.PI));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 周长文本锚点（ticket 04）：源紧包围盒的上方中点（世界系 y 向上）。
+// 锚点值全部手算，不用被测实现复算（防同义反复）。
+// ---------------------------------------------------------------------------
+
+describe("度量文本锚点（周长在源包围盒上方中点）", () => {
+  test("圆：包络 [cx±r, cy±r]，上方中点 (cx, cy+r)", () => {
+    const circle: MeasurableShape = {
+      id: "c",
+      type: "circle",
+      cx: 3,
+      cy: -2,
+      r: 1,
+      fill,
+    };
+    expect(measurePerimeterAnchor(circle)).toEqual({ x: 3, y: -1 });
+  });
+
+  test("3-4-5 三角形：锚点在底边中点，包络 [−2,2]×[0,3]，上方中点 (0,3)", () => {
+    const anchor = measurePerimeterAnchor(rightTriangle);
+    expectCloseTo(anchor.x, 0);
+    expectCloseTo(anchor.y, 3);
+  });
+
+  test("矩形旋转 90°：紧包络随顶点旋转（3×4 → x∈±2、y∈±1.5）", () => {
+    const rotated: MeasurableShape = {
+      id: "rect-r",
+      type: "rectangle",
+      x: -5,
+      y: 8,
+      width: 3,
+      height: 4,
+      rotationDeg: 90,
+      fill,
+    };
+    const anchor = measurePerimeterAnchor(rotated);
+    expectCloseTo(anchor.x, -5);
+    expectCloseTo(anchor.y, 9.5);
+  });
+
+  test("90° 扇形（0°→90°）：紧包络 [0,1]×[0,1] 含圆心与弧端点", () => {
+    const sector: MeasurableShape = {
+      id: "s",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 0,
+      endDeg: 90,
+      fill,
+    };
+    const anchor = measurePerimeterAnchor(sector);
+    expectCloseTo(anchor.x, 0.5);
+    expectCloseTo(anchor.y, 1);
+  });
+
+  test("斜跨扇形（30°→120°）：扫过 90° 轴向极值才计入包络", () => {
+    // 端点 (cos30°,sin30°)=(0.866,0.5)、(−0.5,0.866)，弧扫过 90° 极值点
+    // (0,1)；圆心 (0,0)。包络 x∈[−0.5,0.866]、y∈[0,1]。
+    const sector: MeasurableShape = {
+      id: "s2",
+      type: "sector",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 30,
+      endDeg: 120,
+      fill,
+    };
+    const anchor = measurePerimeterAnchor(sector);
+    expectCloseTo(anchor.x, (Math.cos((30 * Math.PI) / 180) - 0.5) / 2);
+    expectCloseTo(anchor.y, 1);
+  });
+
+  test("90° 弓形（0°→90°）：小弓不含圆心，包络仍由弧端点决定", () => {
+    const bow: MeasurableShape = {
+      id: "w",
+      type: "bow",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 0,
+      endDeg: 90,
+      fill,
+    };
+    const anchor = measurePerimeterAnchor(bow);
+    expectCloseTo(anchor.x, 0.5);
+    expectCloseTo(anchor.y, 1);
+  });
+
+  test("大弓形（270°）含圆心：包络是整圆的包络减去小弓缺口", () => {
+    // 0°→270° 大弓 = 圆 − 90° 小弓（第四象限）。圆心在弓形内，包络
+    // x∈[−1,1]、y∈[−1,1]（0° 端点 (1,0)、270° 端点 (0,−1)、圆心与扫过的
+    // 90°/180° 极值都在边界上）。
+    const bow: MeasurableShape = {
+      id: "w270",
+      type: "bow",
+      cx: 0,
+      cy: 0,
+      r: 1,
+      startDeg: 0,
+      endDeg: 270,
+      fill,
+    };
+    const anchor = measurePerimeterAnchor(bow);
+    expectCloseTo(anchor.x, 0);
+    expectCloseTo(anchor.y, 1);
+  });
+
+  test("椭圆旋转 90°：半轴投影包络 x∈±1、y∈±2", () => {
+    const rotated: MeasurableShape = {
+      id: "e",
+      type: "ellipse",
+      cx: 0,
+      cy: 0,
+      rx: 2,
+      ry: 1,
+      rotationDeg: 90,
+      fill,
+    };
+    const anchor = measurePerimeterAnchor(rotated);
+    expectCloseTo(anchor.x, 0);
+    expectCloseTo(anchor.y, 2);
   });
 });

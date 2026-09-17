@@ -51,6 +51,7 @@ describe("toolFromShortcut", () => {
     ["A", "bow"],
     ["T", "triangle"],
     ["P", "parallelogram"],
+    ["M", "measurePerimeter"],
   ] as const)("2D Shift+%s → %s（同族变体）", (pressed, tool) => {
     expect(toolFromShortcut(key(pressed, { shift: true }), "2d")).toBe(tool);
   });

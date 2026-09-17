@@ -68,6 +68,16 @@ describe("clickPickMeasure 拾取（ADR 0020）", () => {
     expect(result.rejection).toBe("not-measurable");
   });
 
+  test("perimeter kind rejects non-closed shapes through the same whitelist", () => {
+    const result = clickPickMeasure(
+      ctxAt({ point: { x: -9.5, y: -9.5 }, tolerance: 1 }),
+      "perimeter",
+    );
+
+    expect(result.commit).toBeNull();
+    expect(result.rejection).toBe("not-measurable");
+  });
+
   test("clicking empty space is ignored", () => {
     const result = clickPickMeasure(ctxAt({ point: { x: 100, y: 100 } }), "area");
 
