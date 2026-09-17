@@ -2,41 +2,35 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useDocumentStore } from "../stores/document.ts";
-import { useEditorStore } from "../stores/editor.ts";
-import { toolsForSpace } from "./toolbox.ts";
+import { catalogForSpace } from "./toolbox.ts";
+import ToolboxButton from "./ToolboxButton.vue";
 
 const { t } = useI18n();
 const documentStore = useDocumentStore();
-const editor = useEditorStore();
 
-const tools = computed(() => toolsForSpace(documentStore.current.space));
+const catalog = computed(() => catalogForSpace(documentStore.current.space));
 </script>
 
 <template>
-  <!-- 工具箱：列出当前空间的选择与创建工具，图标加名称；点一项即切换当前工具 -->
+  <!--
+    工具箱：纯渲染目录函数返回的「选择段 + 分组小节」结构，不做任何分组判断。
+    选择工具置顶独立一段，细分隔线隔开分组区；小节标题是弱化灰字导航锚点，无交互、不可折叠。
+  -->
   <div class="h-full overflow-auto bg-white py-1 text-sm" data-toolbox>
-    <button
-      v-for="tool in tools"
-      :key="tool.id"
-      type="button"
-      class="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-zinc-700 hover:bg-zinc-100"
-      :class="editor.tool === tool.id ? 'bg-zinc-100 font-medium' : undefined"
-      :aria-pressed="editor.tool === tool.id"
-      @click="editor.setTool(tool.id)"
+    <ToolboxButton :tool="catalog.select" />
+
+    <div class="my-1.5 border-t border-zinc-200" aria-hidden="true"></div>
+
+    <section
+      v-for="group in catalog.groups"
+      :key="group.id"
+      class="mb-2 last:mb-0"
+      :data-tool-group="group.id"
     >
-      <svg
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linejoin="round"
-        stroke-linecap="round"
-        class="h-4 w-4 shrink-0 text-zinc-500"
-        aria-hidden="true"
-      >
-        <path v-for="(path, index) in tool.icon.paths" :key="index" :d="path" />
-      </svg>
-      {{ t(tool.labelKey) }}
-    </button>
+      <h3 class="px-2.5 pb-0.5 pt-1 text-xs text-zinc-400">
+        {{ t(group.labelKey) }}
+      </h3>
+      <ToolboxButton v-for="tool in group.tools" :key="tool.id" :tool="tool" />
+    </section>
   </div>
 </template>

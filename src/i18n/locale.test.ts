@@ -130,4 +130,30 @@ describe("createAppI18n", () => {
       "Circle 2",
     );
   });
+
+  test("工具分组组名在两种语言下都有文案", () => {
+    const groupKeys = [
+      "linesAndArcs",
+      "straightShapes",
+      "curvedShapes",
+      "measurement",
+      "special",
+      "voxels",
+      "parametricSolids",
+    ];
+
+    const i18n = createAppI18n(["zh-CN"]);
+    for (const key of groupKeys) {
+      const zh = i18n.global.t(`toolGroup.${key}`);
+      expect(zh).not.toBe(`toolGroup.${key}`);
+      expect(zh).toMatch(/[一-鿿]/);
+    }
+
+    i18n.global.locale.value = "en";
+    for (const key of groupKeys) {
+      const en = i18n.global.t(`toolGroup.${key}`);
+      expect(en).not.toBe(`toolGroup.${key}`);
+      expect(en).not.toMatch(/[一-鿿]/);
+    }
+  });
 });

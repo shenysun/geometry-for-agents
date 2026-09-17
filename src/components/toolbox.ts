@@ -1,6 +1,9 @@
 import type { EditorTool } from "../stores/editor.ts";
 import { DRAW_TOOLS, type DrawTool } from "../viewport2d/draw-gesture.ts";
-import { SOLID_TOOLS } from "../viewport3d/solid-commit.ts";
+import {
+  SOLID_TOOLS,
+  type SolidToolId,
+} from "../viewport3d/solid-commit.ts";
 
 /** 工具箱里可点选的工具 id，就是编辑器当前工具去掉「未拿工具」 */
 export type ToolboxToolId = Exclude<EditorTool, null>;
@@ -100,19 +103,114 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
   },
 };
 
-/** 每个空间列出的工具次序：选择永远第一，创建工具跟在后面 */
-const TOOLS_PER_SPACE: Record<"2d" | "3d", readonly ToolboxToolId[]> = {
-  // 2D：选择 + 全部平面创建工具 + 重叠填充拾取（ADR 0019，二期图元）
-  "2d": ["select", ...DRAW_TOOLS, "overlapFill"],
-  // 3D：选择 + 单位立方体 + 全部参数体（名单与放置提交共用 SOLID_TOOLS）
-  "3d": ["select", "voxel", ...SOLID_TOOLS],
+/** 2D 分组小节 id，数组序即组序（spec toolbox-categories 钉死：线与弧→直边→曲线→度量→特殊） */
+const GROUP_ORDER_2D = [
+  "linesAndArcs",
+  "straightShapes",
+  "curvedShapes",
+  "measurement",
+  "special",
+] as const;
+
+/** 3D 分组小节 id：体素→参数体 */
+const GROUP_ORDER_3D = ["voxels", "parametricSolids"] as const;
+
+export type ToolGroupId2d = (typeof GROUP_ORDER_2D)[number];
+export type ToolGroupId3d = (typeof GROUP_ORDER_3D)[number];
+export type ToolGroupId = ToolGroupId2d | ToolGroupId3d;
+
+/** 分组小节：类别 id + 组名词条 key（前缀独立于 tool.）+ 组内工具 */
+export type ToolGroupSection = {
+  readonly id: ToolGroupId;
+  readonly labelKey: `toolGroup.${ToolGroupId}`;
+  readonly tools: readonly ToolboxTool[];
 };
 
-/** 工具目录纯函数：输入空间，返回该空间工具箱应列出的工具 */
-export function toolsForSpace(space: "2d" | "3d"): readonly ToolboxTool[] {
-  return TOOLS_PER_SPACE[space].map((id) => ({
-    id,
-    labelKey: `tool.${id}`,
-    icon: ICONS[id],
-  }));
+/** 工具箱目录：选择工具单列置顶，创建工具归入分组小节 */
+export type ToolboxCatalog = {
+  readonly select: ToolboxTool;
+  readonly groups: readonly ToolGroupSection[];
+};
+
+/** 2D 创建工具全集：全部平面绘制工具 + 重叠填充拾取（ADR 0019，二期图元） */
+const CREATION_TOOLS_2D: readonly (DrawTool | "overlapFill")[] = [
+  ...DRAW_TOOLS,
+  "overlapFill",
+];
+
+/** 3D 创建工具全集：单位立方体 + 全部参数体（名单与放置提交共用 SOLID_TOOLS） */
+const CREATION_TOOLS_3D: readonly ("voxel" | SolidToolId)[] = [
+  "voxel",
+  ...SOLID_TOOLS,
+];
+
+/**
+ * 2D 创建工具 → 分组。穷尽 Record：新增 DrawTool 不归类、组序数组删组导致类别消失，
+ * 都在这里编译报错，从机制上杜绝「新工具落不进组」。
+ */
+const GROUP_BY_2D_TOOL: Record<DrawTool | "overlapFill", ToolGroupId2d> = {
+  line: "linesAndArcs",
+  arc: "linesAndArcs",
+  polygon: "straightShapes",
+  rectangle: "straightShapes",
+  square: "straightShapes",
+  triangle: "straightShapes",
+  parallelogram: "straightShapes",
+  trapezoid: "straightShapes",
+  regularPolygon: "straightShapes",
+  circle: "curvedShapes",
+  sector: "curvedShapes",
+  bow: "curvedShapes",
+  ring: "curvedShapes",
+  ellipse: "curvedShapes",
+  angle: "measurement",
+  dimension: "measurement",
+  label: "measurement",
+  overlapFill: "special",
+};
+
+/** 3D 创建工具 → 分组，穷尽 Record 同上 */
+const GROUP_BY_3D_TOOL: Record<"voxel" | SolidToolId, ToolGroupId3d> = {
+  voxel: "voxels",
+  box: "parametricSolids",
+  cylinder: "parametricSolids",
+  cone: "parametricSolids",
+  sphere: "parametricSolids",
+  pyramid: "parametricSolids",
+  triangularPrism: "parametricSolids",
+};
+
+function toolEntry(id: ToolboxToolId): ToolboxTool {
+  return { id, labelKey: `tool.${id}`, icon: ICONS[id] };
+}
+
+/**
+ * 按组序聚合创建工具：组内次序沿用创建工具全集的既有次序（分组纯增益、零重排）。
+ * 空组不产出——渲染层因此永远不会为空组画标题（防御性规则，按构造当前不会触发）。
+ */
+function groupedSections<T extends ToolboxToolId, G extends ToolGroupId>(
+  groupOrder: readonly G[],
+  groupByTool: Record<T, G>,
+  creationTools: readonly T[],
+): ToolGroupSection[] {
+  return groupOrder
+    .map((id) => ({
+      id,
+      labelKey: `toolGroup.${id}` as const,
+      tools: creationTools
+        .filter((tool) => groupByTool[tool] === id)
+        .map(toolEntry),
+    }))
+    .filter((group) => group.tools.length > 0);
+}
+
+/** 工具目录纯函数：输入空间，返回该空间工具箱的选择段与分组小节 */
+export function catalogForSpace(space: "2d" | "3d"): ToolboxCatalog {
+  return {
+    select: toolEntry("select"),
+    groups:
+      space === "2d"
+        ? groupedSections(GROUP_ORDER_2D, GROUP_BY_2D_TOOL, CREATION_TOOLS_2D)
+        : groupedSections(GROUP_ORDER_3D, GROUP_BY_3D_TOOL, CREATION_TOOLS_3D),
+  };
 }

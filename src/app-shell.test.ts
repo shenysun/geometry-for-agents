@@ -201,9 +201,13 @@ describe("app shell", () => {
     );
   });
 
-  test("toolbox panel lists toolsForSpace and the top bar drops creation tools", () => {
+  test("toolbox panel renders the grouped catalog and the top bar drops creation tools", () => {
     const toolbox = readFileSync(
       resolve(root, "src/components/ToolboxPanel.vue"),
+      "utf8",
+    );
+    const toolboxButton = readFileSync(
+      resolve(root, "src/components/ToolboxButton.vue"),
       "utf8",
     );
     const drawToolbar = readFileSync(
@@ -211,11 +215,16 @@ describe("app shell", () => {
       "utf8",
     );
 
-    // 工具箱渲染目录、图标加名称，点选即切 editor.tool
-    expect(toolbox).toContain("toolsForSpace");
-    expect(toolbox).toContain("setTool");
-    expect(toolbox).toContain("editor.tool");
-    expect(toolbox).toContain("<svg");
+    // 工具箱面板纯渲染目录结构：选择段单列 + 分组小节，不承担分组判断
+    expect(toolbox).toContain("catalogForSpace");
+    expect(toolbox).toContain("data-toolbox");
+    expect(toolbox).toContain("data-tool-group");
+    expect(toolbox).not.toContain("DRAW_TOOLS");
+    expect(toolbox).not.toContain("setTool");
+    // 按钮细节在 ToolboxButton：图标加名称，点选即切 editor.tool
+    expect(toolboxButton).toContain("setTool");
+    expect(toolboxButton).toContain("editor.tool");
+    expect(toolboxButton).toContain("<svg");
     // 顶栏不再放创建工具，格开关留下
     expect(drawToolbar).not.toContain("DRAW_TOOLS");
     expect(drawToolbar).not.toContain("isDrawTool");

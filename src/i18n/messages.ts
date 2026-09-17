@@ -76,6 +76,16 @@ export const messages = {
       pyramid: "四棱锥",
       triangularPrism: "三棱柱",
     },
+    /** 工具分组小节标题：键名与工具词条同一规范，前缀独立于 tool. */
+    toolGroup: {
+      linesAndArcs: "线与弧",
+      straightShapes: "直边图形",
+      curvedShapes: "曲线图形",
+      measurement: "度量与标注",
+      special: "特殊",
+      voxels: "体素",
+      parametricSolids: "参数体",
+    },
     /** 同类型图元的编号模板：zh 名字与序号间不留空格 */
     objectName: "{name}{n}",
     field: {
@@ -228,6 +238,16 @@ export const messages = {
       sphere: "Sphere",
       pyramid: "Pyramid",
       triangularPrism: "Triangular prism",
+    },
+    /** Toolbox group section titles: same keying convention as tools, prefix separate from tool. */
+    toolGroup: {
+      linesAndArcs: "Lines & arcs",
+      straightShapes: "Straight-edged shapes",
+      curvedShapes: "Curved shapes",
+      measurement: "Measure & annotate",
+      special: "Special",
+      voxels: "Voxels",
+      parametricSolids: "Parametric solids",
     },
     /** Numbering template for same-type primitives: en separates name and index with a space */
     objectName: "{name} {n}",
