@@ -29,6 +29,7 @@ const SYNTAX = [
   "- ellipse: cx, cy, rx, ry, rotationDeg (optional, defaults to 0 = axis-aligned; counterclockwise), fill",
   "- label: named point at x, y with text",
   "- overlapFill: shades the intersection of the two closed primitives named in sources (by id); only the relation is stored, not geometry — the intersection may be empty after later edits",
+  "- measure: reference-style measure label on the closed primitive named in sourceId (by id), kind area|perimeter; the displayed number is derived at render time and never stored — compute it yourself from the source geometry",
   "- voxel: 3D unit cube at integer min corner x, y, z",
   "- box: 3D cuboid anchored at the bottom-face center x, y, z; width (X), depth (Z), height (Y) along +Y; rotationDegY, rotationDegX, rotationDegZ",
   "- cylinder: 3D cylinder anchored at the bottom-face center x, y, z; r (radius), height along +Y; rotationDegY, rotationDegX, rotationDegZ",

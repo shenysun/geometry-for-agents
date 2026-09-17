@@ -1189,3 +1189,47 @@ describe("selectPreview 重叠填充条目高亮两源", () => {
     expect(marks.map((mark) => mark.type)).toEqual(["circle", "rectangle"]);
   });
 });
+
+describe("select-gesture 度量标注（ADR 0020 点文本选中并高亮源）", () => {
+  // worldPerPx = 0.1：周长文本画在包围盒上沿 (5, 0.5) 上方，矩形本体不含 (5, 1)。
+  function measureDoc(): GeometryDocument {
+    return doc2d([
+      { id: "rect-b", type: "rectangle", x: 5, y: 0, width: 2, height: 1, fill: "none" },
+      { id: "perimeter-1", type: "measure", sourceId: "rect-b", kind: "perimeter" },
+    ]);
+  }
+
+  test("点中标注文本选中该 measure（源几何落空后文本兜底）", () => {
+    const result = clickSelect(
+      idleSelectState(),
+      ctx({ x: 5, y: 1 }, { document: measureDoc(), worldPerPx: 0.1 }),
+    );
+    expect(result.selectionId).toBe("perimeter-1");
+  });
+
+  test("点中文本处按下即选中，进入 drag 但无预览可拖（引用式不可变换）", () => {
+    const result = startSelect(
+      idleSelectState(),
+      ctx({ x: 5, y: 1 }, { document: measureDoc(), worldPerPx: 0.1 }),
+    );
+    expect(result.selectionId).toBe("perimeter-1");
+    expect(result.state.kind).toBe("drag");
+    expect(result.preview).toBeNull();
+  });
+
+  test("源几何优先于标注文本：点在矩形上边仍选中矩形", () => {
+    const result = clickSelect(
+      idleSelectState(),
+      ctx({ x: 5, y: 0.5 }, { document: measureDoc(), worldPerPx: 0.1 }),
+    );
+    expect(result.selectionId).toBe("rect-b");
+  });
+
+  test("选中 measure 时高亮其源图元（单源，重叠填充先例）", () => {
+    const preview = selectPreview(measureDoc(), "perimeter-1");
+    const mark = preview as Extract<DrawPreview, { type: string }>;
+    expect(mark.type).toBe("rectangle");
+    expect(mark).toMatchObject({ x: 5, y: 0, width: 2, height: 1 });
+  });
+});
+

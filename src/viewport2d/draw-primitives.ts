@@ -21,6 +21,7 @@ import {
   measureAreaAnchor,
   measurePerimeterAnchor,
   measureText as measureDisplayText,
+  MEASURE_TEXT_FONT_PX,
 } from "../document/measure-math.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
@@ -196,7 +197,7 @@ function measureText(x: number, y: number, text: string): Konva.Text {
     x,
     y,
     text,
-    fontSize: 12,
+    fontSize: MEASURE_TEXT_FONT_PX,
     fontFamily: "sans-serif",
     fill: STROKE,
     listening: false,

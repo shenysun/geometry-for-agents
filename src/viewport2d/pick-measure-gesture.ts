@@ -17,6 +17,9 @@ export type PickMeasureContext = {
   document: GeometryDocument;
   point: HitPoint;
   tolerance: number;
+  /** 每屏幕像素的世界长度：标注文本命中区随缩放变化，缺省 0 不参与
+   *  （点中另一条标注的文本也给「不可度量」拒绝，spec US-11）。 */
+  worldPerPx?: number;
   /** 新条目的 id，与绘制手势同例由调用方生成。 */
   id: string;
 };
@@ -43,7 +46,7 @@ export function clickPickMeasure(
   if (doc.space !== "2d") {
     return { commit: null, rejection: null };
   }
-  const hit = hitTest(doc, ctx.point, ctx.tolerance);
+  const hit = hitTest(doc, ctx.point, ctx.tolerance, ctx.worldPerPx ?? 0);
   if (hit === null) {
     return { commit: null, rejection: null };
   }

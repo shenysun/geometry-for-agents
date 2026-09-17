@@ -11,6 +11,7 @@ import {
   angleStartPoint,
 } from "./angle.ts";
 import { regularPolygonWorldVertices } from "./regular-polygon.ts";
+import { isMeasurableShape, measureTextBounds } from "./measure-math.ts";
 import type { Point2 } from "./snap.ts";
 
 const DEG = Math.PI / 180;
@@ -356,11 +357,48 @@ function hitVoxels(
   return hits.reduce((_, candidate) => candidate);
 }
 
-/** 世界单位的命中容差：细线/弧/标签在容差内即视为命中；缺省 0 为精确命中。 */
+/**
+ * 度量标注文本命中（ADR 0020）：worldPerPx > 0 才参与，是命中总顺序的
+ * 最末级——源几何（含重叠填充条目）全部落空后才轮到标注文本。文本包围盒
+ * 由度量数学层按锚点与字号推导；多条并列取目录靠后者（渲染在更上层）。
+ */
+function measureTextHits(
+  document: GeometryDocument,
+  point: Point2,
+  worldPerPx: number,
+): Primitive2d[] {
+  if (worldPerPx <= 0 || document.space !== "2d") return [];
+  const hits: Primitive2d[] = [];
+  for (let i = document.primitives.length - 1; i >= 0; i--) {
+    const entry = document.primitives[i];
+    if (entry?.type !== "measure") continue;
+    const source = document.primitives.find(
+      (primitive) => primitive.id === entry.sourceId,
+    );
+    if (source === undefined || !isMeasurableShape(source)) continue;
+    const bounds = measureTextBounds(source, entry.kind, worldPerPx);
+    if (
+      point.x >= bounds.minX &&
+      point.x <= bounds.maxX &&
+      point.y >= bounds.minY &&
+      point.y <= bounds.maxY
+    ) {
+      hits.push(entry);
+    }
+  }
+  return hits;
+}
+
+/**
+ * 世界单位的命中容差：细线/弧/标签在容差内即视为命中；缺省 0 为精确命中。
+ * worldPerPx 是每屏幕像素的世界长度（标注文本的命中区随缩放变化），
+ * 缺省 0 时标注文本不参与命中——既有调用方行为零变化。
+ */
 export function hitTest(
   document: GeometryDocument,
   point: HitPoint,
   tolerance = 0,
+  worldPerPx = 0,
 ): Primitive | null {
   if (document.space === "3d") {
     return hitVoxels(document.primitives, point);
@@ -408,6 +446,14 @@ export function hitTest(
     return entry;
   }
 
+  // 标注文本是命中总顺序的最末级：几何（含引用条目）全部落空才轮到它。
+  if (geometricWinner === null) {
+    const [textWinner] = measureTextHits(document, point, worldPerPx);
+    if (textWinner !== undefined) {
+      return textWinner;
+    }
+  }
+
   return geometricWinner;
 }
 
@@ -421,12 +467,13 @@ export function hitCandidates(
   document: GeometryDocument,
   point: HitPoint,
   tolerance = 0,
+  worldPerPx = 0,
 ): Primitive[] {
   if (document.space === "3d") {
     const voxel = hitVoxels(document.primitives, point);
     return voxel === null ? [] : [voxel];
   }
-  const winner = hitTest(document, point, tolerance);
+  const winner = hitTest(document, point, tolerance, worldPerPx);
   const rest: Primitive2d[] = [];
   for (let i = document.primitives.length - 1; i >= 0; i--) {
     const entry = document.primitives[i];
@@ -448,7 +495,10 @@ export function hitCandidates(
   );
   const closed = hits.filter(isClosed).sort((x, y) => area(x) - area(y));
   const strokes = hits.filter((primitive) => !isClosed(primitive));
-  const ranked = [...rest, ...closed, ...strokes].filter(
+  // 标注文本殿后：循环序是「引用条目 → 封闭升序 → 笔画 → 文本」，与命中
+  // 总顺序一致，同点连点最后才换到标注。
+  const texts = measureTextHits(document, point, worldPerPx);
+  const ranked = [...rest, ...closed, ...strokes, ...texts].filter(
     (primitive) => primitive !== winner,
   );
   return winner === null ? ranked : [winner, ...ranked];

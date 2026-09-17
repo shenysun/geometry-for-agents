@@ -152,6 +152,7 @@ function selectContext(event: PointerEvent | MouseEvent): SelectContext | null {
     selectionId: editor.selectionId,
     handleTolerance: handleToleranceWorld(),
     controlTolerance: controlToleranceWorld(),
+    worldPerPx: worldPerPx(),
   };
 }
 
@@ -370,6 +371,7 @@ function handlePickMeasureClick(event: MouseEvent): void {
       document: documentStore.current,
       point,
       tolerance: hitToleranceWorld(),
+      worldPerPx: worldPerPx(),
       id: crypto.randomUUID(),
     },
     kind,

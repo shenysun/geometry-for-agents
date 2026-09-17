@@ -502,6 +502,37 @@ describe("documentToPrompt", () => {
   });
 });
 
+describe("documentToPrompt 度量标注（ADR 0020 引用式）", () => {
+  test("documents the measure syntax as a source-id relation without projecting derived values", () => {
+    // 单位圆：面积 3.14、周长 6.28——推导值若进投影必以这两串数字现形。
+    const document = parsed("2d", [
+      { id: "circle-1", type: "circle", cx: 0, cy: 0, r: 1, fill: "none" },
+      { id: "area-1", type: "measure", sourceId: "circle-1", kind: "area" },
+      {
+        id: "perimeter-1",
+        type: "measure",
+        sourceId: "circle-1",
+        kind: "perimeter",
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法行讲清引用语义：按 id 引用封闭源、种类二选一、数值渲染期推导不存储。
+    expect(prompt).toMatch(/measure:.*sourceId.*kind/);
+    expect(prompt).toMatch(/measure:.*area.*perimeter/);
+    expect(prompt).toMatch(/measure:.*derived at render time/);
+    // 实例随图元 JSON 全量自然出现（id 引用与 kind），推导数值不进投影。
+    expect(prompt).toContain('"type":"measure"');
+    expect(prompt).toContain('"sourceId":"circle-1"');
+    expect(prompt).toContain('"kind":"area"');
+    expect(prompt).toContain('"kind":"perimeter"');
+    expect(prompt).not.toContain("3.14");
+    expect(prompt).not.toContain("6.28");
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+});
+
 describe("documentToPrompt 重叠填充（ADR 0019 引用式）", () => {
   test("documents overlapFill as a source-id relation, no coordinates involved", () => {
     const document = parsed("2d", [

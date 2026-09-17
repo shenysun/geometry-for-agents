@@ -653,6 +653,68 @@ describe("hitTest 重叠填充区域（ADR 0019 引用式）", () => {
   });
 });
 
+describe("hitTest 度量标注文本（ADR 0020 引用式）", () => {
+  // worldPerPx = 0.1：10 屏幕像素 = 1 世界单位。12px 文本高 1.2 世界单位。
+  const measureDoc = () =>
+    doc2d([
+      { id: "ring-a", type: "ring", cx: 0, cy: 0, rInner: 2, rOuter: 4, fill: "none" },
+      { id: "area-1", type: "measure", sourceId: "ring-a", kind: "area" },
+      { id: "rect-b", type: "rectangle", x: 5, y: 0, width: 2, height: 1, fill: "none" },
+      { id: "perimeter-1", type: "measure", sourceId: "rect-b", kind: "perimeter" },
+    ]);
+
+  test("点在周长文本包围盒内（源几何之外）命中该 measure", () => {
+    // 周长锚点 = 包围盒上沿中点 (5, 0.5)；文本沿其上方展开，矩形本体不含 (5, 1)。
+    const hit = hitTest(measureDoc(), { x: 5, y: 1 }, 0, 0.1);
+
+    expect(hit?.id).toBe("perimeter-1");
+  });
+
+  test("点在面积文本包围盒内（环心空洞）命中该 measure", () => {
+    // 面积锚点 = 环形形心即圆心 (0,0)，落在环的空洞里——几何不含、文本含。
+    const hit = hitTest(measureDoc(), { x: 0, y: 0 }, 0, 0.1);
+
+    expect(hit?.id).toBe("area-1");
+  });
+
+  test("源几何优先于标注文本：文本与源重叠处命中源", () => {
+    // (5, 0.5) 既在矩形上边（边界命中）又在周长文本包围盒内，几何赢。
+    const hit = hitTest(measureDoc(), { x: 5, y: 0.5 }, 0, 0.1);
+
+    expect(hit?.id).toBe("rect-b");
+  });
+
+  test("worldPerPx 缺省 0 时文本不参与命中（既有调用方零变化）", () => {
+    expect(hitTest(measureDoc(), { x: 5, y: 1 })).toBeNull();
+    expect(hitTest(measureDoc(), { x: 5, y: 1 }, 0)).toBeNull();
+  });
+});
+
+describe("hitCandidates 度量标注文本（ADR 0020 同点循环）", () => {
+  const measureDoc = () =>
+    doc2d([
+      { id: "rect-b", type: "rectangle", x: 5, y: 0, width: 2, height: 1, fill: "none" },
+      { id: "perimeter-1", type: "measure", sourceId: "rect-b", kind: "perimeter" },
+    ]);
+
+  test("文本命中排在全部候选末尾：源几何在前、标注文本在后", () => {
+    // (5, 0.5) 同时命中矩形上边与周长文本：几何候选在前，文本殿后。
+    const ids = hitCandidates(measureDoc(), { x: 5, y: 0.5 }, 0, 0.1).map(
+      (primitive) => primitive.id,
+    );
+
+    expect(ids).toEqual(["rect-b", "perimeter-1"]);
+  });
+
+  test("纯文本命中处，首位候选恒等于 hitTest 胜者", () => {
+    const point = { x: 5, y: 1 };
+    const candidates = hitCandidates(measureDoc(), point, 0, 0.1);
+
+    expect(candidates[0]?.id).toBe(hitTest(measureDoc(), point, 0, 0.1)?.id);
+    expect(candidates.map((primitive) => primitive.id)).toEqual(["perimeter-1"]);
+  });
+});
+
 describe("hitCandidates 同点循环候选（ADR 0019 选不中另一源的补全）", () => {
   const overlapDoc = (extra: unknown[] = []) =>
     doc2d([

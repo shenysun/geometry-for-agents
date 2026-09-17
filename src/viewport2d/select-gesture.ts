@@ -55,6 +55,8 @@ export type SelectContext = {
   handleTolerance?: number;
   /** 世界单位的控制点命中半径；缺省 0 时控制点不参与命中。 */
   controlTolerance?: number;
+  /** 每屏幕像素的世界长度；标注文本的命中区随缩放变化，缺省 0 不参与。 */
+  worldPerPx?: number;
   /** 同点连点的循环目标：须在该点候选列表内，否则回退首位胜者。 */
   preferId?: string;
 };
@@ -343,6 +345,14 @@ export function selectPreview(
     });
     return marks.length === 0 ? null : marks;
   }
+  if (primitive.type === "measure") {
+    // 度量标注选中态高亮它的源（重叠填充高亮源先例，单源）：
+    // 从视口就能确认「这个数标的是谁」。
+    const source = document.primitives.find(
+      (item) => item.id === primitive.sourceId,
+    );
+    return source === undefined ? null : previewFromPrimitive(source);
+  }
   return previewFromPrimitive(primitive);
 }
 
@@ -415,7 +425,12 @@ export function startSelect(
       };
     }
   }
-  const hit = hitTest(ctx.document, ctx.point, ctx.tolerance ?? 0);
+  const hit = hitTest(
+    ctx.document,
+    ctx.point,
+    ctx.tolerance ?? 0,
+    ctx.worldPerPx ?? 0,
+  );
   if (hit === null) {
     return idleResult();
   }
@@ -562,7 +577,12 @@ export function clickSelect(
   if (handleHit !== null) {
     return { state, preview: null, selectionId: handleHit.id, commit: null };
   }
-  const candidates = hitCandidates(ctx.document, ctx.point, ctx.tolerance ?? 0);
+  const candidates = hitCandidates(
+    ctx.document,
+    ctx.point,
+    ctx.tolerance ?? 0,
+    ctx.worldPerPx ?? 0,
+  );
   const hit = ctx.preferId === undefined
     ? candidates[0]
     : candidates.find((candidate) => candidate.id === ctx.preferId) ??

@@ -279,6 +279,22 @@ const overlapSources = computed(() => {
   return primitive.sources.map((id) => names.get(id) ?? id);
 });
 
+/** 度量标注的源显示名与种类词条（只读）：引用关系无需拖动即可核实，
+ *  数值是渲染期推导值，不设任何可编辑字段（ADR 0020）。 */
+const measureInfo = computed(() => {
+  const primitive = selected.value;
+  if (primitive === null || primitive.type !== "measure") return null;
+  const names = displayNamesById(documentStore.current.primitives, t);
+  return {
+    source: names.get(primitive.sourceId) ?? primitive.sourceId,
+    kind: t(
+      primitive.kind === "area"
+        ? "tool.measureArea"
+        : "tool.measurePerimeter",
+    ),
+  };
+});
+
 const solid = computed(() => {
   const primitive = selected.value;
   return primitive !== null && isSolidPrimitive(primitive) ? primitive : null;
@@ -708,6 +724,10 @@ function onFillChange(value: string | string[] | undefined): void {
     <p v-if="overlapSources !== null" class="text-zinc-500">
       {{ t("field.sources") }}：{{ overlapSources.join(" ∩ ") }}
     </p>
+    <div v-if="measureInfo !== null" class="space-y-1 text-zinc-500">
+      <p>{{ t("field.source") }}：{{ measureInfo.source }}</p>
+      <p>{{ t("field.kind") }}：{{ measureInfo.kind }}</p>
+    </div>
     <div v-if="solid !== null" class="grid grid-cols-2 gap-2">
       <label v-for="field in solidFieldList" :key="field.key" class="space-y-1">
         <span class="block text-zinc-500">{{ t(field.labelKey) }}</span>

@@ -313,7 +313,7 @@ export function measureAreaAnchor(shape: MeasurableShape): Point2 {
 }
 
 /** 轴对齐世界包围盒（世界系 y 向上，maxY 即「上方」）。 */
-type WorldBounds = {
+export type WorldBounds = {
   minX: number;
   minY: number;
   maxX: number;
@@ -425,5 +425,35 @@ export function measurePerimeterAnchor(shape: MeasurableShape): Point2 {
   return {
     x: (bounds.minX + bounds.maxX) / 2,
     y: bounds.maxY,
+  };
+}
+
+/** 标注文本的屏幕字号（与渲染层 Konva.Text 的 fontSize 一致）。 */
+export const MEASURE_TEXT_FONT_PX = 12;
+/** sans-serif 数字与小数点的平均字宽系数：命中区近似，不依赖字体测量。 */
+const CHAR_WIDTH_FACTOR = 0.6;
+
+/** 度量标注文本的世界包围盒（ADR 0020 命中区）：面积的锚点即文本中心，
+ *  周长的锚点是文本底边中点（世界系 y 向上，与渲染层的 offsetY 对齐）；
+ *  尺寸 = 文本像素尺寸 × 每屏幕像素的世界长度，随缩放与画面一致。 */
+export function measureTextBounds(
+  shape: MeasurableShape,
+  kind: ImplementedMeasureKind,
+  worldPerPx: number,
+): WorldBounds {
+  const text = measureText(shape, kind);
+  const halfWidth =
+    (text.length * CHAR_WIDTH_FACTOR * MEASURE_TEXT_FONT_PX * worldPerPx) / 2;
+  const height = MEASURE_TEXT_FONT_PX * worldPerPx;
+  const anchor =
+    kind === "area" ? measureAreaAnchor(shape) : measurePerimeterAnchor(shape);
+  // 面积锚点是文本中心（上下各半高），周长锚点是文本底边（整高在上方）。
+  const [minDY, maxDY] =
+    kind === "area" ? [-height / 2, height / 2] : [0, height];
+  return {
+    minX: anchor.x - halfWidth,
+    maxX: anchor.x + halfWidth,
+    minY: anchor.y + minDY,
+    maxY: anchor.y + maxDY,
   };
 }
