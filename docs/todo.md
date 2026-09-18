@@ -19,7 +19,6 @@
 
 覆盖度依据：2026-09 数学内容审计（`docs/research-math-coverage.md`），缺口按投入产出排序如下。
 
-- [ ] 函数曲线图元：一次/二次/反比例 + 参数滑块（审计缺口 #2）
 - [ ] 变换图元：平移/旋转/轴对称/位似（审计缺口 #3）
 - [ ] 坐标系/点图元：可创建、可进说明书（审计 #7）
 - [ ] 剖切 / 水面（蛋糕、水泥管、浸没）
@@ -32,4 +31,4 @@
 - [ ] 一份说明书里 2D+3D 图元共存
 - [ ] 绑定 Geometry Studio 课件字段
 
-已落地移出：~~重叠填充图元~~（ADR 0019，已上线，见 `overlapFill`）；~~度量数值层：角度度数显示、面积/周长标注~~（ADR 0020，已上线，见 `measure`，spec `.scratch/measure-labels/`）。
+已落地移出：~~重叠填充图元~~（ADR 0019，已上线，见 `overlapFill`）；~~度量数值层：角度度数显示、面积/周长标注~~（ADR 0020，已上线，见 `measure`，spec `.scratch/measure-labels/`）；~~函数曲线图元：一次/二次/反比例 + 参数滑块~~（ADR 0021，已上线，见 `functionCurve`，spec `.scratch/function-curves/`）。
