@@ -53,3 +53,44 @@ export function validateFunctionCurveParam(
   }
   return { status: "ok", value: truncated };
 }
+
+/** 一次滑块交互的指针位移记录（票 06）：base 为指针按下时的钳后柄值，
+ *  moved 表示交互中是否出现过指针驱动的取值变化（input 值偏离 base）。 */
+export type SliderInteraction = {
+  readonly base: number;
+  readonly moved: boolean;
+};
+
+/** 指针按下起算一次交互：越界契约值（如 a=15）的柄钳在端点 10。 */
+export function startSliderInteraction(displayValue: number): SliderInteraction {
+  return { base: clampToSliderRange(displayValue), moved: false };
+}
+
+/** 交互中每个 input 值过一遍：偏离过柄值即记为有位移。 */
+export function trackSliderInput(
+  interaction: SliderInteraction,
+  value: number,
+): SliderInteraction {
+  return value === interaction.base
+    ? interaction
+    : { ...interaction, moved: true };
+}
+
+/** 零位移触碰不提交（票 06 PO 裁定）：无位移时 change 值只会复述按下
+ *  时的钳后柄值，提交它恰是「越界值整体钳到端点」的禁路；域内时提交
+ *  同值本就是 no-op，一并不提交。真实拖动（产生过位移）照常提交——
+ *  松手值来自指针位置，停在端点是合法滑块语义。 */
+export function sliderReleaseCommits(interaction: SliderInteraction): boolean {
+  return interaction.moved;
+}
+
+/** 松手收尾判定（票 06）：DOM 值已回到柄值时，change 按规范不会再来
+ *  （值自上次提交未变）——零位移触碰与拖离又拖回同归此类，预览层须
+ *  就地清算、交互就地收尾，显示回落契约值；DOM 值偏离柄值则留给
+ *  change 提交（松手值来自指针位置，合法滑块语义）。 */
+export function sliderSettlesWithoutCommit(
+  interaction: SliderInteraction,
+  domValue: number,
+): boolean {
+  return domValue === interaction.base;
+}

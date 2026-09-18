@@ -104,6 +104,13 @@ export function useFunctionCurveParamEditing(
     editor.setFunctionCurvePreview(null);
   }
 
+  /** 滑块收尾（无提交路径，票 06）：零位移触碰、拖离又拖回柄值的松手
+   *  change 不会来，预览层就地清算——否则显示滞留预览值，越界契约值
+   *  在显示层被静默钳住。 */
+  function settleSlider(): void {
+    editor.setFunctionCurvePreview(null);
+  }
+
   return {
     errors,
     previewParams,
@@ -112,5 +119,6 @@ export function useFunctionCurveParamEditing(
     startParamPreview,
     commitParam,
     releaseSlider,
+    settleSlider,
   };
 }

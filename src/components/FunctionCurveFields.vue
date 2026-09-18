@@ -35,6 +35,7 @@ const {
   startParamPreview,
   commitParam,
   releaseSlider,
+  settleSlider,
 } = useFunctionCurveParamEditing(() => props.curve);
 
 /** 数字输入 / 原生步进：一次一提交。空输入不当作 0 提交：保留旧值，
@@ -69,6 +70,7 @@ function onNumberChange(key: FunctionCurveParamKey, event: Event): void {
         :value="displayValue(key)"
         @preview="(value) => startParamPreview(key, value)"
         @release="(raw) => releaseSlider(key, raw)"
+        @settle="settleSlider"
       />
       <input
         :id="`curve-${curve.id}-${key}`"

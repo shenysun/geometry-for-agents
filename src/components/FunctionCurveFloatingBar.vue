@@ -35,6 +35,7 @@ const {
   startParamPreview,
   commitParam,
   releaseSlider,
+  settleSlider,
 } = useFunctionCurveParamEditing(() => props.curve);
 
 /** 解析式随拖动跟手：预览活跃时格式化预览参数，松手回落契约
@@ -77,6 +78,7 @@ function onStep(key: FunctionCurveParamKey, direction: -1 | 1): void {
           :value="displayValue(key)"
           @preview="(value) => startParamPreview(key, value)"
           @release="(raw) => releaseSlider(key, raw)"
+          @settle="settleSlider"
         />
         <button
           type="button"
