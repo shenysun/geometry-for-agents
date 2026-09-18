@@ -2,6 +2,9 @@ import { formatMeasureNumber } from "./measure-math.ts";
 import type { Point2 } from "./snap.ts";
 import type { FunctionCurvePrimitive } from "./parse-document.ts";
 
+/** 契约图元类型经本模块转出：函数曲线的一切（参数、预览、图元）从这里进。 */
+export type { FunctionCurvePrimitive };
+
 /**
  * 函数曲线纯函数层（ADR 0021）：求值/采样/解析式格式化的唯一收口，
  * 接缝形态与 measure-math 的度量数学层完全同构——无副作用、不触碰契约、

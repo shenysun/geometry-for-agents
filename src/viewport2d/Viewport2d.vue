@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useEventListener, useResizeObserver } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { type GridSnap, type Point2 } from "../document/index.ts";
 import {
   moveControlPoint,
@@ -12,6 +12,7 @@ import {
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
 import { isTypingTarget } from "../components/tool-shortcuts.ts";
+import FunctionCurveFloatingBar from "../components/FunctionCurveFloatingBar.vue";
 import {
   clickDraw,
   escDraw,
@@ -77,6 +78,19 @@ const controlPointScreens = ref<{ id: string; point: Point2 }[]>([]);
 const documentStore = useDocumentStore();
 const editor = useEditorStore();
 const { t } = useI18n();
+
+/** 视口浮动滑块条（票 04）：选中函数曲线即出现、取消选中即消失；
+ *  条悬在 Konva 宿主之外，指针操作不落进视口手势。 */
+const selectedFunctionCurve = computed(() => {
+  const id = editor.selectionId;
+  if (id === null) return null;
+  const primitive = documentStore.current.primitives.find(
+    (item) => item.id === id,
+  );
+  return primitive !== undefined && primitive.type === "functionCurve"
+    ? primitive
+    : null;
+});
 let projector: Viewport2dProjector | null = null;
 let gesture: DrawGestureState = idleDrawState();
 let selectGesture: SelectGestureState = idleSelectState();
@@ -665,6 +679,12 @@ onUnmounted(() => {
     >
       {{ pickHint }}
     </div>
+    <!-- 与提示条同层：悬在宿主容器外，浮动条的指针事件不触发视口手势。 -->
+    <FunctionCurveFloatingBar
+      v-if="selectedFunctionCurve !== null"
+      :key="selectedFunctionCurve.id"
+      :curve="selectedFunctionCurve"
+    />
     <div
       ref="hostRef"
       class="relative h-full min-h-0 w-full overflow-hidden bg-white"
