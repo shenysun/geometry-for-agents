@@ -533,6 +533,59 @@ describe("documentToPrompt 度量标注（ADR 0020 引用式）", () => {
   });
 });
 
+describe("documentToPrompt 函数曲线（ADR 0021 解析式语义）", () => {
+  test("documents the functionCurve syntax as one row covering the three kinds", () => {
+    const document = parsed("2d", [
+      { id: "curve-1", type: "functionCurve", kind: "linear", a: 1, b: 0 },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法一行收拢三 kind：判别键、各 kind 参数、参数即真源、
+    // 反比例在 x=0 断两支不画渐近线（ADR 0021）。
+    expect(prompt).toMatch(/functionCurve:.*linear.*quadratic.*inverse/);
+    expect(prompt).toMatch(/functionCurve:.*two branches at x = 0/);
+    expect((prompt.match(/- functionCurve:/g) ?? []).length).toBe(1);
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
+  test("projects each curve instance as one analytic sentence from the shared formatter", () => {
+    const document = parsed("2d", [
+      { id: "curve-1", type: "functionCurve", kind: "linear", a: 2, b: 1 },
+      {
+        id: "curve-2",
+        type: "functionCurve",
+        kind: "quadratic",
+        a: 1,
+        b: 0,
+        c: -2,
+      },
+      { id: "curve-3", type: "functionCurve", kind: "inverse", k: -3 },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 一句解析式描述由 01 格式化器产出（Prompt 与属性面板同源单点收口）。
+    expect(prompt).toContain("curve-1: the graph of y = 2x + 1");
+    expect(prompt).toContain("curve-2: the graph of y = x² - 2");
+    expect(prompt).toContain("curve-3: the graph of y = -3/x");
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
+  test("keeps sampled coordinates out of the projection", () => {
+    const document = parsed("2d", [
+      { id: "curve-1", type: "functionCurve", kind: "linear", a: 2, b: 1 },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 投影只有精确参数语义：无采样点对、无视口相关坐标。
+    expect(prompt).toContain('"kind":"linear"');
+    expect(prompt).not.toContain('"points"');
+    expect(prompt).not.toMatch(/"(x|y)":-?\d/);
+  });
+});
+
 describe("documentToPrompt 重叠填充（ADR 0019 引用式）", () => {
   test("documents overlapFill as a source-id relation, no coordinates involved", () => {
     const document = parsed("2d", [

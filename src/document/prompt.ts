@@ -1,4 +1,9 @@
-import type { GeometryDocument, Primitive } from "./parse-document.ts";
+import { formatFunctionExpression, functionCurveParamsOf } from "./function-curve.ts";
+import type {
+  FunctionCurvePrimitive,
+  GeometryDocument,
+  Primitive,
+} from "./parse-document.ts";
 
 const CONVENTIONS = [
   "Coordinate conventions:",
@@ -28,6 +33,7 @@ const SYNTAX = [
   "- ring: cx, cy, rInner < rOuter, fill",
   "- ellipse: cx, cy, rx, ry, rotationDeg (optional, defaults to 0 = axis-aligned; counterclockwise), fill",
   "- label: named point at x, y with text",
+  "- functionCurve: analytic function graph in world coordinates (Y up, no axis primitive); kind linear {a, b} (y = ax + b), quadratic {a, b, c} (y = ax² + bx + c), or inverse {k} (y = k/x), with a and k nonzero; inverse breaks into two branches at x = 0 and never crosses the asymptote (no asymptote line is drawn); the parameters are the exact definition of the shape — the graph spans the whole visible x range at render time and no sampled points are stored",
   "- overlapFill: shades the intersection of the two closed primitives named in sources (by id); only the relation is stored, not geometry — the intersection may be empty after later edits",
   "- measure: reference-style measure label on the closed primitive named in sourceId (by id), kind area|perimeter; the displayed number is derived at render time and never stored — compute it yourself from the source geometry",
   "- voxel: 3D unit cube at integer min corner x, y, z",
@@ -60,14 +66,34 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
+function sortedById<T extends { id: string }>(primitives: readonly T[]): T[] {
+  return [...primitives].sort((left, right) => compareId(left.id, right.id));
+}
+
 function listedPrimitives(primitives: readonly Primitive[]): unknown[] {
-  return [...primitives]
-    .sort((left, right) => compareId(left.id, right.id))
-    .map((primitive) => sortKeys(primitive));
+  return sortedById(primitives).map((primitive) => sortKeys(primitive));
+}
+
+/** 函数曲线的一句解析式描述（ADR 0021）：Agent 拿精确函数语义而非
+ *  视口相关采样点——解析式由 function-curve.ts 的格式化器产出，
+ *  与属性面板单点同源。 */
+function functionCurveSentences(primitives: readonly Primitive[]): string[] {
+  return sortedById(
+    primitives.filter(
+      (primitive): primitive is FunctionCurvePrimitive =>
+        primitive.type === "functionCurve",
+    ),
+  ).map(
+    (curve) =>
+      `- ${curve.id}: the graph of ${formatFunctionExpression(
+        functionCurveParamsOf(curve),
+      )}`,
+  );
 }
 
 export function documentToPrompt(document: GeometryDocument): string {
   const listed = listedPrimitives(document.primitives);
+  const curveSentences = functionCurveSentences(document.primitives);
   return [
     "Geometry document projection for an Agent. Reconstruct the figure from the primitives below. This text is a readable projection, not the source of truth.",
     "",
@@ -78,5 +104,12 @@ export function documentToPrompt(document: GeometryDocument): string {
     `version: ${document.version}`,
     `space: ${document.space}`,
     `S = ${JSON.stringify(listed)}`,
+    ...(curveSentences.length > 0
+      ? [
+          "",
+          "Function curves (exact analytic meaning; reconstruct from the formula, never from sampled coordinates):",
+          ...curveSentences,
+        ]
+      : []),
   ].join("\n");
 }
