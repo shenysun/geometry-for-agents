@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { parseDocument } from "../document/index.ts";
 import type { GeometryDocument, Point2 } from "../document/index.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
+import { controlPoints } from "./control-points.ts";
 import {
   clickSelect,
   escSelect,
@@ -1233,3 +1234,58 @@ describe("select-gesture 度量标注（ADR 0020 点文本选中并高亮源）"
   });
 });
 
+
+describe("select-gesture：函数曲线选中（ADR 0021）", () => {
+  const curveViewport = { xMin: -5, xMax: 5, scale: 40, heightWorld: 10 };
+
+  function curveDoc(): GeometryDocument {
+    return doc2d([
+      { id: "f1", type: "functionCurve", kind: "linear", a: 1, b: 0 },
+    ]);
+  }
+
+  test("点中曲线即选中（采样折线命中），无采样视口则点不中", () => {
+    const context = {
+      document: curveDoc(),
+      point: { x: 2, y: 2 },
+      grid: 1,
+      tolerance: 0.1,
+      curveViewport,
+    } as const satisfies Partial<SelectContext>;
+    const hit = clickSelect(
+      idleSelectState(),
+      ctx({ x: 2, y: 2 }, context),
+    );
+    expect(hit.selectionId).toBe("f1");
+
+    const miss = clickSelect(
+      idleSelectState(),
+      ctx({ x: 2, y: 2 }, { document: curveDoc(), tolerance: 0.1 }),
+    );
+    expect(miss.selectionId).toBeNull();
+  });
+
+  test("无变换手柄、无控制点：不误导操作员去「挪动」参数图像", () => {
+    const primitive = curveDoc().primitives[0];
+    expect(primitive !== undefined && primitive.type === "functionCurve").toBe(true);
+    if (primitive === undefined || primitive.type !== "functionCurve") return;
+
+    expect(transformHandles(primitive, 0.5)).toBeNull();
+    expect(controlPoints(primitive)).toEqual([]);
+  });
+
+  test("按下曲线只选中、不进拖动态：拖动交还投影器，不产生空 undo 步", () => {
+    const result = startSelect(
+      idleSelectState(),
+      ctx({ x: 2, y: 2 }, { document: curveDoc(), tolerance: 0.1, curveViewport }),
+    );
+    expect(result.state).toEqual(idleSelectState());
+    expect(result.selectionId).toBe("f1");
+    expect(result.commit).toBeNull();
+  });
+
+  test("选中预览按笔画族画法重画曲线（functionCurve 预览标记）", () => {
+    const preview = selectPreview(curveDoc(), "f1");
+    expect(preview).toEqual({ type: "functionCurve", kind: "linear", a: 1, b: 0 });
+  });
+});

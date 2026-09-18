@@ -157,3 +157,23 @@ describe("createAppI18n", () => {
     }
   });
 });
+
+describe("函数曲线词条（ADR 0021）", () => {
+  test("三工具名与参数词条 a/b/c/k 在两种语言下都有文案", () => {
+    const i18n = createAppI18n(["zh-CN"]);
+    expect(i18n.global.t("tool.linearFunction")).toBe("一次函数");
+    expect(i18n.global.t("tool.quadraticFunction")).toBe("二次函数");
+    expect(i18n.global.t("tool.inverseFunction")).toBe("反比例函数");
+    for (const key of ["a", "b", "c", "k"] as const) {
+      expect(i18n.global.t(`field.${key}`)).toBe(key);
+    }
+
+    i18n.global.locale.value = "en";
+    expect(i18n.global.t("tool.linearFunction")).toBe("Linear function");
+    expect(i18n.global.t("tool.quadraticFunction")).toBe("Quadratic function");
+    expect(i18n.global.t("tool.inverseFunction")).toBe("Inverse function");
+    for (const key of ["a", "b", "c", "k"] as const) {
+      expect(i18n.global.t(`field.${key}`)).toBe(key);
+    }
+  });
+});

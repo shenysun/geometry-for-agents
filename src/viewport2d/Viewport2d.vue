@@ -153,6 +153,7 @@ function selectContext(event: PointerEvent | MouseEvent): SelectContext | null {
     handleTolerance: handleToleranceWorld(),
     controlTolerance: controlToleranceWorld(),
     worldPerPx: worldPerPx(),
+    curveViewport: projector?.curveViewport() ?? null,
   };
 }
 
@@ -345,6 +346,7 @@ function handlePickOverlapClick(event: MouseEvent): void {
       document: documentStore.current,
       point,
       tolerance: hitToleranceWorld(),
+      curveViewport: projector?.curveViewport() ?? null,
       id: crypto.randomUUID(),
     },
     sourcesIntersect,
@@ -372,6 +374,7 @@ function handlePickMeasureClick(event: MouseEvent): void {
       point,
       tolerance: hitToleranceWorld(),
       worldPerPx: worldPerPx(),
+      curveViewport: projector?.curveViewport() ?? null,
       id: crypto.randomUUID(),
     },
     kind,
@@ -592,6 +595,8 @@ function cyclePreferId(event: MouseEvent, context: SelectContext): string | unde
     context.document,
     context.point,
     context.tolerance ?? 0,
+    context.worldPerPx ?? 0,
+    context.curveViewport ?? null,
   );
   const current = candidates.findIndex(
     (candidate) => candidate.id === selectionBeforeDown,

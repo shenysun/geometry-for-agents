@@ -12,6 +12,11 @@ import {
 } from "./angle.ts";
 import { regularPolygonWorldVertices } from "./regular-polygon.ts";
 import { isMeasurableShape, measureTextBounds } from "./measure-math.ts";
+import {
+  functionCurveParamsOf,
+  sampleFunctionCurve,
+  type FunctionCurveViewport,
+} from "./function-curve.ts";
 import type { Point2 } from "./snap.ts";
 
 const DEG = Math.PI / 180;
@@ -214,6 +219,7 @@ function contains(
   primitive: Primitive2d,
   point: HitPoint,
   tolerance: number,
+  curveViewport: FunctionCurveViewport | null,
 ): boolean {
   switch (primitive.type) {
     case "overlapFill":
@@ -223,6 +229,15 @@ function contains(
       // 度量标注的命中区是文本包围盒（渲染层语义），几何通道不参与。
       // 点文本选中该标注是管理面后续票的职责；本期经对象列表选中。
       return false;
+    case "functionCurve": {
+      // 命中走采样折线（与渲染同一条折线），阈值与线图元一致；曲线只画
+      // 视口可见 x 范围，无采样视口（如无画布尺寸的调用方）即无命中区。
+      if (curveViewport === null) return false;
+      return sampleFunctionCurve(
+        functionCurveParamsOf(primitive),
+        curveViewport,
+      ).some((segment) => nearPolyline(point, segment, tolerance));
+    }
     case "circle":
       return inDisk(point, primitive);
     case "ellipse":
@@ -338,6 +353,7 @@ function area(primitive: Primitive2d): number {
     case "label":
     case "overlapFill":
     case "measure":
+    case "functionCurve":
       return Number.POSITIVE_INFINITY;
   }
 }
@@ -393,12 +409,15 @@ function measureTextHits(
  * 世界单位的命中容差：细线/弧/标签在容差内即视为命中；缺省 0 为精确命中。
  * worldPerPx 是每屏幕像素的世界长度（标注文本的命中区随缩放变化），
  * 缺省 0 时标注文本不参与命中——既有调用方行为零变化。
+ * curveViewport 是函数曲线的采样视口（渲染同一条折线），缺省 null 时
+ * 函数曲线不参与命中——既有调用方行为零变化。
  */
 export function hitTest(
   document: GeometryDocument,
   point: HitPoint,
   tolerance = 0,
   worldPerPx = 0,
+  curveViewport: FunctionCurveViewport | null = null,
 ): Primitive | null {
   if (document.space === "3d") {
     return hitVoxels(document.primitives, point);
@@ -407,7 +426,7 @@ export function hitTest(
   // 几何命中沿用现行规则：封闭面优先于笔画，并列取面积小者。
   // overlapFill 自身 contains 恒 false，不进几何通道。
   const hits = document.primitives.filter((primitive) =>
-    contains(primitive, point, tolerance),
+    contains(primitive, point, tolerance, curveViewport),
   );
   const geometricWinner =
     hits.length === 0
@@ -431,8 +450,8 @@ export function hitTest(
     if (
       a === undefined ||
       b === undefined ||
-      !contains(a, point, tolerance) ||
-      !contains(b, point, tolerance)
+      !contains(a, point, tolerance, curveViewport) ||
+      !contains(b, point, tolerance, curveViewport)
     ) {
       continue;
     }
@@ -468,12 +487,13 @@ export function hitCandidates(
   point: HitPoint,
   tolerance = 0,
   worldPerPx = 0,
+  curveViewport: FunctionCurveViewport | null = null,
 ): Primitive[] {
   if (document.space === "3d") {
     const voxel = hitVoxels(document.primitives, point);
     return voxel === null ? [] : [voxel];
   }
-  const winner = hitTest(document, point, tolerance, worldPerPx);
+  const winner = hitTest(document, point, tolerance, worldPerPx, curveViewport);
   const rest: Primitive2d[] = [];
   for (let i = document.primitives.length - 1; i >= 0; i--) {
     const entry = document.primitives[i];
@@ -484,14 +504,14 @@ export function hitCandidates(
     if (
       a !== undefined &&
       b !== undefined &&
-      contains(a, point, tolerance) &&
-      contains(b, point, tolerance)
+      contains(a, point, tolerance, curveViewport) &&
+      contains(b, point, tolerance, curveViewport)
     ) {
       rest.push(entry);
     }
   }
   const hits = document.primitives.filter((primitive) =>
-    contains(primitive, point, tolerance),
+    contains(primitive, point, tolerance, curveViewport),
   );
   const closed = hits.filter(isClosed).sort((x, y) => area(x) - area(y));
   const strokes = hits.filter((primitive) => !isClosed(primitive));

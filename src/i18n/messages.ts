@@ -67,6 +67,9 @@ export const messages = {
       arc: "弧",
       ring: "圆环",
       ellipse: "椭圆",
+      linearFunction: "一次函数",
+      quadraticFunction: "二次函数",
+      inverseFunction: "反比例函数",
       label: "点名",
       overlapFill: "重叠填充",
       measureArea: "面积标注",
@@ -126,6 +129,11 @@ export const messages = {
       sides: "边数",
       text: "文字",
       showDeg: "显示度数",
+      // 函数曲线参数词条（ADR 0021）：参数即形状真源，词条即字母本身。
+      a: "a",
+      b: "b",
+      c: "c",
+      k: "k",
     },
     fill: {
       label: "填充",
@@ -237,6 +245,9 @@ export const messages = {
       arc: "Arc",
       ring: "Ring",
       ellipse: "Ellipse",
+      linearFunction: "Linear function",
+      quadraticFunction: "Quadratic function",
+      inverseFunction: "Inverse function",
       label: "Label",
       overlapFill: "Overlap fill",
       measureArea: "Area label",
@@ -297,6 +308,11 @@ export const messages = {
       sides: "Sides",
       text: "Text",
       showDeg: "Show degrees",
+      // Function-curve parameter labels (ADR 0021): the letters themselves.
+      a: "a",
+      b: "b",
+      c: "c",
+      k: "k",
     },
     fill: {
       label: "Fill",

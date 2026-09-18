@@ -24,7 +24,16 @@ import {
   MEASURE_TEXT_FONT_PX,
 } from "../document/measure-math.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
-import { worldToScreen, type Point2, type ViewTransform } from "./transform.ts";
+import {
+  curveViewportOf,
+  worldToScreen,
+  type Point2,
+  type ViewTransform,
+} from "./transform.ts";
+import {
+  functionCurveParamsOf,
+  sampleFunctionCurve,
+} from "../document/function-curve.ts";
 
 const STROKE = "#18181b";
 /**
@@ -249,6 +258,16 @@ function drawPrimitive(
       return [];
     case "line":
       return [strokeLine(toScreenPoints(primitive.points, view), false)];
+    case "functionCurve": {
+      // Konva 折线按纯函数层采样分段绘制（inverse 两支断开）：曲线铺满
+      // 可见 x 范围、随平移缩放每帧重算重绘（redraw 全量重建本层节点）。
+      const viewport = curveViewportOf(view);
+      if (viewport === null) return [];
+      return sampleFunctionCurve(
+        functionCurveParamsOf(primitive),
+        viewport,
+      ).map((segment) => strokeLine(toScreenPoints(segment, view), false));
+    }
     case "dimension":
       return drawDimension(primitive, view);
     case "polygon":
@@ -483,6 +502,11 @@ function previewPrimitive(preview: DrawPreview): Primitive2d | null {
   if (preview.type === "label") {
     return { id: "preview", ...preview };
   }
+  if (preview.type === "functionCurve") {
+    // 缺省参数即合法（a=1、k=1 非退化），采样视口缺失时渲染为空由
+    // drawPrimitive 兜底。
+    return { id: "preview", ...preview };
+  }
   if (preview.r <= 0) return null;
   if (preview.type === "arc") {
     return { id: "preview", ...preview };
@@ -495,6 +519,10 @@ function previewPrimitive(preview: DrawPreview): Primitive2d | null {
 
 function previewGuidePoints(preview: DrawPreview): Point2[] {
   if (preview === null) return [];
+  if (preview.type === "functionCurve") {
+    // 无锚点无控制点：曲线由参数决定，手势单击不落任何几何。
+    return [];
+  }
   if (
     preview.type === "line" ||
     preview.type === "dimension" ||

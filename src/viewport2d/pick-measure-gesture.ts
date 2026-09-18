@@ -6,6 +6,7 @@ import {
   type MeasurePrimitive,
 } from "../document/index.ts";
 import type { ImplementedMeasureKind } from "../document/measure-math.ts";
+import type { FunctionCurveViewport } from "../document/function-curve.ts";
 import type { EditorTool } from "../stores/editor.ts";
 
 /** 度量标注条目：源 id + 度量种类，数值不进说明书（ADR 0020 引用式）。 */
@@ -20,6 +21,9 @@ export type PickMeasureContext = {
   /** 每屏幕像素的世界长度：标注文本命中区随缩放变化，缺省 0 不参与
    *  （点中另一条标注的文本也给「不可度量」拒绝，spec US-11）。 */
   worldPerPx?: number;
+  /** 函数曲线采样视口：点中函数曲线同样给「不可度量」拒绝（互斥清单），
+   *  缺省 null 时函数曲线不参与命中。 */
+  curveViewport?: FunctionCurveViewport | null;
   /** 新条目的 id，与绘制手势同例由调用方生成。 */
   id: string;
 };
@@ -46,7 +50,13 @@ export function clickPickMeasure(
   if (doc.space !== "2d") {
     return { commit: null, rejection: null };
   }
-  const hit = hitTest(doc, ctx.point, ctx.tolerance, ctx.worldPerPx ?? 0);
+  const hit = hitTest(
+    doc,
+    ctx.point,
+    ctx.tolerance,
+    ctx.worldPerPx ?? 0,
+    ctx.curveViewport ?? null,
+  );
   if (hit === null) {
     return { commit: null, rejection: null };
   }

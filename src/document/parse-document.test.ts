@@ -1444,3 +1444,134 @@ describe("parseDocument 度量标注（ADR 0020 引用式）", () => {
     );
   });
 });
+
+describe("parseDocument：函数曲线（ADR 0021）", () => {
+  test("三 kind 各自的参数形状都通过：linear {a,b}、quadratic {a,b,c}、inverse {k}", () => {
+    expect(
+      parseDocument(
+        spec("2d", [
+          { id: "f1", type: "functionCurve", kind: "linear", a: 2, b: 1 },
+        ]),
+      ).success,
+    ).toBe(true);
+    expect(
+      parseDocument(
+        spec("2d", [
+          {
+            id: "f2",
+            type: "functionCurve",
+            kind: "quadratic",
+            a: -1,
+            b: 0,
+            c: 3,
+          },
+        ]),
+      ).success,
+    ).toBe(true);
+    expect(
+      parseDocument(
+        spec("2d", [
+          { id: "f3", type: "functionCurve", kind: "inverse", k: -2 },
+        ]),
+      ).success,
+    ).toBe(true);
+  });
+
+  test("退化取值被 refine 拒绝：linear a=0、quadratic a=0、inverse k=0", () => {
+    const cases = [
+      { id: "d1", type: "functionCurve", kind: "linear", a: 0, b: 1 },
+      {
+        id: "d2",
+        type: "functionCurve",
+        kind: "quadratic",
+        a: 0,
+        b: 1,
+        c: 0,
+      },
+      { id: "d3", type: "functionCurve", kind: "inverse", k: 0 },
+    ];
+    for (const curve of cases) {
+      const result = parseDocument(spec("2d", [curve]));
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toMatch(/must be nonzero/);
+    }
+  });
+
+  test("strictObject：未知 kind 与多余字段都被拒", () => {
+    expect(
+      parseDocument(
+        spec("2d", [
+          {
+            id: "x1",
+            type: "functionCurve",
+            kind: "cubic",
+            a: 1,
+            b: 0,
+            c: 0,
+          },
+        ]),
+      ).success,
+    ).toBe(false);
+    expect(
+      parseDocument(
+        spec("2d", [
+          {
+            id: "x2",
+            type: "functionCurve",
+            kind: "linear",
+            a: 1,
+            b: 0,
+            c: 0,
+          },
+        ]),
+      ).success,
+    ).toBe(false);
+    expect(
+      parseDocument(
+        spec("2d", [
+          { id: "x3", type: "functionCurve", kind: "inverse", k: 1, fill: "none" },
+        ]),
+      ).success,
+    ).toBe(false);
+  });
+
+  test("2D-only：3D 说明书 safeParse 拒绝", () => {
+    const result = parseDocument(
+      spec("3d", [{ id: "f1", type: "functionCurve", kind: "linear", a: 1, b: 0 }]),
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain(
+      'type "functionCurve" is not allowed in space "3d"',
+    );
+  });
+
+  test("互斥清单：函数曲线不进可填充族与可度量族（零白名单改动）", () => {
+    expect(fillable2dTypes.has("functionCurve")).toBe(false);
+    expect(measurable2dTypes.has("functionCurve")).toBe(false);
+  });
+
+  test("老文档兼容：不带 functionCurve 的既有说明书照常解析", () => {
+    const legacy = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        {
+          id: "line-1",
+          type: "line",
+          points: [
+            { x: 0, y: 0 },
+            { x: 3, y: 0 },
+          ],
+        },
+        { id: "circle-1", type: "circle", cx: 8, cy: 0, r: 2, fill: "none" },
+        { id: "measure-1", type: "measure", sourceId: "circle-1", kind: "area" },
+      ],
+    });
+
+    expect(legacy.success).toBe(true);
+  });
+});

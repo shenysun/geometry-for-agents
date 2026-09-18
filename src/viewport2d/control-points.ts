@@ -75,6 +75,9 @@ export function controlPoints(primitive: Primitive2d): ControlPoint[] {
     case "measure":
       // 引用条目没有可拖的几何锚点。
       return [];
+    case "functionCurve":
+      // 函数曲线无控制点（ADR 0021）：形状由参数决定，编辑走属性面板。
+      return [];
     case "line":
     case "polygon":
     case "dimension":

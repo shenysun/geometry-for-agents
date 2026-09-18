@@ -434,3 +434,24 @@ describe("document hash：度量标注（ADR 0020）", () => {
     expect(restored.document).toEqual(document);
   });
 });
+
+describe("hash 往返：函数曲线（ADR 0021）", () => {
+  test("带函数曲线的说明书 hash 往返不丢 kind 与参数", () => {
+    const parsed = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        { id: "f1", type: "functionCurve", kind: "linear", a: 2, b: 1 },
+        { id: "f2", type: "functionCurve", kind: "quadratic", a: -1, b: 0.5, c: 3 },
+        { id: "f3", type: "functionCurve", kind: "inverse", k: -2 },
+      ],
+    });
+    if (!parsed.success) throw new Error(parsed.error);
+
+    const restored = hashToDocument(documentToHash(parsed.document));
+    expect(restored.success).toBe(true);
+    if (!restored.success) return;
+    expect(restored.document).toEqual(parsed.document);
+  });
+});

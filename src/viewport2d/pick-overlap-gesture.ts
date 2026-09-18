@@ -6,6 +6,7 @@ import {
   type Primitive,
   type Primitive2d,
 } from "../document/index.ts";
+import type { FunctionCurveViewport } from "../document/function-curve.ts";
 
 /** 可作重叠填充源的图元：封闭可填充的 2D 几何（名单从 schema 推导）。 */
 function isFillableSource(
@@ -33,6 +34,9 @@ export type PickOverlapContext = {
   document: GeometryDocument;
   point: HitPoint;
   tolerance: number;
+  /** 函数曲线采样视口：点中函数曲线同样给「非封闭」拒绝（互斥清单），
+   *  缺省 null 时函数曲线不参与命中。 */
+  curveViewport?: FunctionCurveViewport | null;
   /** 新条目的 id，与绘制手势同例由调用方生成。 */
   id: string;
 };
@@ -64,7 +68,13 @@ export function clickPickOverlap(
   if (doc.space !== "2d") {
     return { state, commit: null, rejection: null };
   }
-  const hit = hitTest(doc, ctx.point, ctx.tolerance);
+  const hit = hitTest(
+    doc,
+    ctx.point,
+    ctx.tolerance,
+    0,
+    ctx.curveViewport ?? null,
+  );
   if (hit === null) {
     return { state, commit: null, rejection: null };
   }

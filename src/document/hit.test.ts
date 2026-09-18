@@ -767,3 +767,69 @@ describe("hitCandidates 同点循环候选（ADR 0019 选不中另一源的补�
     expect(candidates.map((p) => p.id)).toEqual(["voxel-a"]);
   });
 });
+
+describe("hitTest：函数曲线命中（采样折线，阈值同线图元）", () => {
+  const viewport = { xMin: -5, xMax: 5, scale: 40, heightWorld: 10 };
+
+  function curveDoc(): GeometryDocument {
+    return doc2d([
+      { id: "f1", type: "functionCurve", kind: "linear", a: 1, b: 0 },
+      { id: "f2", type: "functionCurve", kind: "quadratic", a: 1, b: 0, c: 0 },
+      { id: "f3", type: "functionCurve", kind: "inverse", k: 1 },
+    ]);
+  }
+
+  test("linear：曲线上的点命中，容差内偏移也命中", () => {
+    const document = doc2d([
+      { id: "f1", type: "functionCurve", kind: "linear", a: 1, b: 0 },
+    ]);
+
+    expect(hitTest(document, { x: 2, y: 2 }, 0.1, 0, viewport)?.id).toBe("f1");
+    expect(hitTest(document, { x: 2, y: 2.3 }, 0.5, 0, viewport)?.id).toBe("f1");
+  });
+
+  test("阈值与线图元一致：超出容差不命中", () => {
+    const document = doc2d([
+      { id: "f1", type: "functionCurve", kind: "linear", a: 1, b: 0 },
+    ]);
+
+    // 到 y=x 的垂距 = |0.8|/√2 ≈ 0.57，超出 0.5 容差。
+    expect(hitTest(document, { x: 2, y: 2.8 }, 0.5, 0, viewport)).toBeNull();
+  });
+
+  test("曲线只画可见 x 范围：视口外的段不命中", () => {
+    const document = doc2d([
+      { id: "f1", type: "functionCurve", kind: "linear", a: 1, b: 0 },
+    ]);
+
+    expect(hitTest(document, { x: 7, y: 7 }, 0.5, 0, viewport)).toBeNull();
+  });
+
+  test("inverse：两支各自命中，y 轴低区不命中（无贴渐近线伪影段）", () => {
+    const document = doc2d([
+      { id: "f3", type: "functionCurve", kind: "inverse", k: 1 },
+    ]);
+
+    expect(hitTest(document, { x: 2, y: 0.5 }, 0.1, 0, viewport)?.id).toBe("f3");
+    expect(hitTest(document, { x: -2, y: -0.5 }, 0.1, 0, viewport)?.id).toBe("f3");
+    // 最近曲线点在 x≈0.7（y≈1.4），距离 ≈1：y 轴本身不是曲线，断线规则
+    // 不产出贴渐近线的伪影竖线。
+    expect(hitTest(document, { x: 0, y: 0.5 }, 0.5, 0, viewport)).toBeNull();
+  });
+
+  test("无采样视口时函数曲线不参与命中（既有调用方零变化）", () => {
+    const document = curveDoc();
+
+    expect(hitTest(document, { x: 2, y: 2 }, 0.1)).toBeNull();
+  });
+
+  test("同点候选：多条曲线并列命中进笔画循环序", () => {
+    const document = curveDoc();
+    // (1,1) 同时在 y=x 与 y=x² 上：两位候选都在列表里。
+    const candidates = hitCandidates(document, { x: 1, y: 1 }, 0.1, 0, viewport);
+    const ids = candidates.map((candidate) => candidate.id);
+
+    expect(ids).toContain("f1");
+    expect(ids).toContain("f2");
+  });
+});

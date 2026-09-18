@@ -16,6 +16,8 @@ import {
 } from "../document/update-document.ts";
 import { controlPoints } from "./control-points.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
+import type { FunctionCurveViewport } from "../document/function-curve.ts";
+import { functionCurveParamsOf } from "../document/function-curve.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
 import type { PreviewMark } from "./draw-primitives.ts";
 
@@ -57,6 +59,8 @@ export type SelectContext = {
   controlTolerance?: number;
   /** 每屏幕像素的世界长度；标注文本的命中区随缩放变化，缺省 0 不参与。 */
   worldPerPx?: number;
+  /** 函数曲线的采样视口（渲染同一条折线）；缺省 null 时函数曲线不参与命中。 */
+  curveViewport?: FunctionCurveViewport | null;
   /** 同点连点的循环目标：须在该点候选列表内，否则回退首位胜者。 */
   preferId?: string;
 };
@@ -99,6 +103,7 @@ function handleReach(primitive: Primitive2d, center: Point2): number {
   switch (primitive.type) {
     case "overlapFill":
     case "measure":
+    case "functionCurve":
       // transformHandles 已对其返回 null，此处不可达。
       return 0;
     case "line":
@@ -146,7 +151,13 @@ export function transformHandles(
   if (primitive.type === "label") return null;
   // 重叠填充与度量标注不可变换（引用式，ADR 0019 / ADR 0020）：
   // 选中可删，但不布柄——度量数值纯跟随源。
-  if (primitive.type === "overlapFill" || primitive.type === "measure") {
+  // 函数曲线无拖动/缩放/旋转手柄（ADR 0021）：形状由参数决定，编辑走
+  // 属性面板，不布柄误导操作员去「挪动」一条参数图像。
+  if (
+    primitive.type === "overlapFill" ||
+    primitive.type === "measure" ||
+    primitive.type === "functionCurve"
+  ) {
     return null;
   }
   const center = primitiveAnchor(primitive);
@@ -219,6 +230,10 @@ function previewFromPrimitive(primitive: Primitive2d): DrawPreview | null {
     case "measure":
       // 引用条目无自身几何可预览，也不可拖（变换恒等已兜底）。
       return null;
+    case "functionCurve": {
+      // 选中态高亮同笔画族画法：按采样折线重画一遍换强调色。
+      return { type: "functionCurve", ...functionCurveParamsOf(primitive) };
+    }
     case "line":
       return { type: "line", points: primitive.points };
     case "dimension":
@@ -430,9 +445,20 @@ export function startSelect(
     ctx.point,
     ctx.tolerance ?? 0,
     ctx.worldPerPx ?? 0,
+    ctx.curveViewport ?? null,
   );
   if (hit === null) {
     return idleResult();
+  }
+  // 函数曲线不可拖（无几何身份，ADR 0021）：点中只选中，按下后的拖动
+  // 不进拖动态——交还投影器平移视口，不产生恒等变换的空 undo 步。
+  if (hit.type === "functionCurve") {
+    return {
+      state: idleSelectState(),
+      preview: null,
+      selectionId: hit.id,
+      commit: null,
+    };
   }
   return {
     state: { kind: "drag", id: hit.id, start: ctx.point },
@@ -582,6 +608,7 @@ export function clickSelect(
     ctx.point,
     ctx.tolerance ?? 0,
     ctx.worldPerPx ?? 0,
+    ctx.curveViewport ?? null,
   );
   const hit = ctx.preferId === undefined
     ? candidates[0]

@@ -5,6 +5,7 @@ export {
   parseDocument,
 } from "./parse-document.ts";
 export type {
+  FunctionCurvePrimitive,
   GeometryDocument,
   MeasurePrimitive,
   Primitive,

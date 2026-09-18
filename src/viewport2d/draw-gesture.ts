@@ -4,6 +4,11 @@ import {
   type Point2,
   type Primitive2d,
 } from "../document/index.ts";
+import {
+  defaultFunctionCurveParams,
+  type FunctionCurveKind,
+  type FunctionCurveParams,
+} from "../document/function-curve.ts";
 
 export const DRAW_TOOLS = [
   "line",
@@ -23,9 +28,25 @@ export const DRAW_TOOLS = [
   "ring",
   "ellipse",
   "label",
+  "linearFunction",
+  "quadraticFunction",
+  "inverseFunction",
 ] as const;
 
 export type DrawTool = (typeof DRAW_TOOLS)[number];
+
+/** 函数曲线三工具：单击一次提交缺省参数曲线，kind 由工具定死（ADR 0021）。 */
+type CurveTool = "linearFunction" | "quadraticFunction" | "inverseFunction";
+
+const CURVE_TOOL_KIND: Record<CurveTool, FunctionCurveKind> = {
+  linearFunction: "linear",
+  quadraticFunction: "quadratic",
+  inverseFunction: "inverse",
+};
+
+function isCurveTool(tool: DrawTool): tool is CurveTool {
+  return tool in CURVE_TOOL_KIND;
+}
 
 /** 底/高家族与正方形共用 box 手势：对角拖出包围盒，工具决定产出类型。 */
 type BoxTool = "square" | "triangle" | "parallelogram" | "trapezoid";
@@ -160,6 +181,7 @@ export type DrawPreview =
       endDeg: number;
     }
   | { type: "label"; x: number; y: number; text: string }
+  | ({ type: "functionCurve" } & FunctionCurveParams)
   | { type: "guide"; points: Point2[] }
   | null;
 
@@ -694,6 +716,15 @@ function clickIdle(ctx: DrawContext, point: Point2): DrawGestureResult {
       x: point.x,
       y: point.y,
       text: nextLabelText(ctx.labelTexts ?? []),
+    });
+  }
+  if (isCurveTool(ctx.tool)) {
+    // 单击只是提交触发：位置不落任何几何（曲线在隐式坐标系里由参数决定），
+    // Alt 落格与否对提交结果无影响——天然 no-op。
+    return commitAndIdle({
+      id: ctx.id,
+      type: "functionCurve",
+      ...defaultFunctionCurveParams(CURVE_TOOL_KIND[ctx.tool]),
     });
   }
   if (isSweepTool(ctx.tool)) {

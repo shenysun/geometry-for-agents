@@ -26,7 +26,16 @@ describe("catalogForSpace（分组目录）", () => {
         "trapezoid",
         "regularPolygon",
       ],
-      ["circle", "sector", "bow", "ring", "ellipse"],
+      [
+        "circle",
+        "sector",
+        "bow",
+        "ring",
+        "ellipse",
+        "linearFunction",
+        "quadraticFunction",
+        "inverseFunction",
+      ],
       ["angle", "dimension", "label", "measureArea", "measurePerimeter"],
       ["overlapFill"],
     ]);

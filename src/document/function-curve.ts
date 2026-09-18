@@ -1,5 +1,6 @@
 import { formatMeasureNumber } from "./measure-math.ts";
 import type { Point2 } from "./snap.ts";
+import type { FunctionCurvePrimitive } from "./parse-document.ts";
 
 /**
  * 函数曲线纯函数层（ADR 0021）：求值/采样/解析式格式化的唯一收口，
@@ -7,12 +8,39 @@ import type { Point2 } from "./snap.ts";
  * 不依赖视口实例。将来加三角函数 kind 只是在此处加枚举值与公式的单点增量。
  */
 
+/** 契约图元 → 纯函数参数：剥掉 id/type 单点取出形状真源，渲染、命中、
+ *  选中预览与属性面板共用这一处。 */
+export function functionCurveParamsOf(
+  primitive: FunctionCurvePrimitive,
+): FunctionCurveParams {
+  const { id: _id, type: _type, ...params } = primitive;
+  return params;
+}
+
 /** 三种规范参数形式；退化取值（linear/quadratic a=0、inverse k=0）
  *  被契约层挡住，本层不处理病态分支。 */
 export type FunctionCurveParams =
   | { kind: "linear"; a: number; b: number }
   | { kind: "quadratic"; a: number; b: number; c: number }
   | { kind: "inverse"; k: number };
+
+/** kind 判别键的字面量联合：契约 schema 与工具目录共用。 */
+export type FunctionCurveKind = FunctionCurveParams["kind"];
+
+/** 创建缺省参数（y = x / y = x² / y = 1/x）：spec 钉死 a=1、b=0、c=0、k=1。
+ *  三工具单击提交与属性面板缺省展示共用这一处。 */
+export function defaultFunctionCurveParams(
+  kind: FunctionCurveKind,
+): FunctionCurveParams {
+  switch (kind) {
+    case "linear":
+      return { kind, a: 1, b: 0 };
+    case "quadratic":
+      return { kind, a: 1, b: 0, c: 0 };
+    case "inverse":
+      return { kind, k: 1 };
+  }
+}
 
 /** 采样视口：可见世界 x 范围 + 视图变换的投影输入（渲染层从
  *  ViewTransform 与画布尺寸拼出，本层不 import 视口模块以保 document

@@ -126,6 +126,10 @@ export function translatePrimitiveGeometry(
     case "measure":
       // 引用式条目无几何字段可写：变换恒等（源动它跟着动，自身不可拖）。
       return primitive;
+    case "functionCurve":
+      // 函数曲线无几何身份（ADR 0021）：形状由参数决定，位置在隐式坐标系
+      // 里定死，不可拖——平移旋转缩放全部恒等。
+      return primitive;
     case "line":
     case "polygon":
       return {
@@ -221,6 +225,9 @@ export function primitiveAnchor(primitive: Primitive2d): Point2 {
     case "measure":
       // 引用条目无锚点（不可变换）：手柄布局对其返回 null，不应抵达此处。
       return { x: Number.NaN, y: Number.NaN };
+    case "functionCurve":
+      // 函数曲线无锚点（不可变换）：手柄布局对其返回 null，不应抵达此处。
+      return { x: Number.NaN, y: Number.NaN };
     default:
       return { x: primitive.cx, y: primitive.cy };
   }
@@ -274,6 +281,9 @@ export function rotatePrimitiveGeometry(
   switch (primitive.type) {
     case "overlapFill":
     case "measure":
+      return primitive;
+    case "functionCurve":
+      // 不可旋转（无几何身份）：恒等。
       return primitive;
     case "line":
     case "polygon": {
@@ -329,6 +339,9 @@ export function scalePrimitiveGeometry(
   switch (primitive.type) {
     case "overlapFill":
     case "measure":
+      return primitive;
+    case "functionCurve":
+      // 不可缩放（无几何身份）：恒等。
       return primitive;
     case "line":
     case "polygon": {
@@ -506,6 +519,9 @@ export function moveControlPointGeometry(
   switch (primitive.type) {
     case "overlapFill":
     case "measure":
+      return primitive;
+    case "functionCurve":
+      // 无控制点目录，pointId 恒不可识别：恒等。
       return primitive;
     case "line":
     case "polygon": {

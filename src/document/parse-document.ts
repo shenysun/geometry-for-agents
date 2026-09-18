@@ -241,6 +241,56 @@ const measureSchema = z.strictObject({
   kind: z.enum(["area", "perimeter"]),
 });
 
+// 函数曲线（ADR 0021）：参数即形状真源直接进契约，discriminated union 以
+// kind 判别。退化取值 refine 拒绝（一形一表 ADR 0017）：linear a=0 是水平线
+// 归 line 工具、quadratic a=0 降为一次函数、inverse k=0 无定义。
+// 零样式字段：笔画族，渲染层统一描边无 fill。
+const functionCurveLinearSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("functionCurve"),
+    kind: z.literal("linear"),
+    a: z.number(),
+    b: z.number(),
+  })
+  .refine((curve) => curve.a !== 0, {
+    message:
+      "linear a must be nonzero (a horizontal line belongs to the line tool)",
+    path: ["a"],
+  });
+
+const functionCurveQuadraticSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("functionCurve"),
+    kind: z.literal("quadratic"),
+    a: z.number(),
+    b: z.number(),
+    c: z.number(),
+  })
+  .refine((curve) => curve.a !== 0, {
+    message: "quadratic a must be nonzero (a=0 degrades to a linear function)",
+    path: ["a"],
+  });
+
+const functionCurveInverseSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("functionCurve"),
+    kind: z.literal("inverse"),
+    k: z.number(),
+  })
+  .refine((curve) => curve.k !== 0, {
+    message: "inverse k must be nonzero (y = k/x is undefined at k = 0)",
+    path: ["k"],
+  });
+
+const functionCurveSchema = z.discriminatedUnion("kind", [
+  functionCurveLinearSchema,
+  functionCurveQuadraticSchema,
+  functionCurveInverseSchema,
+]);
+
 const voxelSchema = z.strictObject({
   id: primitiveId,
   type: z.literal("voxel"),
@@ -356,6 +406,7 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   labelSchema,
   overlapFillSchema,
   measureSchema,
+  functionCurveSchema,
 ]);
 
 const threeDPrimitiveSchema = z.discriminatedUnion("type", [
@@ -464,6 +515,9 @@ export type GeometryDocument = z.infer<typeof documentSchema>;
 /** 度量标注条目（ADR 0020）：手势与渲染共用的 schema 推导类型，单点导出。 */
 export type MeasurePrimitive = z.infer<typeof measureSchema>;
 
+/** 函数曲线图元（ADR 0021）：手势与渲染共用的 schema 推导类型，单点导出。 */
+export type FunctionCurvePrimitive = z.infer<typeof functionCurveSchema>;
+
 /** 2D 说明书里的图元（折线、多边形、矩形、圆族、椭圆、标签），由 schema 推导，不手报名单。 */
 export type Primitive2d = z.infer<typeof twoDPrimitiveSchema>;
 
@@ -472,12 +526,34 @@ export type Primitive3d = z.infer<typeof threeDPrimitiveSchema>;
 
 export type Primitive = Primitive2d | Primitive3d;
 
+/** 叶子成员的最小结构：type 字面量 + 任意字段（fill 探测用）。 */
+type LeafPrimitiveSchema = {
+  shape: { type: { value: string } } & Record<string, unknown>;
+};
+
+/** 判别联合的叶子成员：嵌套判别联合（functionCurve 按 kind）拍平成对象
+ *  schema 列表，字段推导只面对一种形状。 */
+function leafOptions(
+  union: typeof twoDPrimitiveSchema | typeof threeDPrimitiveSchema,
+): LeafPrimitiveSchema[] {
+  const leaves: LeafPrimitiveSchema[] = [];
+  for (const option of union.options) {
+    const nested = (option as { options?: unknown }).options;
+    if (Array.isArray(nested)) {
+      leaves.push(...(nested as LeafPrimitiveSchema[]));
+    } else {
+      leaves.push(option as LeafPrimitiveSchema);
+    }
+  }
+  return leaves;
+}
+
 /** 各空间允许的图元类型名单：从判别联合的 type 字面量推导，新增类型不手抄。 */
 function typeNamesOf(
   union: typeof twoDPrimitiveSchema | typeof threeDPrimitiveSchema,
 ): Set<string> {
   return new Set<string>(
-    union.options.map((option) => option.shape.type.value),
+    leafOptions(union).map((option) => option.shape.type.value),
   );
 }
 
@@ -486,7 +562,7 @@ const twoDTypes = typeNamesOf(twoDPrimitiveSchema);
 /** 可填充封闭族 = 带 fill 字段的 2D 几何图元（overlapFill 除外——它是引用条目不是几何面）。
  *  从判别联合推导，不手报名单；hit.ts 的封闭判定与此同源，改 schema 即同步。 */
 export const fillable2dTypes: ReadonlySet<string> = new Set(
-  twoDPrimitiveSchema.options
+  leafOptions(twoDPrimitiveSchema)
     .filter(
       (option) =>
         (option.shape as Record<string, unknown>).fill !== undefined &&

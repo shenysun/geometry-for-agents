@@ -56,8 +56,16 @@ describe("toolFromShortcut", () => {
     expect(toolFromShortcut(key(pressed, { shift: true }), "2d")).toBe(tool);
   });
 
-  test("Shift 组合未定义时回退到单键：Shift+L 仍是直线", () => {
-    expect(toolFromShortcut(key("L", { shift: true }), "2d")).toBe("line");
+  test("函数曲线三键：Q 二次函数、H 反比例函数、Shift+L 一次函数（ADR 0018）", () => {
+    expect(toolFromShortcut(key("q"), "2d")).toBe("quadraticFunction");
+    expect(toolFromShortcut(key("h"), "2d")).toBe("inverseFunction");
+    expect(toolFromShortcut(key("L", { shift: true }), "2d")).toBe(
+      "linearFunction",
+    );
+  });
+
+  test("Shift 组合未定义时回退到单键：Shift+O 仍是椭圆", () => {
+    expect(toolFromShortcut(key("O", { shift: true }), "2d")).toBe("ellipse");
   });
 
   test("3D：B → 体素，Shift+B → 长方体", () => {

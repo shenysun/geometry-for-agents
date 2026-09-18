@@ -107,3 +107,49 @@ describe("displayNamesById：度量标注按 kind 取词条", () => {
     expect(names.get("m2")).toBe("面积标注1");
   });
 });
+
+/** 函数曲线夹具：显示名只读 id、type 与 kind */
+function curve(
+  id: string,
+  kind: "linear" | "quadratic" | "inverse",
+): Primitive {
+  switch (kind) {
+    case "linear":
+      return { id, type: "functionCurve", kind, a: 1, b: 0 };
+    case "quadratic":
+      return { id, type: "functionCurve", kind, a: 1, b: 0, c: 0 };
+    case "inverse":
+      return { id, type: "functionCurve", kind, k: 1 };
+  }
+}
+
+const curveZhT: Translate = (key, named) => {
+  if (key === "objectName") {
+    return `${named?.name}${named?.n}`;
+  }
+  const words: Record<string, string> = {
+    "tool.linearFunction": "一次函数",
+    "tool.quadraticFunction": "二次函数",
+    "tool.inverseFunction": "反比例函数",
+  };
+  return words[key] ?? key;
+};
+
+describe("displayNamesById：函数曲线按 kind 取词条", () => {
+  test("三种 kind 各取各的词条，同 kind 各自编号（首个不加号）", () => {
+    const primitives = [
+      curve("l0", "linear"),
+      curve("q0", "quadratic"),
+      curve("q1", "quadratic"),
+      curve("i0", "inverse"),
+      curve("l1", "linear"),
+    ];
+    const names = displayNamesById(primitives, curveZhT);
+
+    expect(names.get("l0")).toBe("一次函数");
+    expect(names.get("q0")).toBe("二次函数");
+    expect(names.get("q1")).toBe("二次函数1");
+    expect(names.get("i0")).toBe("反比例函数");
+    expect(names.get("l1")).toBe("一次函数1");
+  });
+});

@@ -13,12 +13,14 @@ import {
   type SessionUnderlay,
 } from "./draw-underlay.ts";
 import {
+  curveViewportOf,
   panView,
   screenToWorld,
   zoomViewAt,
   type Point2,
   type ViewTransform,
 } from "./transform.ts";
+import type { FunctionCurveViewport } from "../document/function-curve.ts";
 
 const MIN_SCALE = 4;
 const MAX_SCALE = 400;
@@ -32,6 +34,8 @@ export type Viewport2dProjector = {
   setTool: (tool: ProjectorTool) => void;
   setSessionUnderlay: (underlay: SessionUnderlay | null) => void;
   toWorld: (screen: Point2) => Point2;
+  /** 函数曲线采样视口（渲染与命中共用）：画布尺寸就绪即非空。 */
+  curveViewport: () => FunctionCurveViewport | null;
   resize: (width: number, height: number) => void;
   destroy: () => void;
 };
@@ -59,6 +63,9 @@ export function createViewport2dProjector(
     originX: stage.width() / 2,
     originY: stage.height() / 2,
     scale: DEFAULT_SCALE,
+    // 函数曲线采样要知道可见范围：画布尺寸随视图走，平移缩放原样保留。
+    width: stage.width(),
+    height: stage.height(),
   };
   let currentDocument: GeometryDocument | null = null;
   let sessionUnderlay: SessionUnderlay | null = null;
@@ -176,17 +183,24 @@ export function createViewport2dProjector(
     toWorld(screen: Point2): Point2 {
       return screenToWorld(screen, view);
     },
+    curveViewport(): FunctionCurveViewport | null {
+      return curveViewportOf(view);
+    },
     resize(width: number, height: number): void {
       const nextWidth = Math.max(1, Math.floor(width));
       const nextHeight = Math.max(1, Math.floor(height));
       const prevWidth = stage.width();
       const prevHeight = stage.height();
       stage.size({ width: nextWidth, height: nextHeight });
-      view = panView(
-        view,
-        (nextWidth - prevWidth) / 2,
-        (nextHeight - prevHeight) / 2,
-      );
+      view = {
+        ...panView(
+          view,
+          (nextWidth - prevWidth) / 2,
+          (nextHeight - prevHeight) / 2,
+        ),
+        width: nextWidth,
+        height: nextHeight,
+      };
       redraw();
     },
     destroy(): void {

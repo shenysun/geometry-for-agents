@@ -2621,3 +2621,76 @@ describe("removePrimitive / 变换恒等：度量标注（ADR 0020）", () => {
     ]);
   });
 });
+
+describe("函数曲线更新层（ADR 0021）", () => {
+  const curve: Primitive = {
+    id: "f1",
+    type: "functionCurve",
+    kind: "linear",
+    a: 1,
+    b: 0,
+  };
+
+  function docWithCurve(): GeometryDocument {
+    const result = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [curve],
+    });
+    if (!result.success) throw new Error(result.error);
+    return result.document;
+  }
+
+  test("创建与删除走历史可逆：undo/redo 还原函数曲线", () => {
+    const empty = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [],
+    });
+    if (!empty.success) throw new Error(empty.error);
+
+    let history = createHistory(empty.document);
+    const added = addPrimitive(history.present, curve);
+    expect(added.success).toBe(true);
+    if (!added.success) return;
+    history = commitSnapshot(history, added.document);
+    expect(history.present.primitives).toHaveLength(1);
+
+    history = undo(history);
+    expect(history.present.primitives).toHaveLength(0);
+    history = redo(history);
+    expect(history.present.primitives[0]).toEqual(curve);
+
+    const removed = removePrimitive(history.present, "f1");
+    expect(removed.success).toBe(true);
+    if (!removed.success) return;
+    history = commitSnapshot(history, removed.document);
+    expect(history.present.primitives).toHaveLength(0);
+    history = undo(history);
+    expect(history.present.primitives[0]).toEqual(curve);
+  });
+
+  test("平移旋转缩放恒等：无几何身份，说明书不变", () => {
+    const document = docWithCurve();
+
+    const moved = translatePrimitive(document, "f1", 1, 0, 1);
+    expect(moved.success).toBe(true);
+    if (moved.success) {
+      expect(moved.document.primitives[0]).toEqual(curve);
+    }
+
+    const rotated = rotatePrimitive(document, "f1", 45);
+    expect(rotated.success).toBe(true);
+    if (rotated.success) {
+      expect(rotated.document.primitives[0]).toEqual(curve);
+    }
+
+    const scaled = scalePrimitive(document, "f1", 2);
+    expect(scaled.success).toBe(true);
+    if (scaled.success) {
+      expect(scaled.document.primitives[0]).toEqual(curve);
+    }
+  });
+});

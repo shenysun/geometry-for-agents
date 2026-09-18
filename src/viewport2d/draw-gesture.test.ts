@@ -1147,3 +1147,51 @@ describe("尺寸标注线工具", () => {
 });
 
 
+
+describe("draw-gesture：函数曲线三工具（ADR 0021）", () => {
+  test.each([
+    [
+      "linearFunction",
+      { id: lineId, type: "functionCurve", kind: "linear", a: 1, b: 0 },
+    ],
+    [
+      "quadraticFunction",
+      { id: lineId, type: "functionCurve", kind: "quadratic", a: 1, b: 0, c: 0 },
+    ],
+    ["inverseFunction", { id: lineId, type: "functionCurve", kind: "inverse", k: 1 }],
+  ] as const)("单击即提交缺省参数曲线，手势回 idle、无预览", (tool, commit) => {
+    const result = clickDraw(idleDrawState(), ctx(tool, { x: 2, y: 3 }));
+
+    expect(result.state).toEqual(idleDrawState());
+    expect(result.preview).toBeNull();
+    expect(result.commit).toEqual(commit);
+  });
+
+  test("单击位置不落任何几何：位置不同提交结果相同", () => {
+    const here = clickDraw(idleDrawState(), ctx("linearFunction", { x: 0, y: 0 }));
+    const there = clickDraw(idleDrawState(), ctx("linearFunction", { x: 7, y: -4 }));
+
+    expect(here.commit).toEqual(there.commit);
+  });
+
+  test("Alt 落格 no-op：落格与否提交结果一致", () => {
+    const snapped = clickDraw(idleDrawState(), ctx("inverseFunction", { x: 1.3, y: 2.6 }, 1));
+    const raw = clickDraw(idleDrawState(), ctx("inverseFunction", { x: 1.3, y: 2.6 }, "off"));
+
+    expect(snapped.commit).toEqual(raw.commit);
+  });
+
+  test("按下/移动/抬起路径不进手势状态、不提交：曲线工具只认单击", () => {
+    const tool = "quadraticFunction" as const;
+    const started = startDraw(idleDrawState(), ctx(tool, { x: 1, y: 1 }));
+    expect(started.state).toEqual(idleDrawState());
+
+    const moved = moveDraw(started.state, ctx(tool, { x: 4, y: 4 }));
+    expect(moved.state).toEqual(idleDrawState());
+    expect(moved.commit).toBeNull();
+
+    const lifted = upDraw(moved.state, ctx(tool, { x: 4, y: 4 }));
+    expect(lifted.state).toEqual(idleDrawState());
+    expect(lifted.commit).toBeNull();
+  });
+});

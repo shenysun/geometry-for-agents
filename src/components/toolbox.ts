@@ -57,6 +57,12 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
     ],
   },
   ellipse: { paths: ["M2.5 8a5.5 3.5 0 1 0 11 0a5.5 3.5 0 1 0-11 0"] },
+  // 函数曲线族：坐标轴（原点在左下的 L 形）+ 各自的解析图像。
+  linearFunction: { paths: ["M2.5 2.5v11h11", "M4.5 11.5L12 4"] },
+  quadraticFunction: { paths: ["M2.5 2.5v11h11", "M3.5 4.5Q8.5 14 13 5.5"] },
+  inverseFunction: {
+    paths: ["M2.5 2.5v11h11", "M5.5 3q-2.6 5 0 10", "M10.5 3q2.6 5 0 10"],
+  },
   label: { paths: ["M5 12L8 4l3 8", "M6 9.5h4"] },
   overlapFill: {
     // 两交叠圆 + 交集处斜线：引用式阴影的直白图示。
@@ -180,6 +186,9 @@ const GROUP_BY_2D_TOOL: Record<
   bow: "curvedShapes",
   ring: "curvedShapes",
   ellipse: "curvedShapes",
+  linearFunction: "curvedShapes",
+  quadraticFunction: "curvedShapes",
+  inverseFunction: "curvedShapes",
   angle: "measurement",
   dimension: "measurement",
   label: "measurement",

@@ -24,6 +24,8 @@ const SINGLE_KEY_SHORTCUTS: Record<"2d" | "3d", Record<string, EditorTool>> = {
     z: "trapezoid",
     f: "overlapFill",
     m: "measureArea",
+    q: "quadraticFunction",
+    h: "inverseFunction",
   },
   "3d": {
     v: "select",
@@ -40,6 +42,8 @@ const SHIFT_COMBOS: Record<"2d" | "3d", Record<string, EditorTool>> = {
     t: "triangle",
     p: "parallelogram",
     m: "measurePerimeter",
+    // 直线的函数变体：Shift 同族规则（ADR 0018）。
+    l: "linearFunction",
   },
   "3d": {
     b: "box",
