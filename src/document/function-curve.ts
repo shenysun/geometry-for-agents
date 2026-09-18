@@ -27,6 +27,70 @@ export type FunctionCurveParams =
 /** kind 判别键的字面量联合：契约 schema 与工具目录共用。 */
 export type FunctionCurveKind = FunctionCurveParams["kind"];
 
+/** 参数键的字面量联合：各 kind 取其子集（见 FUNCTION_CURVE_PARAM_KEYS）。 */
+export type FunctionCurveParamKey = "a" | "b" | "c" | "k";
+
+/** 按 kind 穷尽的参数目录：属性面板渲染控件、参数读写助手共用。 */
+export const FUNCTION_CURVE_PARAM_KEYS: Readonly<
+  Record<FunctionCurveKind, readonly FunctionCurveParamKey[]>
+> = {
+  linear: ["a", "b"],
+  quadratic: ["a", "b", "c"],
+  inverse: ["k"],
+};
+
+/** 滑块拖动中的参数预览（ADR 0007）：属性面板写、视口预览层读，
+ *  松手一次提交后清空——哪条曲线、带哪组参数。 */
+export type FunctionCurvePreview = {
+  id: string;
+  params: FunctionCurveParams;
+};
+
+/** 联合上按键读参数：目录保证键属于该 kind，读不到不会发生。 */
+export function functionCurveParamOf(
+  params: FunctionCurveParams,
+  key: FunctionCurveParamKey,
+): number {
+  switch (params.kind) {
+    case "linear":
+      return key === "b" ? params.b : params.a;
+    case "quadratic":
+      return key === "a" ? params.a : key === "b" ? params.b : params.c;
+    case "inverse":
+      return params.k;
+  }
+}
+
+/** 按键写参数返回新图元（不可变）：预览与提交共用，kind 不变。 */
+export function withFunctionCurveParam(
+  curve: FunctionCurvePrimitive,
+  key: FunctionCurveParamKey,
+  value: number,
+): FunctionCurvePrimitive {
+  switch (curve.kind) {
+    case "linear":
+      return key === "b" ? { ...curve, b: value } : { ...curve, a: value };
+    case "quadratic":
+      return key === "a"
+        ? { ...curve, a: value }
+        : key === "b"
+          ? { ...curve, b: value }
+          : { ...curve, c: value };
+    case "inverse":
+      return { ...curve, k: value };
+  }
+}
+
+/** 预览活跃时取预览参数，否则取契约参数：面板显示与解析式跟手共用。 */
+export function previewParamsOf(
+  preview: FunctionCurvePreview | null,
+  curve: FunctionCurvePrimitive,
+): FunctionCurveParams {
+  return preview !== null && preview.id === curve.id
+    ? preview.params
+    : functionCurveParamsOf(curve);
+}
+
 /** 创建缺省参数（y = x / y = x² / y = 1/x）：spec 钉死 a=1、b=0、c=0、k=1。
  *  三工具单击提交与属性面板缺省展示共用这一处。 */
 export function defaultFunctionCurveParams(

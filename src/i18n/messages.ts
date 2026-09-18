@@ -135,6 +135,12 @@ export const messages = {
       c: "c",
       k: "k",
     },
+    /** 退化参数报错：指明替代路径（ADR 0021），不静默钳制。 */
+    paramError: {
+      linearA: "a 不能为 0，画水平线请用直线工具",
+      quadraticA: "a 不能为 0，画直线请用一次函数工具",
+      inverseK: "k 不能为 0，y = 0/x 无定义",
+    },
     fill: {
       label: "填充",
       none: "无",
@@ -313,6 +319,12 @@ export const messages = {
       b: "b",
       c: "c",
       k: "k",
+    },
+    /** Degenerate parameter errors: point at the alternative (ADR 0021), never clamp silently. */
+    paramError: {
+      linearA: "a cannot be 0 — use the line tool for a horizontal line",
+      quadraticA: "a cannot be 0 — use the linear function tool for a straight line",
+      inverseK: "k cannot be 0 — y = 0/x is undefined",
     },
     fill: {
       label: "Fill",

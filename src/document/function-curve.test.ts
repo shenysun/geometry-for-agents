@@ -1,10 +1,16 @@
 import { describe, expect, test } from "vitest";
 import {
   formatFunctionExpression,
+  functionCurveParamOf,
+  functionCurveParamsOf,
+  previewParamsOf,
   sampleFunctionCurve,
+  withFunctionCurveParam,
   type FunctionCurveParams,
+  type FunctionCurvePreview,
   type FunctionCurveViewport,
 } from "./function-curve.ts";
+import type { FunctionCurvePrimitive } from "./parse-document.ts";
 import type { Point2 } from "./snap.ts";
 
 /** 采样点对已知解析式的独立真源（worked example），不复算被测公式。 */
@@ -195,5 +201,46 @@ describe("解析式格式化矩阵", () => {
     expect(
       formatFunctionExpression({ kind: "quadratic", a: 1.234, b: 0, c: 2 }),
     ).toBe("y = 1.23x² + 2");
+  });
+});
+
+describe("参数读写助手（票 03：面板滑块/数字框共用）", () => {
+  const quadratic: FunctionCurvePrimitive = {
+    id: "f1",
+    type: "functionCurve",
+    kind: "quadratic",
+    a: 1,
+    b: 2,
+    c: 3,
+  };
+
+  test("functionCurveParamOf 按 kind 取对应参数", () => {
+    expect(functionCurveParamOf({ kind: "linear", a: 2, b: 4 }, "a")).toBe(2);
+    expect(functionCurveParamOf({ kind: "linear", a: 2, b: 4 }, "b")).toBe(4);
+    expect(functionCurveParamOf(functionCurveParamsOf(quadratic), "c")).toBe(3);
+    expect(functionCurveParamOf({ kind: "inverse", k: -1 }, "k")).toBe(-1);
+  });
+
+  test("withFunctionCurveParam 只改目标键，其余字段与 id 原样", () => {
+    const next = withFunctionCurveParam(quadratic, "b", 9);
+    expect(next).toEqual({ ...quadratic, b: 9 });
+    expect(quadratic.b).toBe(2); // 不可变：原图元不动
+    expect(functionCurveParamOf(functionCurveParamsOf(withFunctionCurveParam(quadratic, "a", 5)), "a")).toBe(5);
+    expect(functionCurveParamOf(functionCurveParamsOf(withFunctionCurveParam(quadratic, "c", 0)), "c")).toBe(0);
+  });
+
+  test("previewParamsOf：预览命中取预览，否则回落契约", () => {
+    const preview: FunctionCurvePreview = {
+      id: "f1",
+      params: { kind: "quadratic", a: 1, b: 2, c: 99 },
+    };
+    expect(functionCurveParamOf(previewParamsOf(preview, quadratic), "c")).toBe(99);
+    expect(functionCurveParamOf(previewParamsOf(null, quadratic), "c")).toBe(3);
+    expect(
+      functionCurveParamOf(
+        previewParamsOf({ id: "别的曲线", params: { kind: "inverse", k: 1 } }, quadratic),
+        "c",
+      ),
+    ).toBe(3);
   });
 });

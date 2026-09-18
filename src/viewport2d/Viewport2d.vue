@@ -229,6 +229,14 @@ function refreshOverlays(): void {
 function refreshSelectionMark(): void {
   refreshOverlays();
   if (projector === null) return;
+  const curvePreview = editor.functionCurvePreview;
+  if (curvePreview !== null) {
+    projector.setPreview(
+      { type: "functionCurve", ...curvePreview.params },
+      SELECTION_STROKE,
+    );
+    return;
+  }
   if (editor.tool === "overlapFill") {
     // 拾取态的预览（第一源高亮）随视图换算重画。
     showSelectionMark(pickOverlapPreview());
@@ -461,6 +469,14 @@ watch(
   () => editor.sessionUnderlay,
   (underlay) => {
     projector?.setSessionUnderlay(underlay);
+  },
+);
+
+// 滑块拖动/松手都走单一路径：预览活跃时强调色上预览层，清空后回落选中标记。
+watch(
+  () => editor.functionCurvePreview,
+  () => {
+    refreshSelectionMark();
   },
 );
 

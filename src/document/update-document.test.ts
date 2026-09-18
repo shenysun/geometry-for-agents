@@ -2693,4 +2693,84 @@ describe("函数曲线更新层（ADR 0021）", () => {
       expect(scaled.document.primitives[0]).toEqual(curve);
     }
   });
+
+  test("参数写入：改系数写进契约，其余字段不动", () => {
+    const document = docWithCurve();
+    const updated = updatePrimitive(document, "f1", {
+      ...curve,
+      a: 2,
+      b: 1,
+    });
+    expect(updated.success).toBe(true);
+    if (updated.success) {
+      expect(updated.document.primitives[0]).toEqual({
+        id: "f1",
+        type: "functionCurve",
+        kind: "linear",
+        a: 2,
+        b: 1,
+      });
+    }
+  });
+
+  test("滑块松手一步 undo：整段拖动只占一步（ADR 0007）", () => {
+    let history = createHistory(docWithCurve());
+    const updated = updatePrimitive(history.present, "f1", { ...curve, a: -3.5 });
+    expect(updated.success).toBe(true);
+    if (!updated.success) return;
+    history = commitSnapshot(history, updated.document);
+    expect(history.present.primitives[0]).toMatchObject({ a: -3.5 });
+    expect(history.past).toHaveLength(1);
+
+    history = undo(history);
+    expect(history.present.primitives[0]).toEqual(curve);
+  });
+
+  test("数字输入一步：一次提交一个 undo 步，连环输入各占一步", () => {
+    let history = createHistory(docWithCurve());
+    const edits: { after: Record<string, number>; patch: Record<string, number> }[] = [
+      { after: { a: 2 }, patch: { a: 2 } },
+      { after: { a: 2, b: 4 }, patch: { b: 4 } },
+      { after: { a: 5, b: 4 }, patch: { a: 5 } },
+    ];
+    for (const edit of edits) {
+      const next = updatePrimitive(history.present, "f1", {
+        ...history.present.primitives[0],
+        ...edit.patch,
+      });
+      expect(next.success).toBe(true);
+      if (!next.success) return;
+      history = commitSnapshot(history, next.document);
+      expect(history.present.primitives[0]).toMatchObject(edit.after);
+    }
+    expect(history.past).toHaveLength(3);
+    history = undo(history);
+    expect(history.present.primitives[0]).toMatchObject({ a: 2, b: 4 });
+  });
+
+  test("退化写入被契约拒绝：说明书不变，不产生 undo 步", () => {
+    let history = createHistory(docWithCurve());
+    const degenerate = updatePrimitive(history.present, "f1", { ...curve, a: 0 });
+    expect(degenerate.success).toBe(false);
+
+    const inverse = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        { id: "f2", type: "functionCurve", kind: "inverse", k: 1 },
+      ],
+    });
+    if (!inverse.success) throw new Error(inverse.error);
+    const zero = updatePrimitive(inverse.document, "f2", {
+      id: "f2",
+      type: "functionCurve",
+      kind: "inverse",
+      k: 0,
+    });
+    expect(zero.success).toBe(false);
+
+    expect(history.past).toHaveLength(0);
+    expect(history.present.primitives[0]).toEqual(curve);
+  });
 });

@@ -11,9 +11,8 @@ import {
 } from "../document/index.ts";
 import {
   formatFunctionExpression,
-  functionCurveParamsOf,
+  previewParamsOf,
 } from "../document/function-curve.ts";
-import { formatMeasureNumber } from "../document/measure-math.ts";
 import { useDocumentStore } from "../stores/document.ts";
 import { useEditorStore } from "../stores/editor.ts";
 import {
@@ -21,6 +20,7 @@ import {
   type SolidPrimitive,
 } from "../viewport3d/solid-commit.ts";
 import { displayNamesById } from "./display-name.ts";
+import FunctionCurveFields from "./FunctionCurveFields.vue";
 import {
   validateNumericField,
   truncateToPrecision,
@@ -305,8 +305,8 @@ const solid = computed(() => {
   return primitive !== null && isSolidPrimitive(primitive) ? primitive : null;
 });
 
-/** 函数曲线只读信息（ADR 0021）：kind 创建时定死不可改（改 kind 等于换
- *  图元），参数的滑块/数字编辑是后续票的交付，本票只读展示种类与解析式。 */
+/** 函数曲线（ADR 0021）：kind 创建时定死不可改（改 kind 等于换图元），
+ *  参数编辑交给 FunctionCurveFields（滑块 + 数字框同源契约）。 */
 const functionCurve = computed(() => {
   const primitive = selected.value;
   return primitive !== null && primitive.type === "functionCurve"
@@ -314,30 +314,13 @@ const functionCurve = computed(() => {
     : null;
 });
 
-const functionCurveParams = computed(() => {
-  const curve = functionCurve.value;
-  if (curve === null) return [];
-  switch (curve.kind) {
-    case "linear":
-      return [
-        ["a", curve.a],
-        ["b", curve.b],
-      ] as const;
-    case "quadratic":
-      return [
-        ["a", curve.a],
-        ["b", curve.b],
-        ["c", curve.c],
-      ] as const;
-    case "inverse":
-      return [["k", curve.k]] as const;
-  }
-});
-
+/** 解析式随滑块拖动即时跟手：预览活跃时格式化预览参数，松手回落契约。 */
 const functionCurveExpression = computed(() => {
   const curve = functionCurve.value;
   if (curve === null) return null;
-  return formatFunctionExpression(functionCurveParamsOf(curve));
+  return formatFunctionExpression(
+    previewParamsOf(editor.functionCurvePreview, curve),
+  );
 });
 
 const solidFieldList = computed(() =>
@@ -770,9 +753,7 @@ function onFillChange(value: string | string[] | undefined): void {
     </div>
     <div v-if="functionCurve !== null" class="space-y-1 text-zinc-500">
       <p>{{ t("field.kind") }}：{{ t(`tool.${functionCurve.kind}Function`) }}</p>
-      <p v-for="([key, value]) in functionCurveParams" :key="key">
-        {{ t(`field.${key}`) }}：{{ formatMeasureNumber(value) }}
-      </p>
+      <FunctionCurveFields :key="functionCurve.id" :curve="functionCurve" />
       <p>{{ functionCurveExpression }}</p>
     </div>
     <div v-if="solid !== null" class="grid grid-cols-2 gap-2">
