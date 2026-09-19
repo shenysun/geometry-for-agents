@@ -85,7 +85,9 @@ function similarityOf(params: TransformParams): PlaneSimilarity {
     }
     case "reflect": {
       // 轴过 (x1,y1)、方向 u：M = 2uuᵀ − I，t = a − M·a。
-      // 前置条件：两点不重合（手势取点与契约层保证，退化轴无定义）。
+      // 前置条件：两点不重合（重合则轴无定义）。契约层拒绝存入该值；
+      // 两条编辑路径各有关守——创建手势 samePoint 不提交、控制点拖动
+      // 预览被 resolveTransformImage 的退化轴守卫拦下。
       const dx = params.x2 - params.x1;
       const dy = params.y2 - params.y1;
       const len = Math.hypot(dx, dy);
@@ -161,16 +163,30 @@ export function isTransformableShape(
   return transformable2dTypes.has(primitive.type);
 }
 
+/** 轴对称的退化轴判据（票 07）：两端点重合则轴无定义、像不可求。契约层
+ *  refine 与属性面板校验（transform-field.ts）各持同款判据拒存/拒提交，
+ *  但控制点拖动的预览路径会带着编辑中的参数经过这里——判据收在统一
+ *  入口，渲染/命中/预览三路不必各写一遍。 */
+function hasDegenerateAxis(params: TransformParams): boolean {
+  return (
+    params.kind === "reflect" &&
+    params.x1 === params.x2 &&
+    params.y1 === params.y2
+  );
+}
+
 /** 查源求像的统一入口（渲染与命中共用）：说明书条目表里按 sourceId 查源、
  *  白名单窄化、经数学层求像；源不存在或掉出白名单（防御性场景，契约已拒）
- *  返回 null。 */
+ *  返回 null。退化轴同样返回 null——预览层据此回落，NaN 几何不外流。 */
 export function resolveTransformImage(
   primitives: readonly Primitive2d[],
   entry: TransformPrimitive,
 ): Transformable2d | null {
+  const params = transformParamsOf(entry);
+  if (hasDegenerateAxis(params)) return null;
   const source = primitives.find((primitive) => primitive.id === entry.sourceId);
   if (source === undefined || !isTransformableShape(source)) return null;
-  return transformImage(source, transformParamsOf(entry));
+  return transformImage(source, params);
 }
 
 /** 契约条目 → 数学层参数：字段同名同义，收窄掉 id/type/sourceId。

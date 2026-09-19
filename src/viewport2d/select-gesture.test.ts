@@ -1381,3 +1381,75 @@ describe("select-gesture 变换图元中心控制点（票 03）", () => {
     expect(released.commit).toBeNull();
   });
 });
+
+describe("select-gesture 变换图元轴端点控制点（票 07）", () => {
+  const reflectDoc = () =>
+    doc2d([
+      { id: "src", type: "circle", cx: 0, cy: 0, r: 2, fill: "none" },
+      {
+        id: "t-1",
+        type: "transform",
+        sourceId: "src",
+        kind: "reflect",
+        x1: 3,
+        y1: 0,
+        x2: 3,
+        y2: 2,
+      },
+    ]);
+
+  function reflectCtx(
+    point: Point2,
+    overrides: Partial<SelectContext> = {},
+  ): SelectContext {
+    return {
+      tool: "select",
+      document: reflectDoc(),
+      grid: 1,
+      selectionId: "t-1",
+      controlTolerance: 1,
+      ...overrides,
+      point,
+    };
+  }
+
+  test("拖轴端点预览随参数更新的像与轴虚线", () => {
+    const started = startSelect(
+      idleSelectState(),
+      reflectCtx({ x: 3, y: 0 }),
+    );
+    const moved = moveSelect(started.state, reflectCtx({ x: 3, y: 4 }));
+
+    const preview = moved.preview;
+    if (
+      preview === null ||
+      Array.isArray(preview) ||
+      preview.type !== "transformImage"
+    ) {
+      expect.unreachable("expected a transformImage preview");
+      return;
+    }
+    // 轴两端 (3,0)/(3,2) 拖 axis-1 到 (3,4) 后仍是 x = 3 竖直轴：
+    // 圆心 (0,0) 的像是 (6,0)，半径不变。
+    expect(preview.image).toMatchObject({
+      type: "circle",
+      cx: 6,
+      cy: 0,
+      r: 2,
+    });
+    expect(preview.axis).toEqual([
+      { x: 3, y: 4 },
+      { x: 3, y: 2 },
+    ]);
+  });
+
+  test("拖轴端点压到另一端同格点：预览回落为 null，NaN 不入预览层", () => {
+    const started = startSelect(
+      idleSelectState(),
+      reflectCtx({ x: 3, y: 0 }),
+    );
+    const moved = moveSelect(started.state, reflectCtx({ x: 3, y: 2 }));
+
+    expect(moved.preview).toBeNull();
+  });
+});

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   previewTransformParamsOf,
+  resolveTransformImage,
   transformImage,
   transformParamOf,
   transformParamsOf,
@@ -918,5 +919,40 @@ describe("transform-math 参数读写与预览合并（票 05 属性面板）", 
     });
     // kind 定死：参数组与图元 kind 不一致时原样返回（防御，调用方不会触发）。
     expect(withTransformParams(rotateEntry, params)).toBe(rotateEntry);
+  });
+});
+
+describe("查源求像的退化轴守卫（票 07）", () => {
+  const source: Transformable2d = {
+    id: "s1",
+    type: "circle",
+    cx: 0,
+    cy: 0,
+    r: 2,
+    fill: "none",
+  };
+  const degenerateEntry = {
+    id: "t1",
+    type: "transform",
+    sourceId: "s1",
+    kind: "reflect",
+    x1: -4,
+    y1: -2,
+    x2: -4,
+    y2: -2,
+  } as const;
+
+  test("轴两端点重合：像无定义，返回 null 而非 NaN 几何", () => {
+    expect(resolveTransformImage([source], degenerateEntry)).toBeNull();
+  });
+
+  test("源不存在照旧 null；非退化 reflect 照常出像", () => {
+    expect(resolveTransformImage([], degenerateEntry)).toBeNull();
+    const image = resolveTransformImage([source], {
+      ...degenerateEntry,
+      y2: 3,
+    });
+    // x = -4 竖直轴：圆心 (0,0) 的像是 (−8,0)，半径不变。
+    expect(image).toMatchObject({ type: "circle", cx: -8, cy: 0, r: 2 });
   });
 });
