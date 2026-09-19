@@ -104,6 +104,7 @@ function handleReach(primitive: Primitive2d, center: Point2): number {
     case "overlapFill":
     case "measure":
     case "functionCurve":
+    case "transform":
       // transformHandles 已对其返回 null，此处不可达。
       return 0;
     case "line":
@@ -153,10 +154,13 @@ export function transformHandles(
   // 选中可删，但不布柄——度量数值纯跟随源。
   // 函数曲线无拖动/缩放/旋转手柄（ADR 0021）：形状由参数决定，编辑走
   // 属性面板，不布柄误导操作员去「挪动」一条参数图像。
+  // 变换图元同样不布柄（ADR 0022）：像由参数推导纯跟随，参数编辑走
+  // 属性面板；选中可删。
   if (
     primitive.type === "overlapFill" ||
     primitive.type === "measure" ||
-    primitive.type === "functionCurve"
+    primitive.type === "functionCurve" ||
+    primitive.type === "transform"
   ) {
     return null;
   }
@@ -229,6 +233,10 @@ function previewFromPrimitive(primitive: Primitive2d): DrawPreview | null {
     case "overlapFill":
     case "measure":
       // 引用条目无自身几何可预览，也不可拖（变换恒等已兜底）。
+      return null;
+    case "transform":
+      // 变换条目同样无自身几何可预览：选中态高亮它的源（measure 单源
+      // 先例）——像本身已是虚线推导画法，无需再高亮。
       return null;
     case "functionCurve": {
       // 选中态高亮同笔画族画法：按采样折线重画一遍换强调色。
@@ -368,6 +376,14 @@ export function selectPreview(
     );
     return source === undefined ? null : previewFromPrimitive(source);
   }
+  if (primitive.type === "transform") {
+    // 变换图元选中态高亮它的源（measure 单源先例）：像自身是虚线推导
+    // 画法，选中反馈落在源上即可分辨。
+    const source = document.primitives.find(
+      (item) => item.id === primitive.sourceId,
+    );
+    return source === undefined ? null : previewFromPrimitive(source);
+  }
   return previewFromPrimitive(primitive);
 }
 
@@ -452,7 +468,8 @@ export function startSelect(
   }
   // 函数曲线不可拖（无几何身份，ADR 0021）：点中只选中，按下后的拖动
   // 不进拖动态——交还投影器平移视口，不产生恒等变换的空 undo 步。
-  if (hit.type === "functionCurve") {
+  // 变换图元同样只选中不可拖（ADR 0022）：像纯跟随，无本体位移交互。
+  if (hit.type === "functionCurve" || hit.type === "transform") {
     return {
       state: idleSelectState(),
       preview: null,

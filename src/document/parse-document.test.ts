@@ -4,6 +4,7 @@ import {
   fillable2dTypes,
   measurable2dTypes,
   parseDocument,
+  transformable2dTypes,
 } from "./index.ts";
 
 function spec(
@@ -1572,6 +1573,227 @@ describe("parseDocument：函数曲线（ADR 0021）", () => {
       ],
     });
 
+    expect(legacy.success).toBe(true);
+  });
+});
+
+describe("parseDocument：变换图元（ADR 0022 引用式）", () => {
+  // 白名单源：三角形（封闭族）。四 kind 的合法样本都以它为源。
+  const source = {
+    id: "tri-1",
+    type: "triangle",
+    x: 0,
+    y: 0,
+    width: 4,
+    height: 3,
+    apexOffset: 0,
+    rotationDeg: 0,
+    fill: "hatch",
+  };
+
+  const validKinds = [
+    {
+      id: "t1",
+      type: "transform",
+      sourceId: "tri-1",
+      kind: "translate",
+      dx: 3,
+      dy: -2,
+    },
+    {
+      id: "t2",
+      type: "transform",
+      sourceId: "tri-1",
+      kind: "rotate",
+      centerX: 1,
+      centerY: 2,
+      angleDeg: 90,
+    },
+    {
+      id: "t3",
+      type: "transform",
+      sourceId: "tri-1",
+      kind: "reflect",
+      x1: 0,
+      y1: 0,
+      x2: 2,
+      y2: 2,
+    },
+    {
+      id: "t4",
+      type: "transform",
+      sourceId: "tri-1",
+      kind: "dilate",
+      centerX: -1,
+      centerY: 1,
+      ratio: -2,
+    },
+  ];
+
+  test("四 kind 各自的参数形状都通过（dilate 负比合法）", () => {
+    for (const entry of validKinds) {
+      expect(parseDocument(spec("2d", [source, entry])).success).toBe(true);
+    }
+  });
+
+  test("退化取值被 refine 拒绝：零向量、0°、整周、比 0、比 1、轴两点重合", () => {
+    const degenerate = [
+      {
+        ...validKinds[0],
+        dx: 0,
+        dy: 0,
+      },
+      { ...validKinds[1], angleDeg: 0 },
+      { ...validKinds[1], angleDeg: 360 },
+      { ...validKinds[1], angleDeg: -360 },
+      { ...validKinds[3], ratio: 0 },
+      { ...validKinds[3], ratio: 1 },
+      { ...validKinds[2], x2: 0, y2: 0 },
+    ];
+    for (const entry of degenerate) {
+      expect(parseDocument(spec("2d", [source, entry])).success).toBe(false);
+    }
+  });
+
+  test("strictObject：未知 kind 与多余字段都被拒", () => {
+    expect(
+      parseDocument(
+        spec("2d", [
+          source,
+          { ...validKinds[0], kind: "glide" },
+        ]),
+      ).success,
+    ).toBe(false);
+    expect(
+      parseDocument(
+        spec("2d", [source, { ...validKinds[0], style: "bold" }]),
+      ).success,
+    ).toBe(false);
+    expect(
+      parseDocument(
+        spec("2d", [source, { ...validKinds[1], ratio: 2 }]),
+      ).success,
+    ).toBe(false);
+  });
+
+  test("superRefine：源不存在被拒", () => {
+    expect(
+      parseDocument(spec("2d", [{ ...validKinds[0], sourceId: "ghost" }]))
+        .success,
+    ).toBe(false);
+  });
+
+  test("superRefine：函数曲线与引用型条目作源被拒，transform 自身也被拒", () => {
+    const fillablePeers = [
+      { ...source, id: "tri-2" },
+      { ...source, id: "tri-3", x: 8 },
+    ];
+    const rejectedSources = [
+      { id: "f1", type: "functionCurve", kind: "linear", a: 1, b: 0 },
+      {
+        id: "of1",
+        type: "overlapFill",
+        sources: ["tri-2", "tri-3"],
+        fill: "hatch",
+      },
+      { id: "m1", type: "measure", sourceId: "tri-2", kind: "area" },
+      { ...validKinds[0], id: "self-ref", sourceId: "tri-1" },
+    ];
+    for (const bad of rejectedSources) {
+      const withTransform = [
+        source,
+        ...fillablePeers,
+        bad,
+        { ...validKinds[1], id: "probe", sourceId: bad.id },
+      ];
+      expect(parseDocument(spec("2d", withTransform)).success).toBe(false);
+    }
+  });
+
+  test("同一源允许多个变换引用", () => {
+    const result = parseDocument(
+      spec("2d", [source, validKinds[0], validKinds[1], validKinds[3]]),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  test("transformable2dTypes 白名单：笔画族 + 封闭族 + 点名，引用型与函数曲线不在内", () => {
+    expect([...transformable2dTypes].sort()).toEqual(
+      [
+        "line",
+        "polygon",
+        "dimension",
+        "angle",
+        "arc",
+        "rectangle",
+        "triangle",
+        "parallelogram",
+        "trapezoid",
+        "regularPolygon",
+        "circle",
+        "sector",
+        "bow",
+        "ring",
+        "ellipse",
+        "label",
+      ].sort(),
+    );
+  });
+
+  test("白名单各族都能作源：点名、角、弧、尺寸标注线", () => {
+    const strokeSources = [
+      { id: "l1", type: "label", x: 1, y: 1, text: "A" },
+      { id: "a1", type: "angle", x: 0, y: 0, startDeg: 30, endDeg: 90, length: 3 },
+      { id: "arc1", type: "arc", cx: 0, cy: 0, r: 2, startDeg: 0, endDeg: 90 },
+      {
+        id: "d1",
+        type: "dimension",
+        points: [
+          { x: 0, y: 0 },
+          { x: 3, y: 4 },
+        ],
+      },
+    ];
+    for (const stroke of strokeSources) {
+      expect(
+        parseDocument(
+          spec("2d", [stroke, { ...validKinds[0], sourceId: stroke.id }]),
+        ).success,
+      ).toBe(true);
+    }
+  });
+
+  test("2D-only：3D 说明书里的 transform 被拒（空间错配报错）", () => {
+    const result = parseDocument(spec("3d", [validKinds[0]]));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toMatch(/not allowed in space "3d"/);
+  });
+
+  test("老文档兼容：不带 transform 的既有说明书照常解析", () => {
+    const legacy = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        {
+          id: "line-1",
+          type: "line",
+          points: [
+            { x: 0, y: 0 },
+            { x: 3, y: 0 },
+          ],
+        },
+        {
+          id: "t1",
+          type: "transform",
+          sourceId: "line-1",
+          kind: "translate",
+          dx: 1,
+          dy: 1,
+        },
+      ],
+    });
     expect(legacy.success).toBe(true);
   });
 });

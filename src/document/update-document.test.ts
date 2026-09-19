@@ -2774,3 +2774,150 @@ describe("函数曲线更新层（ADR 0021）", () => {
     expect(history.present.primitives[0]).toEqual(curve);
   });
 });
+
+describe("removePrimitive / 变换恒等：变换图元（ADR 0022）", () => {
+  function transformDoc(): GeometryDocument {
+    return mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        circle("circle-a", 2),
+        {
+          id: "transform-1",
+          type: "transform",
+          sourceId: "circle-a",
+          kind: "translate",
+          dx: 5,
+          dy: 0,
+        },
+        bow("bow-b"),
+        circle("circle-c", 5),
+      ],
+    });
+  }
+
+  test("removing the source cascades away the transform that references it", () => {
+    const result = removePrimitive(transformDoc(), "circle-a");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.id)).toEqual([
+      "bow-b",
+      "circle-c",
+    ]);
+  });
+
+  test("removing the transform itself removes only the entry, source untouched", () => {
+    const result = removePrimitive(transformDoc(), "transform-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+      "circle-c",
+    ]);
+  });
+
+  test("translate/rotate/scale/control-point are all identity on transform", () => {
+    const doc = transformDoc();
+    const entry = doc.primitives[1];
+    if (entry.type !== "transform") throw new Error("fixture");
+
+    expect(translatePrimitiveGeometry(entry, 3, -4)).toBe(entry);
+    expect(rotatePrimitiveGeometry(entry, 45)).toBe(entry);
+    expect(scalePrimitiveGeometry(entry, 2)).toBe(entry);
+    expect(moveControlPointGeometry(entry, "vertex-0", { x: 9, y: 9 })).toBe(
+      entry,
+    );
+  });
+
+  test("非传递：与重叠填充并存时删公共源一并清两条引用，删无关图元不动", () => {
+    const doc = mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        circle("circle-a", 2),
+        circle("circle-b", 3),
+        {
+          id: "fill-1",
+          type: "overlapFill",
+          sources: ["circle-a", "circle-b"],
+          fill: "hatch",
+        },
+        {
+          id: "transform-1",
+          type: "transform",
+          sourceId: "circle-a",
+          kind: "translate",
+          dx: 5,
+          dy: 1,
+        },
+      ],
+    });
+
+    const dropPeer = removePrimitive(doc, "circle-b");
+    expect(dropPeer.success).toBe(true);
+    if (!dropPeer.success) return;
+    expect(dropPeer.document.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "transform-1",
+    ]);
+
+    const dropSource = removePrimitive(doc, "circle-a");
+    expect(dropSource.success).toBe(true);
+    if (!dropSource.success) return;
+    expect(dropSource.document.primitives.map((p) => p.id)).toEqual([
+      "circle-b",
+    ]);
+  });
+
+  test("create and cascade delete are both undoable through the history pipeline", () => {
+    const base = mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [circle("circle-a", 2), bow("bow-b")],
+    });
+
+    let history = createHistory(base);
+    const added = addPrimitive(history.present, {
+      id: "transform-1",
+      type: "transform",
+      sourceId: "circle-a",
+      kind: "translate",
+      dx: 4,
+      dy: -1,
+    });
+    expect(added.success).toBe(true);
+    if (!added.success) return;
+    history = commitSnapshot(history, added.document);
+
+    const removed = removePrimitive(history.present, "circle-a");
+    expect(removed.success).toBe(true);
+    if (!removed.success) return;
+    history = commitSnapshot(history, removed.document);
+    expect(history.present.primitives.map((p) => p.id)).toEqual(["bow-b"]);
+
+    history = undo(history);
+    expect(history.present.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+      "transform-1",
+    ]);
+
+    history = undo(history);
+    expect(history.present.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+    ]);
+    history = redo(history);
+    expect(history.present.primitives.map((p) => p.id)).toEqual([
+      "circle-a",
+      "bow-b",
+      "transform-1",
+    ]);
+  });
+});

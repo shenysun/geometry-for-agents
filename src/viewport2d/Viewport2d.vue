@@ -34,6 +34,8 @@ import {
   type PickOverlapState,
 } from "./pick-overlap-gesture.ts";
 import { clickPickMeasure, measureKindForTool } from "./pick-measure-gesture.ts";
+import { transformKindForTool } from "./pick-transform-gesture.ts";
+import { usePickTransformGesture } from "./use-pick-transform.ts";
 import {
   SELECTION_STROKE,
   sourcesIntersect,
@@ -256,6 +258,11 @@ function refreshSelectionMark(): void {
     showSelectionMark(pickOverlapPreview());
     return;
   }
+  if (pickTransform.activeSourceId() !== null) {
+    // 变换拾取态的预览（源高亮）随视图换算重画。
+    showSelectionMark(pickTransform.sourceMark());
+    return;
+  }
   if (isDrawTool(editor.tool) || selectGesture.kind !== "idle") return;
   showSelectionMark(selectionMark());
 }
@@ -334,6 +341,20 @@ function cancelPreview(): void {
 
 /** 重叠填充两步拾取：进度/契约拒绝提示（模板直读），第一拾取高亮复用选中标记画法。 */
 const pickHint = ref<string | null>(null);
+
+/** 变换两步拾取（ADR 0022）：状态机在 pick-transform-gesture.ts，接线
+ *  胶水（上下文/提示/预览/事件路由）在 use-pick-transform.ts。 */
+const pickTransform = usePickTransformGesture({
+  eventWorld,
+  gridForEvent,
+  hitToleranceWorld,
+  worldPerPx,
+  curveViewport: () => projector?.curveViewport() ?? null,
+  projector: () => projector,
+  commitPrimitive,
+  showSelectionMark,
+  pickHint,
+});
 
 function pickOverlapPreview(): PreviewMark {
   return pickOverlap.kind === "first"
@@ -507,6 +528,11 @@ useEventListener(hostRef, "pointerdown", (event: PointerEvent) => {
     panSuppressed = selectGesture.kind !== "idle";
     return;
   }
+  // 变换两步拾取第二步（ADR 0022）：已锁源后按下即进入拖位移向量。
+  if (transformKindForTool(editor.tool) !== null) {
+    pickTransform.handlePointerDown(event);
+    return;
+  }
   const context = drawContext(event);
   if (context === null || !isDragDrawTool(context.tool)) return;
   applyGesture(startDraw(gesture, context));
@@ -540,6 +566,11 @@ useEventListener(window, "pointermove", (event: PointerEvent) => {
     }
     return;
   }
+  if (pickTransform.activeVector()) {
+    // 拖向量中：像实时预览，说明书不动（ADR 0007）。
+    pickTransform.handlePointerMove(event);
+    return;
+  }
   if (gesture.kind === "idle") {
     // 空白按住拖动是投影器在平移视口：标记随视图换算重画。
     if (dragStart !== null) {
@@ -562,6 +593,12 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
         ? escSelect(selectGesture)
         : upSelect(selectGesture, context);
     applySelectGesture(result, context?.grid ?? editor.grid);
+    dragStart = null;
+    return;
+  }
+  if (pickTransform.activeVector()) {
+    // 松手一次提交（一步 undo，ADR 0022）；零位移退回已锁源态。
+    pickTransform.handlePointerUp(event);
     dragStart = null;
     return;
   }
@@ -590,6 +627,10 @@ useEventListener(hostRef, "click", (event: MouseEvent) => {
   }
   if (measureKindForTool(editor.tool) !== null) {
     handlePickMeasureClick(event);
+    return;
+  }
+  if (transformKindForTool(editor.tool) !== null) {
+    pickTransform.handleClick(event);
     return;
   }
   if (isDrawTool(editor.tool)) {
@@ -647,6 +688,9 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
     }
     if (measureKindForTool(editor.tool) !== null) {
       pickHint.value = null;
+    }
+    if (transformKindForTool(editor.tool) !== null) {
+      pickTransform.reset();
     }
     return;
   }

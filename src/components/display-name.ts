@@ -6,8 +6,8 @@ export type Translate = (
   named?: Record<string, unknown>,
 ) => string;
 
-/** 显示名基础词条 key：measure 与 functionCurve 按 kind 取词条，其余类型
- *  复用 tool.<type>。 */
+/** 显示名基础词条 key：measure 与 functionCurve 按 kind 取词条，transform
+ *  按 kind 复用工具词条（工具名即词条真源），其余类型复用 tool.<type>。 */
 function baseKeyOf(primitive: Primitive): string {
   if (primitive.type === "measure") {
     return `tool.measure${primitive.kind === "area" ? "Area" : "Perimeter"}`;
@@ -15,16 +15,23 @@ function baseKeyOf(primitive: Primitive): string {
   if (primitive.type === "functionCurve") {
     return `tool.${primitive.kind}Function`;
   }
+  if (primitive.type === "transform") {
+    return `tool.${primitive.kind}`;
+  }
   return `tool.${primitive.type}`;
 }
 
-/** 编号计数键：measure 与 functionCurve 按 kind 各自计数，其余按类型。 */
+/** 编号计数键：measure 与 functionCurve 按 kind 各自计数，transform 按
+ *  kind 各自计数（平移、平移 1……与旋转各自独立编号），其余按类型。 */
 function countKeyOf(primitive: Primitive): string {
   if (primitive.type === "measure") {
     return `measure:${primitive.kind}`;
   }
   if (primitive.type === "functionCurve") {
     return `functionCurve:${primitive.kind}`;
+  }
+  if (primitive.type === "transform") {
+    return `transform:${primitive.kind}`;
   }
   return primitive.type;
 }

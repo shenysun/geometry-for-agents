@@ -291,6 +291,79 @@ const functionCurveSchema = z.discriminatedUnion("kind", [
   functionCurveInverseSchema,
 ]);
 
+// 变换图元（ADR 0022 引用式）：源 id + 变换种类与参数——参数是形状真源
+// 直接进契约（同函数曲线），像的几何不存、由渲染层推导。discriminated union
+// 以 kind 判别；退化取值 refine 拒绝（一形一表 ADR 0017，像与源重合即无
+// 意义）：平移零向量、旋转 0°（含 ±整周）、位似比 0 或 1、轴对称两点重合
+// （退化轴无定义，数学层对重合两点产生 NaN）。源必须存在且属白名单
+// transformable2dTypes，由 documentSchema 的 superRefine 跨条目校验。
+const transformTranslateSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("transform"),
+    sourceId: primitiveId,
+    kind: z.literal("translate"),
+    dx: z.number(),
+    dy: z.number(),
+  })
+  .refine((entry) => entry.dx !== 0 || entry.dy !== 0, {
+    message: "translate dx and dy must not both be zero (the image would coincide with the source)",
+    path: ["dx"],
+  });
+
+const transformRotateSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("transform"),
+    sourceId: primitiveId,
+    kind: z.literal("rotate"),
+    centerX: z.number(),
+    centerY: z.number(),
+    angleDeg: z.number(),
+  })
+  .refine((entry) => entry.angleDeg % 360 !== 0, {
+    message: "rotate angleDeg must not be a multiple of 360° (the image would coincide with the source)",
+    path: ["angleDeg"],
+  });
+
+const transformReflectSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("transform"),
+    sourceId: primitiveId,
+    kind: z.literal("reflect"),
+    x1: z.number(),
+    y1: z.number(),
+    x2: z.number(),
+    y2: z.number(),
+  })
+  .refine((entry) => entry.x1 !== entry.x2 || entry.y1 !== entry.y2, {
+    message: "reflect axis points must not coincide (a degenerate axis is undefined)",
+    path: ["x2"],
+  });
+
+const transformDilateSchema = z
+  .strictObject({
+    id: primitiveId,
+    type: z.literal("transform"),
+    sourceId: primitiveId,
+    kind: z.literal("dilate"),
+    centerX: z.number(),
+    centerY: z.number(),
+    ratio: z.number(),
+  })
+  .refine((entry) => entry.ratio !== 0 && entry.ratio !== 1, {
+    message: "dilate ratio must differ from 0 and 1 (the image would degenerate or coincide with the source)",
+    path: ["ratio"],
+  });
+
+const transformSchema = z.discriminatedUnion("kind", [
+  transformTranslateSchema,
+  transformRotateSchema,
+  transformReflectSchema,
+  transformDilateSchema,
+]);
+
 const voxelSchema = z.strictObject({
   id: primitiveId,
   type: z.literal("voxel"),
@@ -407,6 +480,7 @@ const twoDPrimitiveSchema = z.discriminatedUnion("type", [
   overlapFillSchema,
   measureSchema,
   functionCurveSchema,
+  transformSchema,
 ]);
 
 const threeDPrimitiveSchema = z.discriminatedUnion("type", [
@@ -503,6 +577,23 @@ export const documentSchema = z
             path: ["primitives", index, "sourceId"],
           });
         }
+        continue;
+      }
+      if (primitive.type === "transform") {
+        const source = byId.get(primitive.sourceId);
+        if (source === undefined) {
+          ctx.addIssue({
+            code: "custom",
+            message: `transform "${primitive.id}" references missing primitive "${primitive.sourceId}"`,
+            path: ["primitives", index, "sourceId"],
+          });
+        } else if (!transformable2dTypes.has(source.type)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `transform "${primitive.id}" source "${primitive.sourceId}" (${source.type}) is not transformable (function curves and reference entries are excluded; ADR 0022)`,
+            path: ["primitives", index, "sourceId"],
+          });
+        }
       }
     }
   })
@@ -517,6 +608,9 @@ export type MeasurePrimitive = z.infer<typeof measureSchema>;
 
 /** 函数曲线图元（ADR 0021）：手势与渲染共用的 schema 推导类型，单点导出。 */
 export type FunctionCurvePrimitive = z.infer<typeof functionCurveSchema>;
+
+/** 变换图元（ADR 0022）：手势与渲染共用的 schema 推导类型，单点导出。 */
+export type TransformPrimitive = z.infer<typeof transformSchema>;
 
 /** 2D 说明书里的图元（折线、多边形、矩形、圆族、椭圆、标签），由 schema 推导，不手报名单。 */
 export type Primitive2d = z.infer<typeof twoDPrimitiveSchema>;
@@ -586,6 +680,29 @@ export const measurable2dTypes: ReadonlySet<string> = new Set([
   "bow",
   "ring",
   "ellipse",
+]);
+
+/** 可变换 2D 白名单（spec：2D 笔画族 + 封闭族 + 点名）——与 transform-math
+ *  的 Transformable2d 联合是同一清单的两侧镜像，改动须双侧同步。函数曲线
+ *  （世界坐标身份冲突，ADR 0021）与引用型条目（重叠填充/度量标注/transform
+ *  自身——不做引用的引用）被拒；同一源允许多个变换引用。 */
+export const transformable2dTypes: ReadonlySet<string> = new Set([
+  "line",
+  "polygon",
+  "dimension",
+  "angle",
+  "arc",
+  "rectangle",
+  "triangle",
+  "parallelogram",
+  "trapezoid",
+  "regularPolygon",
+  "circle",
+  "sector",
+  "bow",
+  "ring",
+  "ellipse",
+  "label",
 ]);
 
 const threeDTypes = typeNamesOf(threeDPrimitiveSchema);

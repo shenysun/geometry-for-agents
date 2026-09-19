@@ -4,7 +4,12 @@ import type {
   GeometryDocument,
   MeasurePrimitive,
   Primitive2d,
+  TransformPrimitive,
 } from "../document/index.ts";
+import {
+  resolveTransformImage,
+  type Transformable2d,
+} from "../document/transform-math.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
 import { regularPolygonWorldVertices } from "../document/regular-polygon.ts";
 import {
@@ -42,8 +47,16 @@ const STROKE = "#18181b";
  * 虚线是草稿/选框的语言，不是精致工具的）。
  */
 export const SELECTION_STROKE = "#6366f1";
-/** 预览标记：单形或数组（选中 overlapFill 时同时高亮两个源）。 */
-export type PreviewMark = DrawPreview | DrawPreview[];
+/** 变换像预览标记：像不进说明书，预览层直接携带像图元值（数学层推导）。 */
+export type TransformImagePreview = {
+  type: "transformImage";
+  image: Transformable2d;
+};
+/** 预览标记：单形、数组（选中 overlapFill 时同时高亮两个源）或变换像。 */
+export type PreviewMark =
+  | DrawPreview
+  | DrawPreview[]
+  | TransformImagePreview;
 const FILL_SOLID = "rgba(24, 24, 27, 0.14)";
 const DEG = Math.PI / 180;
 const STROKE_WIDTH = 1.5;
@@ -255,6 +268,10 @@ function drawPrimitive(
     case "measure":
       // 引用条目不画自身：文本需要查源，由 drawDocumentPrimitives 的度量层
       // 专趟处理（画在全部几何之上）。
+      return [];
+    case "transform":
+      // 引用条目不画自身：像由 drawDocumentPrimitives 的变换像层专趟推导
+      // （画在源与重叠填充之上、度量标注之下）。
       return [];
     case "line":
       return [strokeLine(toScreenPoints(primitive.points, view), false)];
@@ -545,6 +562,37 @@ function previewGuidePoints(preview: DrawPreview): Point2[] {
   return [{ x: preview.cx, y: preview.cy }];
 }
 
+/**
+ * 变换像的固定推导画法（ADR 0022）：源样式 + 描边虚线化 + 填充半透明。
+ * 虚线是「像」的语言（推导值非本体，与选中标记的背光连续线可区分）；
+ * 「半透明填充」取既有填充基调本身（solid 0.14、hatch 0.55，均带透明度）
+ * ——像与源同基调、以虚线区分，不再叠一层透明（人工走查项）。点名的像
+ * 文本原样（锚点照变换、字形不旋转不缩放，数学层已收口）。
+ */
+function transformImageShapes(
+  image: Transformable2d,
+  view: ViewTransform,
+): Konva.Shape[] {
+  return drawPrimitive(image, view).map((node) => {
+    if (!(node instanceof Konva.Text)) {
+      node.dash([6, 4]);
+    }
+    return node;
+  });
+}
+
+/** 一条变换图元的像：查源求像（统一入口在数学层），虚线上屏。调用点已
+ *  收窄 2D 说明书。 */
+function drawTransformImage(
+  entry: TransformPrimitive,
+  document: Extract<GeometryDocument, { space: "2d" }>,
+  view: ViewTransform,
+): Konva.Shape[] {
+  const image = resolveTransformImage(document.primitives, entry);
+  if (image === null) return [];
+  return transformImageShapes(image, view);
+}
+
 export function drawGesturePreview(
   layer: Konva.Layer,
   preview: PreviewMark,
@@ -558,6 +606,12 @@ export function drawGesturePreview(
   if (Array.isArray(preview)) {
     for (const item of preview) {
       drawSinglePreview(layer, item, view, selectionStroke);
+    }
+    return;
+  }
+  if (preview.type === "transformImage") {
+    for (const node of transformImageShapes(preview.image, view)) {
+      layer.add(node);
     }
     return;
   }
@@ -650,6 +704,14 @@ export function drawDocumentPrimitives(
   for (const primitive of document.primitives) {
     if (primitive.type !== "overlapFill") continue;
     for (const node of drawOverlapFill(primitive, document, view, pixelRatio)) {
+      layer.add(node);
+    }
+  }
+  // 变换像画在源与重叠填充之上、度量标注之下（spec 渲染条）：像由数学层
+  // 对源几何实时推导（不进说明书），源拖动/编辑后重画即自动跟随。
+  for (const primitive of document.primitives) {
+    if (primitive.type !== "transform") continue;
+    for (const node of drawTransformImage(primitive, document, view)) {
       layer.add(node);
     }
   }

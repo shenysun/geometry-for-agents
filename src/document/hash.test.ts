@@ -455,3 +455,50 @@ describe("hash 往返：函数曲线（ADR 0021）", () => {
     expect(restored.document).toEqual(parsed.document);
   });
 });
+
+describe("hash 往返：变换图元（ADR 0022）", () => {
+  test("带 transform 的说明书 hash 往返结构相等（分享链接同一语义）", () => {
+    const document = parsed("2d", [
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        apexOffset: 0,
+        rotationDeg: 0,
+        fill: "hatch",
+      },
+      {
+        id: "t1",
+        type: "transform",
+        sourceId: "tri-1",
+        kind: "translate",
+        dx: 5,
+        dy: -2,
+      },
+      {
+        id: "t2",
+        type: "transform",
+        sourceId: "tri-1",
+        kind: "rotate",
+        centerX: 1,
+        centerY: 1,
+        angleDeg: 90,
+      },
+    ]);
+
+    const hash = documentToHash(document);
+    const decoded = hashToDocument(hash);
+    expect(decoded.success).toBe(true);
+    if (!decoded.success) return;
+    expect(decoded.document).toEqual(document);
+
+    // 存盘→开文件同一管线（parseDocument 复检契约）。
+    const reparsed = parseDocument(JSON.stringify(decoded.document));
+    expect(reparsed.success).toBe(true);
+    if (!reparsed.success) return;
+    expect(reparsed.document).toEqual(document);
+  });
+});

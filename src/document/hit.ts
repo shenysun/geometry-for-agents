@@ -13,6 +13,10 @@ import {
 import { regularPolygonWorldVertices } from "./regular-polygon.ts";
 import { isMeasurableShape, measureTextBounds } from "./measure-math.ts";
 import {
+  resolveTransformImage,
+  transformImage,
+} from "./transform-math.ts";
+import {
   functionCurveParamsOf,
   sampleFunctionCurve,
   type FunctionCurveViewport,
@@ -229,6 +233,10 @@ function contains(
       // 度量标注的命中区是文本包围盒（渲染层语义），几何通道不参与。
       // 点文本选中该标注是管理面后续票的职责；本期经对象列表选中。
       return false;
+    case "transform":
+      // 变换条目自身无几何：点像选中该条目由 hitTest 顶层特判（像 = 数学层
+      // 对源求像的推导值）。
+      return false;
     case "functionCurve": {
       // 命中走采样折线（与渲染同一条折线），阈值与线图元一致；曲线只画
       // 视口可见 x 范围，无采样视口（如无画布尺寸的调用方）即无命中区。
@@ -354,6 +362,7 @@ function area(primitive: Primitive2d): number {
     case "overlapFill":
     case "measure":
     case "functionCurve":
+    case "transform":
       return Number.POSITIVE_INFINITY;
   }
 }
@@ -371,6 +380,41 @@ function hitVoxels(
   );
   if (hits.length === 0) return null;
   return hits.reduce((_, candidate) => candidate);
+}
+
+/** 2D 说明书（命中层里变换像是 2D 专属概念，收窄免到处判 space）。 */
+type Document2d = Extract<GeometryDocument, { space: "2d" }>;
+
+/**
+ * 变换像命中（ADR 0022）：点像即选中变换图元——像画在几何与重叠填充之上，
+ * 命中优先级同层，并列取目录靠后者（同源多变换时后建的先选中）。让位
+ * 规则沿重叠填充先例：几何胜者是严格小于像的嵌套封闭面时它赢。
+ */
+function transformImageHits(
+  document: Document2d,
+  point: Point2,
+  tolerance: number,
+  geometricWinner: Primitive2d | null,
+  curveViewport: FunctionCurveViewport | null,
+): Primitive2d[] {
+  const hits: Primitive2d[] = [];
+  for (let i = document.primitives.length - 1; i >= 0; i--) {
+    const entry = document.primitives[i];
+    if (entry?.type !== "transform") continue;
+    const image = resolveTransformImage(document.primitives, entry);
+    if (image === null) continue;
+    if (!contains(image, point, tolerance, curveViewport)) continue;
+    if (
+      geometricWinner !== null &&
+      isClosed(geometricWinner) &&
+      isClosed(image) &&
+      area(geometricWinner) < area(image)
+    ) {
+      continue;
+    }
+    hits.push(entry);
+  }
+  return hits;
 }
 
 /**
@@ -438,6 +482,19 @@ export function hitTest(
           return area(candidate) <= area(best) ? candidate : best;
         });
 
+  // 变换像（ADR 0022）：像画在重叠填充之上，命中判定先于它；点像任意
+  // 位置即选中该变换图元（measure 点数字先例）。
+  const [imageWinner] = transformImageHits(
+    document,
+    point,
+    tolerance,
+    geometricWinner,
+    curveViewport,
+  );
+  if (imageWinner !== undefined) {
+    return imageWinner;
+  }
+
   // 重叠填充（ADR 0019）：点在两源交集内即命中条目本身，并列取列表靠后者。
   // 让位规则是「面积小者优先」的延伸：几何胜者是面积严格小于两源的嵌套小面
   // （交集里可见的更小目标）时它赢，否则引用条目赢——源自身不劫走自己的条目。
@@ -495,6 +552,9 @@ export function hitCandidates(
   }
   const winner = hitTest(document, point, tolerance, worldPerPx, curveViewport);
   const rest: Primitive2d[] = [];
+  // 变换像排在引用条目最前（与命中总顺序一致）：循环先换到像，再轮到
+  // 重叠填充交集。
+  rest.push(...transformImageHits(document, point, tolerance, null, curveViewport));
   for (let i = document.primitives.length - 1; i >= 0; i--) {
     const entry = document.primitives[i];
     if (entry?.type !== "overlapFill") continue;

@@ -81,6 +81,15 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
     // 封闭形 + 上沿外侧的标注线：周长文本在源包围盒上方的直白图示。
     paths: ["M3 5.5h10v6.5H3z", "M4.5 2.5h7"],
   },
+  translate: {
+    // 变换族：源形 + 位移向量箭头 + 虚线像（ADR 0022）。
+    paths: [
+      "M2.5 9.5h5v5h-5z",
+      "M9.5 4.5h4M11.5 2.5l2 2-2 2",
+      "M2.5 12h4.5",
+      "M7 12l3.5-5.5",
+    ],
+  },
   voxel: {
     paths: ["M8 2l5 2.8v6.4L8 14l-5-2.8V4.8z", "M3 4.8L8 7.6l5-2.8", "M8 7.6V14"],
   },
@@ -146,16 +155,21 @@ export type ToolboxCatalog = {
   readonly groups: readonly ToolGroupSection[];
 };
 
-/** 2D 拾取工具 id（重叠填充 + 度量标注族）：目录与分组共用的收拢类型，
- *  新增拾取工具时只 widen 这一处。 */
-type PickToolId = "overlapFill" | "measureArea" | "measurePerimeter";
+/** 2D 拾取工具 id（重叠填充 + 度量标注族 + 变换族）：目录与分组共用的
+ *  收拢类型，新增拾取工具时只 widen 这一处。 */
+type PickToolId =
+  | "overlapFill"
+  | "measureArea"
+  | "measurePerimeter"
+  | "translate";
 
-/** 2D 创建工具全集：全部平面绘制工具 + 拾取工具族（ADR 0019 / 0020） */
+/** 2D 创建工具全集：全部平面绘制工具 + 拾取工具族（ADR 0019 / 0020 / 0022） */
 const CREATION_TOOLS_2D: readonly (DrawTool | PickToolId)[] = [
   ...DRAW_TOOLS,
   "overlapFill",
   "measureArea",
   "measurePerimeter",
+  "translate",
 ];
 
 /** 3D 创建工具全集：单位立方体 + 全部参数体（名单与放置提交共用 SOLID_TOOLS） */
@@ -195,6 +209,7 @@ const GROUP_BY_2D_TOOL: Record<
   overlapFill: "special",
   measureArea: "measurement",
   measurePerimeter: "measurement",
+  translate: "special",
 };
 
 /** 3D 创建工具 → 分组，穷尽 Record 同上 */

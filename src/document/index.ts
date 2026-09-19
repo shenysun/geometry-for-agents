@@ -3,6 +3,7 @@ export {
   fillable2dTypes,
   measurable2dTypes,
   parseDocument,
+  transformable2dTypes,
 } from "./parse-document.ts";
 export type {
   FunctionCurvePrimitive,
@@ -11,6 +12,7 @@ export type {
   Primitive,
   Primitive2d,
   Primitive3d,
+  TransformPrimitive,
 } from "./parse-document.ts";
 export {
   addPrimitive,

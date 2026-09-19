@@ -78,6 +78,10 @@ export function controlPoints(primitive: Primitive2d): ControlPoint[] {
     case "functionCurve":
       // 函数曲线无控制点（ADR 0021）：形状由参数决定，编辑走属性面板。
       return [];
+    case "transform":
+      // 变换图元本期无控制点：轴端点/中心属后续 tracer 票，参数编辑走
+      // 属性面板。
+      return [];
     case "line":
     case "polygon":
     case "dimension":

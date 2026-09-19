@@ -1,4 +1,5 @@
-import type { Primitive2d } from "./parse-document.ts";
+import type { Primitive2d, TransformPrimitive } from "./parse-document.ts";
+import { transformable2dTypes } from "./parse-document.ts";
 import type { Point2 } from "./snap.ts";
 
 /**
@@ -146,6 +147,59 @@ export function transformPoint(
   params: TransformParams,
 ): Point2 {
   return mapPoint(similarityOf(params), point);
+}
+
+/** 契约白名单的窄化判定：与 parse-document 的 transformable2dTypes 同源
+ *  （isMeasurableShape 先例——数学层自己持联合，白名单单侧镜像）。 */
+export function isTransformableShape(
+  primitive: Primitive2d,
+): primitive is Transformable2d {
+  return transformable2dTypes.has(primitive.type);
+}
+
+/** 查源求像的统一入口（渲染与命中共用）：说明书条目表里按 sourceId 查源、
+ *  白名单窄化、经数学层求像；源不存在或掉出白名单（防御性场景，契约已拒）
+ *  返回 null。 */
+export function resolveTransformImage(
+  primitives: readonly Primitive2d[],
+  entry: TransformPrimitive,
+): Transformable2d | null {
+  const source = primitives.find((primitive) => primitive.id === entry.sourceId);
+  if (source === undefined || !isTransformableShape(source)) return null;
+  return transformImage(source, transformParamsOf(entry));
+}
+
+/** 契约条目 → 数学层参数：字段同名同义，收窄掉 id/type/sourceId。
+ *  渲染与命中共用的单一换算点。 */
+export function transformParamsOf(
+  entry: TransformPrimitive,
+): TransformParams {
+  switch (entry.kind) {
+    case "translate":
+      return { kind: "translate", dx: entry.dx, dy: entry.dy };
+    case "rotate":
+      return {
+        kind: "rotate",
+        centerX: entry.centerX,
+        centerY: entry.centerY,
+        angleDeg: entry.angleDeg,
+      };
+    case "reflect":
+      return {
+        kind: "reflect",
+        x1: entry.x1,
+        y1: entry.y1,
+        x2: entry.x2,
+        y2: entry.y2,
+      };
+    case "dilate":
+      return {
+        kind: "dilate",
+        centerX: entry.centerX,
+        centerY: entry.centerY,
+        ratio: entry.ratio,
+      };
+  }
 }
 
 /** 逆时针圆族（角/弧/扇形/弓形）起止角的像：保向整体加转角；反定向

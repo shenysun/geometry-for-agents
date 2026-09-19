@@ -40,7 +40,9 @@ describe("toolFromShortcut", () => {
     ["n", "regularPolygon"],
     ["z", "trapezoid"],
     ["f", "overlapFill"],
-    ["m", "measureArea"],
+    // M 归平移（ADR 0022 键位裁决，ADR 0018 表已补行）：度量标注工具
+    // 让出 M/Shift+M、暂无单键（点工具箱），补键待 PO 复核。
+    ["m", "translate"],
   ] as const)("2D 单键 %s → %s", (pressed, tool) => {
     expect(toolFromShortcut(key(pressed), "2d")).toBe(tool);
   });
@@ -51,7 +53,6 @@ describe("toolFromShortcut", () => {
     ["A", "bow"],
     ["T", "triangle"],
     ["P", "parallelogram"],
-    ["M", "measurePerimeter"],
   ] as const)("2D Shift+%s → %s（同族变体）", (pressed, tool) => {
     expect(toolFromShortcut(key(pressed, { shift: true }), "2d")).toBe(tool);
   });

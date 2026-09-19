@@ -153,3 +153,33 @@ describe("displayNamesById：函数曲线按 kind 取词条", () => {
     expect(names.get("l1")).toBe("一次函数1");
   });
 });
+
+describe("displayNamesById：变换图元（ADR 0022）", () => {
+  const transformT: Translate = (key, named) => {
+    if (key === "objectName") {
+      return `${named?.name}${named?.n}`;
+    }
+    const words: Record<string, string> = {
+      "tool.translate": "平移",
+    };
+    return words[key] ?? key;
+  };
+
+  function translateTransform(id: string, sourceId: string): Primitive {
+    return { id, type: "transform", sourceId, kind: "translate", dx: 1, dy: 1 };
+  }
+
+  test("显示名按工具名 + 说明书顺序编号：平移、平移 1……", () => {
+    const names = displayNamesById(
+      [
+        circle("c0"),
+        translateTransform("t0", "c0"),
+        translateTransform("t1", "c0"),
+      ],
+      transformT,
+    );
+
+    expect(names.get("t0")).toBe("平移");
+    expect(names.get("t1")).toBe("平移1");
+  });
+});

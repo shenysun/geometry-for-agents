@@ -833,3 +833,124 @@ describe("hitTest：函数曲线命中（采样折线，阈值同线图元）", 
     expect(ids).toContain("f2");
   });
 });
+
+describe("hitTest 变换像（ADR 0022 引用式）", () => {
+  function transformDoc(primitives: unknown[]): GeometryDocument {
+    return doc2d([
+      {
+        id: "rect-a",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 2,
+        height: 2,
+        fill: "none",
+      },
+      ...primitives,
+    ]);
+  }
+
+  test("clicking inside the translated image selects the transform entry", () => {
+    // 像画在 (6,0)~(8,2)：点像内部即选中变换图元，不落回空白。
+    const document = transformDoc([
+      {
+        id: "t1",
+        type: "transform",
+        sourceId: "rect-a",
+        kind: "translate",
+        dx: 7,
+        dy: 1,
+      },
+    ]);
+
+    expect(hitTest(document, { x: 7, y: 1 })?.id).toBe("t1");
+    // 源仍可正常点选（像不遮源：两者不重叠）。
+    expect(hitTest(document, { x: 0, y: 0 })?.id).toBe("rect-a");
+  });
+
+  test("a strictly smaller closed primitive inside the image area still wins", () => {
+    // 让位规则（overlapFill 先例）：嵌在像里的更小封闭面赢过像。
+    const document = transformDoc([
+      {
+        id: "dot",
+        type: "circle",
+        cx: 7,
+        cy: 1,
+        r: 0.2,
+        fill: "none",
+      },
+      {
+        id: "t1",
+        type: "transform",
+        sourceId: "rect-a",
+        kind: "translate",
+        dx: 7,
+        dy: 1,
+      },
+    ]);
+
+    expect(hitTest(document, { x: 7, y: 1 })?.id).toBe("dot");
+  });
+
+  test("multiple transforms on one source: the later entry wins ties", () => {
+    const document = transformDoc([
+      {
+        id: "t1",
+        type: "transform",
+        sourceId: "rect-a",
+        kind: "translate",
+        dx: 7,
+        dy: 1,
+      },
+      {
+        id: "t2",
+        type: "transform",
+        sourceId: "rect-a",
+        kind: "translate",
+        dx: 7,
+        dy: 1,
+      },
+    ]);
+
+    expect(hitTest(document, { x: 7, y: 1 })?.id).toBe("t2");
+  });
+
+  test("stroke-family image hits within tolerance (line image)", () => {
+    const document = doc2d([
+      {
+        id: "line-a",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+      },
+      {
+        id: "t1",
+        type: "transform",
+        sourceId: "line-a",
+        kind: "translate",
+        dx: 5,
+        dy: 5,
+      },
+    ]);
+
+    expect(hitTest(document, { x: 5.4, y: 5 }, 0.5)?.id).toBe("t1");
+  });
+
+  test("hitCandidates cycles through transform entries", () => {
+    const document = transformDoc([
+      {
+        id: "t1",
+        type: "transform",
+        sourceId: "rect-a",
+        kind: "translate",
+        dx: 7,
+        dy: 1,
+      },
+    ]);
+
+    const ids = hitCandidates(document, { x: 7, y: 1 }).map((item) => item.id);
+    expect(ids[0]).toBe("t1");
+  });
+});

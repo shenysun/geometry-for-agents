@@ -78,15 +78,16 @@ export function removePrimitive(
   if (!document.primitives.some((primitive) => primitive.id === id)) {
     return missingId(id);
   }
-  // 级联删除（ADR 0019 / ADR 0020）：删源连带删引用它的 overlapFill 与
-  // measure。源只能是白名单几何图元（不可能是另一条引用条目），一遍扫描
-  // 即闭包；不级联则引用悬空，schema 直接拒绝整份说明书。
+  // 级联删除（ADR 0019 / 0020 / 0022）：删源连带删引用它的 overlapFill、
+  // measure 与 transform。源只能是白名单几何图元（不可能是另一条引用条目，
+  // 级联单向且非传递），一遍扫描即闭包；不级联则引用悬空，schema 直接拒绝
+  // 整份说明书。
   const doomed = new Set<string>([id]);
   for (const primitive of document.primitives) {
     const references =
       primitive.type === "overlapFill"
         ? primitive.sources
-        : primitive.type === "measure"
+        : primitive.type === "measure" || primitive.type === "transform"
           ? [primitive.sourceId]
           : [];
     if (references.some((source) => doomed.has(source))) {
@@ -129,6 +130,10 @@ export function translatePrimitiveGeometry(
     case "functionCurve":
       // 函数曲线无几何身份（ADR 0021）：形状由参数决定，位置在隐式坐标系
       // 里定死，不可拖——平移旋转缩放全部恒等。
+      return primitive;
+    case "transform":
+      // 变换图元同引用条目：参数是形状真源，拖动应改参数而非几何字段；
+      // 本期无本体拖动交互（点像只选中），恒等。
       return primitive;
     case "line":
     case "polygon":
@@ -228,6 +233,9 @@ export function primitiveAnchor(primitive: Primitive2d): Point2 {
     case "functionCurve":
       // 函数曲线无锚点（不可变换）：手柄布局对其返回 null，不应抵达此处。
       return { x: Number.NaN, y: Number.NaN };
+    case "transform":
+      // 变换图元无锚点（不可拖本体）：手柄布局对其返回 null，不应抵达此处。
+      return { x: Number.NaN, y: Number.NaN };
     default:
       return { x: primitive.cx, y: primitive.cy };
   }
@@ -284,6 +292,9 @@ export function rotatePrimitiveGeometry(
       return primitive;
     case "functionCurve":
       // 不可旋转（无几何身份）：恒等。
+      return primitive;
+    case "transform":
+      // 引用式条目不可旋转：恒等（像由参数推导，随源自动跟随）。
       return primitive;
     case "line":
     case "polygon": {
@@ -342,6 +353,9 @@ export function scalePrimitiveGeometry(
       return primitive;
     case "functionCurve":
       // 不可缩放（无几何身份）：恒等。
+      return primitive;
+    case "transform":
+      // 引用式条目不可缩放：恒等。
       return primitive;
     case "line":
     case "polygon": {
@@ -522,6 +536,9 @@ export function moveControlPointGeometry(
       return primitive;
     case "functionCurve":
       // 无控制点目录，pointId 恒不可识别：恒等。
+      return primitive;
+    case "transform":
+      // 本期无控制点（轴端点/中心属后续票），pointId 恒不可识别：恒等。
       return primitive;
     case "line":
     case "polygon": {
