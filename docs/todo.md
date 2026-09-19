@@ -19,7 +19,6 @@
 
 覆盖度依据：2026-09 数学内容审计（`docs/research-math-coverage.md`），缺口按投入产出排序如下。
 
-- [ ] 变换图元：平移/旋转/轴对称/位似（审计缺口 #3）
 - [ ] 坐标系/点图元：可创建、可进说明书（审计 #7）
 - [ ] 剖切 / 水面（蛋糕、水泥管、浸没）
 - [ ] 拆分工具：Clipper2 烘焙式割补，图元 / 线段两种刀具（ADR 0019）
@@ -30,5 +29,6 @@
 - [ ] 尺规作图步骤分解（审计 #13，依赖步骤/回放概念）
 - [ ] 一份说明书里 2D+3D 图元共存
 - [ ] 绑定 Geometry Studio 课件字段
+- [ ] 键位表修订：度量标注两工具（面积/周长）补单键——M/Shift+M 已归变换族（ADR 0022），PO 裁定现状无键可接受，补键为独立键位表修订事项（transform-primitives 票 08）
 
-已落地移出：~~重叠填充图元~~（ADR 0019，已上线，见 `overlapFill`）；~~度量数值层：角度度数显示、面积/周长标注~~（ADR 0020，已上线，见 `measure`，spec `.scratch/measure-labels/`）；~~函数曲线图元：一次/二次/反比例 + 参数滑块~~（ADR 0021，已上线，见 `functionCurve`，spec `.scratch/function-curves/`）。
+已落地移出：~~重叠填充图元~~（ADR 0019，已上线，见 `overlapFill`）；~~度量数值层：角度度数显示、面积/周长标注~~（ADR 0020，已上线，见 `measure`，spec `.scratch/measure-labels/`）；~~函数曲线图元：一次/二次/反比例 + 参数滑块~~（ADR 0021，已上线，见 `functionCurve`，spec `.scratch/function-curves/`）；~~变换图元：平移/旋转/轴对称/位似~~（ADR 0022，已上线，见 `transform`，spec `.scratch/transform-primitives/`）。
