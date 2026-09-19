@@ -1,8 +1,10 @@
 import { formatFunctionExpression, functionCurveParamsOf } from "./function-curve.ts";
+import { formatMeasureNumber } from "./measure-math.ts";
 import type {
   FunctionCurvePrimitive,
   GeometryDocument,
   Primitive,
+  TransformPrimitive,
 } from "./parse-document.ts";
 
 const CONVENTIONS = [
@@ -36,6 +38,7 @@ const SYNTAX = [
   "- functionCurve: analytic function graph in world coordinates (Y up, no axis primitive); kind linear {a, b} (y = ax + b), quadratic {a, b, c} (y = ax² + bx + c), or inverse {k} (y = k/x), with a and k nonzero; inverse breaks into two branches at x = 0 and never crosses the asymptote (no asymptote line is drawn); the parameters are the exact definition of the shape — the graph spans the whole visible x range at render time and no sampled points are stored",
   "- overlapFill: shades the intersection of the two closed primitives named in sources (by id); only the relation is stored, not geometry — the intersection may be empty after later edits",
   "- measure: reference-style measure label on the closed primitive named in sourceId (by id), kind area|perimeter; the displayed number is derived at render time and never stored — compute it yourself from the source geometry",
+  "- transform: reference-style image of the 2D primitive named in sourceId (by id), kind translate {dx, dy} | rotate {centerX, centerY, angleDeg (counterclockwise positive)} | reflect {x1, y1, x2, y2} | dilate {centerX, centerY, ratio (may be negative: the image lies on the opposite side of the center)}; only the source relation and the parameters are stored — the image geometry is derived and never stored, derive it yourself from the source",
   "- voxel: 3D unit cube at integer min corner x, y, z",
   "- box: 3D cuboid anchored at the bottom-face center x, y, z; width (X), depth (Z), height (Y) along +Y; rotationDegY, rotationDegX, rotationDegZ",
   "- cylinder: 3D cylinder anchored at the bottom-face center x, y, z; r (radius), height along +Y; rotationDegY, rotationDegX, rotationDegZ",
@@ -91,9 +94,45 @@ function functionCurveSentences(primitives: readonly Primitive[]): string[] {
   );
 }
 
+/** 旋转角显示归一（US 30）：存储保留符号约定（正为逆时针），投影按
+ *  0–360° 逆时针措辞呈现；schema 已拒绝整周倍数，归一结果恒在 (0,360)。 */
+function normalizeRotationDeg(angleDeg: number): number {
+  const normalized = angleDeg % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+/** 变换图元的一句关系描述（ADR 0022）：Agent 拿变换语义而非坐标堆。
+ *  四 kind 各一个别化模板（先例函数曲线），每句写明像几何是推导非
+ *  存储；数字沿全局两位小数精度，与度量标注共用同一格式化单点。 */
+function transformSentence(transform: TransformPrimitive): string {
+  const derived =
+    "; the image geometry is derived from the source and the parameters, never stored";
+  const fmt = formatMeasureNumber;
+  switch (transform.kind) {
+    case "translate":
+      return `- ${transform.id}: the image of ${transform.sourceId} translated by the vector (${fmt(transform.dx)}, ${fmt(transform.dy)})${derived}`;
+    case "rotate":
+      return `- ${transform.id}: the image of ${transform.sourceId} rotated counterclockwise by ${fmt(normalizeRotationDeg(transform.angleDeg))}° about the center (${fmt(transform.centerX)}, ${fmt(transform.centerY)})${derived}`;
+    case "reflect":
+      return `- ${transform.id}: the image of ${transform.sourceId} reflected across the axis through (${fmt(transform.x1)}, ${fmt(transform.y1)}) and (${fmt(transform.x2)}, ${fmt(transform.y2)})${derived}`;
+    case "dilate":
+      return `- ${transform.id}: the image of ${transform.sourceId} dilated from the center (${fmt(transform.centerX)}, ${fmt(transform.centerY)}) by the ratio ${fmt(transform.ratio)}${transform.ratio < 0 ? ", with the negative ratio placing the image on the opposite side of the center" : ""}${derived}`;
+  }
+}
+
+function transformSentences(primitives: readonly Primitive[]): string[] {
+  return sortedById(
+    primitives.filter(
+      (primitive): primitive is TransformPrimitive =>
+        primitive.type === "transform",
+    ),
+  ).map(transformSentence);
+}
+
 export function documentToPrompt(document: GeometryDocument): string {
   const listed = listedPrimitives(document.primitives);
   const curveSentences = functionCurveSentences(document.primitives);
+  const transformSentenceList = transformSentences(document.primitives);
   return [
     "Geometry document projection for an Agent. Reconstruct the figure from the primitives below. This text is a readable projection, not the source of truth.",
     "",
@@ -109,6 +148,13 @@ export function documentToPrompt(document: GeometryDocument): string {
           "",
           "Function curves (exact analytic meaning; reconstruct from the formula, never from sampled coordinates):",
           ...curveSentences,
+        ]
+      : []),
+    ...(transformSentenceList.length > 0
+      ? [
+          "",
+          "Transforms (the image geometry is derived from the source and the parameters, never stored):",
+          ...transformSentenceList,
         ]
       : []),
   ].join("\n");

@@ -586,6 +586,250 @@ describe("documentToPrompt 函数曲线（ADR 0021 解析式语义）", () => {
   });
 });
 
+describe("documentToPrompt 变换图元（ADR 0022 引用式）", () => {
+  test("documents the transform syntax as one row covering the four kinds", () => {
+    const document = parsed("2d", [
+      {
+        id: "t-1",
+        type: "transform",
+        sourceId: "tri-1",
+        kind: "translate",
+        dx: 2,
+        dy: 1,
+      },
+      {
+        id: "tri-1",
+        type: "triangle",
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 3,
+        apexOffset: 0,
+        fill: "none",
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 语法一行收拢四 kind：判别键、源 id 引用、各 kind 参数、像几何推导不存储。
+    expect(prompt).toMatch(/transform:.*translate.*rotate.*reflect.*dilate/);
+    expect(prompt).toMatch(/transform:.*sourceId/);
+    expect(prompt).toMatch(/transform:.*derived.*never stored/);
+    expect((prompt.match(/- transform:/g) ?? []).length).toBe(1);
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
+  test("projects each kind as one individualized relation sentence", () => {
+    const source = {
+      id: "tri-1",
+      type: "triangle",
+      x: 0,
+      y: 0,
+      width: 4,
+      height: 3,
+      apexOffset: 0,
+      fill: "none",
+    };
+    const document = parsed("2d", [
+      source,
+      {
+        id: "t-1",
+        type: "transform",
+        sourceId: "tri-1",
+        kind: "translate",
+        dx: 2.5,
+        dy: -1.25,
+      },
+      {
+        id: "t-2",
+        type: "transform",
+        sourceId: "tri-1",
+        kind: "rotate",
+        centerX: 3,
+        centerY: 2,
+        angleDeg: 45,
+      },
+      {
+        id: "t-3",
+        type: "transform",
+        sourceId: "tri-1",
+        kind: "reflect",
+        x1: 0,
+        y1: 0,
+        x2: 4,
+        y2: 1,
+      },
+      {
+        id: "t-4",
+        type: "transform",
+        sourceId: "tri-1",
+        kind: "dilate",
+        centerX: 1,
+        centerY: 1,
+        ratio: 2,
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // translate 带位移向量；每句写明像几何是推导非存储。
+    expect(prompt).toContain(
+      "t-1: the image of tri-1 translated by the vector (2.5, -1.25)",
+    );
+    expect(prompt).toMatch(/t-1:[^\n]*derived/);
+    // rotate 带中心与逆时针角度。
+    expect(prompt).toContain(
+      "t-2: the image of tri-1 rotated counterclockwise by 45° about the center (3, 2)",
+    );
+    // reflect 以两点描述轴。
+    expect(prompt).toContain(
+      "t-3: the image of tri-1 reflected across the axis through (0, 0) and (4, 1)",
+    );
+    // dilate 带中心与比。
+    expect(prompt).toContain(
+      "t-4: the image of tri-1 dilated from the center (1, 1) by the ratio 2",
+    );
+    // 四句各成一句（语法行与节标题不计入），每句都声明像几何不存储。
+    expect((prompt.match(/: the image of tri-1/g) ?? []).length).toBe(4);
+    expect(documentToPrompt(document)).toBe(prompt);
+  });
+
+  test("normalizes the stored rotation angle to 0-360° with counterclockwise wording", () => {
+    const document = parsed("2d", [
+      {
+        id: "line-1",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+      },
+      {
+        id: "t-1",
+        type: "transform",
+        sourceId: "line-1",
+        kind: "rotate",
+        centerX: 0,
+        centerY: 0,
+        angleDeg: -90,
+      },
+      {
+        id: "t-2",
+        type: "transform",
+        sourceId: "line-1",
+        kind: "rotate",
+        centerX: 0,
+        centerY: 0,
+        angleDeg: 405,
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 存储保留符号约定（负为顺时针），投影归一到 0–360 逆时针措辞。
+    expect(prompt).toContain("counterclockwise by 270°");
+    expect(prompt).toContain("counterclockwise by 45°");
+  });
+
+  test("phrases a negative dilation ratio as the image on the opposite side", () => {
+    const document = parsed("2d", [
+      {
+        id: "line-1",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+      },
+      {
+        id: "t-1",
+        type: "transform",
+        sourceId: "line-1",
+        kind: "dilate",
+        centerX: 0,
+        centerY: 0,
+        ratio: -2,
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 负比异侧措辞达意，比保留符号。
+    expect(prompt).toMatch(
+      /dilated[^\n]*ratio -2[^\n]*opposite side of the center/,
+    );
+  });
+
+  test("keeps one sentence per transform with stable order for a shared source", () => {
+    const document = parsed("2d", [
+      {
+        id: "line-1",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+      },
+      {
+        id: "t-b",
+        type: "transform",
+        sourceId: "line-1",
+        kind: "translate",
+        dx: 1,
+        dy: 0,
+      },
+      {
+        id: "t-a",
+        type: "transform",
+        sourceId: "line-1",
+        kind: "rotate",
+        centerX: 0,
+        centerY: 0,
+        angleDeg: 90,
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+    const reordered = {
+      primitives: [...document.primitives].reverse(),
+      underlay: document.underlay,
+      space: document.space,
+      version: document.version,
+    } as GeometryDocument;
+
+    // 同源多变换各成一句、按 id 排序稳定，与图元数组顺序无关。
+    expect(documentToPrompt(reordered)).toBe(prompt);
+    expect(prompt.indexOf("t-a:")).toBeGreaterThan(0);
+    expect(prompt.indexOf("t-a:")).toBeLessThan(prompt.indexOf("t-b:"));
+  });
+
+  test("formats every projected number to the shared two-decimal precision", () => {
+    const document = parsed("2d", [
+      {
+        id: "line-1",
+        type: "line",
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+      },
+      {
+        id: "t-1",
+        type: "transform",
+        sourceId: "line-1",
+        kind: "translate",
+        dx: 1.256,
+        dy: 2.0,
+      },
+    ]);
+
+    const prompt = documentToPrompt(document);
+
+    // 句内数字走仓库统一两位小数（1.256 → 1.26，2 → 2）。
+    expect(prompt).toContain("the vector (1.26, 2)");
+  });
+});
+
 describe("documentToPrompt 重叠填充（ADR 0019 引用式）", () => {
   test("documents overlapFill as a source-id relation, no coordinates involved", () => {
     const document = parsed("2d", [
