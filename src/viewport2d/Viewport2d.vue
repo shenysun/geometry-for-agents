@@ -567,8 +567,8 @@ useEventListener(window, "pointermove", (event: PointerEvent) => {
     }
     return;
   }
-  if (pickTransform.activeDrag()) {
-    // 第二步拖动中（拖向量/拖中心）：像实时预览，说明书不动（ADR 0007）。
+  if (pickTransform.activeStep()) {
+    // 第二步进行中（拖向量/拖中心/定轴悬停）：像实时预览，说明书不动（ADR 0007）。
     pickTransform.handlePointerMove(event);
     return;
   }
@@ -597,7 +597,7 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
     dragStart = null;
     return;
   }
-  if (pickTransform.activeDrag()) {
+  if (pickTransform.activeStep()) {
     // 松手一次提交（一步 undo，ADR 0022）；平移零位移退回已锁源态。
     pickTransform.handlePointerUp(event);
     dragStart = null;

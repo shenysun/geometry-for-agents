@@ -385,6 +385,306 @@ describe("变换两步拾取手势：第二步点旋转中心（票 03）", () =
   });
 });
 
+/** 轴对称专用夹具：圆悬在 x 轴上方（像翻到下方可断言），线段躺 x 轴上
+ *  （线段吸附分支的现成对称轴）。 */
+function reflectDoc(): GeometryDocument {
+  const result = parseDocument({
+    version: 1,
+    space: "2d",
+    underlay: null,
+    primitives: [
+      { id: "circle-a", type: "circle", cx: 0, cy: 3, r: 1, fill: "none" },
+      {
+        id: "axis-line",
+        type: "line",
+        points: [
+          { x: 10, y: 0 },
+          { x: 14, y: 0 },
+        ],
+      },
+    ],
+  });
+  if (!result.success) throw new Error(result.error);
+  return result.document;
+}
+
+function reflectCtxAt(
+  over: Partial<PickTransformContext> = {},
+): PickTransformContext {
+  return {
+    document: reflectDoc(),
+    point: { x: 0, y: 0 },
+    tolerance: 0,
+    grid: 1,
+    id: "transform-new",
+    kind: "reflect",
+    ...over,
+  };
+}
+
+describe("变换两步拾取手势：第二步点两点定轴（票 04）", () => {
+  test("点源 → 点两点定轴：两次点击提交，预览实时跟随光标", () => {
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    expect(locked.state).toEqual({ kind: "source", id: "circle-a" });
+
+    // 第一定轴点：落格 0.2,0.9 → 0,1。
+    const first = clickPickTransform(locked.state, reflectCtxAt({
+      point: { x: 0.2, y: 0.9 },
+    }));
+    expect(first.state).toEqual({
+      kind: "axis",
+      id: "circle-a",
+      first: { x: 0, y: 1 },
+    });
+    expect(first.commit).toBeNull();
+
+    // 两点击之间悬停移动：像与轴虚线实时预览（US 8）。
+    // 轴 = (0,1)→(2,1) 水平线，圆心 (0,3) 翻到 (0,−1)。
+    const hovered = movePickTransform(
+      first.state,
+      reflectCtxAt({ point: { x: 2.4, y: 0.8 } }),
+    );
+    expect(hovered.state).toEqual(first.state);
+    expect(hovered.preview).not.toBeNull();
+    if (hovered.preview === null) return;
+    expect(hovered.preview.image).toMatchObject({
+      type: "circle",
+      cx: 0,
+      cy: -1,
+    });
+    expect(hovered.preview.axis).toEqual([
+      { x: 0, y: 1 },
+      { x: 2, y: 1 },
+    ]);
+
+    // 第二定轴点：落格 2.4,0.8 → 2,1，一次提交（一步 undo）。
+    const second = clickPickTransform(first.state, reflectCtxAt({
+      point: { x: 2.4, y: 0.8 },
+    }));
+    expect(second.commit).toEqual({
+      id: "transform-new",
+      type: "transform",
+      sourceId: "circle-a",
+      kind: "reflect",
+      x1: 0,
+      y1: 1,
+      x2: 2,
+      y2: 1,
+    });
+    expect(second.selectionId).toBe("transform-new");
+    expect(second.state).toEqual({ kind: "idle" });
+    expect(second.preview).toBeNull();
+  });
+
+  test("第二点与第一点同格：轴退化不提交，继续等待第二点", () => {
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    const first = clickPickTransform(locked.state, reflectCtxAt({
+      point: { x: 1, y: 1 },
+    }));
+    const sameCell = clickPickTransform(first.state, reflectCtxAt({
+      point: { x: 1.4, y: 1.4 },
+    }));
+
+    expect(sameCell.state).toEqual({
+      kind: "axis",
+      id: "circle-a",
+      first: { x: 1, y: 1 },
+    });
+    expect(sameCell.commit).toBeNull();
+    // 同格悬停无轴可预览（退化轴无定义）。
+    expect(
+      movePickTransform(sameCell.state, reflectCtxAt({ point: { x: 1.4, y: 1.4 } }))
+        .preview,
+    ).toBeNull();
+  });
+
+  test("第二步点中现成线段：直接取其两端点为轴，一次点击完成定轴（US 4）", () => {
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    // 点中线段（带容差命中）：轴 = 线段两端点 (10,0)/(14,0) 原样，不落格。
+    const snapped = clickPickTransform(locked.state, reflectCtxAt({
+      point: { x: 12, y: 0.2 },
+      tolerance: 1,
+    }));
+
+    expect(snapped.commit).toEqual({
+      id: "transform-new",
+      type: "transform",
+      sourceId: "circle-a",
+      kind: "reflect",
+      x1: 10,
+      y1: 0,
+      x2: 14,
+      y2: 0,
+    });
+    expect(snapped.state).toEqual({ kind: "idle" });
+  });
+
+  test("定轴中点中现成线段同样一次成轴（从 axis 态吸附）", () => {
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    const first = clickPickTransform(locked.state, reflectCtxAt({
+      point: { x: 0, y: 1 },
+    }));
+    const snapped = clickPickTransform(first.state, reflectCtxAt({
+      point: { x: 11, y: -0.3 },
+      tolerance: 1,
+    }));
+
+    expect(snapped.commit).toMatchObject({
+      kind: "reflect",
+      x1: 10,
+      y1: 0,
+      x2: 14,
+      y2: 0,
+    });
+  });
+
+  test("多顶点线段取首末两端为轴", () => {
+    const doc = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        { id: "circle-a", type: "circle", cx: 0, cy: 3, r: 1, fill: "none" },
+        {
+          id: "axis-line",
+          type: "line",
+          points: [
+            { x: 10, y: 0 },
+            { x: 12, y: 1 },
+            { x: 14, y: 0 },
+          ],
+        },
+      ],
+    });
+    if (!doc.success) throw new Error(doc.error);
+
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    const snapped = clickPickTransform(locked.state, reflectCtxAt({
+      document: doc.document,
+      point: { x: 12, y: 1 },
+      tolerance: 0.5,
+    }));
+
+    expect(snapped.commit).toMatchObject({
+      kind: "reflect",
+      x1: 10,
+      y1: 0,
+      x2: 14,
+      y2: 0,
+    });
+  });
+
+  test("kind 由创建工具定死：定轴中换工具不改变本次提交的变换种类", () => {
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    const first = clickPickTransform(locked.state, reflectCtxAt({
+      point: { x: 0, y: 1 },
+    }));
+    // 定轴期间键盘切到位似工具（本次点击上下文的 kind 已变）：仍按轴对称提交。
+    const second = clickPickTransform(first.state, reflectCtxAt({
+      point: { x: 2, y: 1 },
+      kind: "dilate",
+    }));
+
+    expect(second.commit).toMatchObject({ kind: "reflect" });
+  });
+
+  test("源消失后定轴中的点击不提交、整体复位", () => {
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    const first = clickPickTransform(locked.state, reflectCtxAt({
+      point: { x: 0, y: 1 },
+    }));
+    const hollowDoc = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        {
+          id: "axis-line",
+          type: "line",
+          points: [
+            { x: 10, y: 0 },
+            { x: 14, y: 0 },
+          ],
+        },
+      ],
+    });
+    if (!hollowDoc.success) throw new Error(hollowDoc.error);
+    const hollow = reflectCtxAt({ document: hollowDoc.document });
+
+    expect(movePickTransform(first.state, hollow).preview).toBeNull();
+    const clicked = clickPickTransform(first.state, hollow);
+    expect(clicked.commit).toBeNull();
+    expect(clicked.state).toEqual({ kind: "idle" });
+  });
+
+  test("escape 复位定轴手势；按下/松手通道对轴对称是恒等", () => {
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    const first = clickPickTransform(locked.state, reflectCtxAt({
+      point: { x: 0, y: 1 },
+    }));
+
+    expect(escPickTransform(first.state).state).toEqual({ kind: "idle" });
+    // 已锁源后的按下不启动拖动（定轴走点击通道），松手同样恒等。
+    const pressed = startPickTransformStep(
+      locked.state,
+      reflectCtxAt({ point: { x: 5, y: 5 } }),
+    );
+    expect(pressed.state).toEqual(locked.state);
+    const released = upPickTransform(first.state, reflectCtxAt({
+      point: { x: 5, y: 5 },
+    }));
+    expect(released.state).toEqual(first.state);
+    expect(released.commit).toBeNull();
+  });
+
+  test("grid off 保留原始坐标定轴（Alt 暂不落格）", () => {
+    const locked = clickPickTransform(
+      idlePickTransformState(),
+      reflectCtxAt({ point: { x: 0, y: 3 } }),
+    );
+    const first = clickPickTransform(locked.state, reflectCtxAt({
+      point: { x: 0.25, y: 1.25 },
+      grid: "off",
+    }));
+    const second = clickPickTransform(first.state, reflectCtxAt({
+      point: { x: 2.75, y: 1.25 },
+      grid: "off",
+    }));
+
+    expect(second.commit).toMatchObject({
+      kind: "reflect",
+      x1: 0.25,
+      y1: 1.25,
+      x2: 2.75,
+      y2: 1.25,
+    });
+  });
+});
+
 describe("变换两步拾取手势：第二步点位似中心（票 03）", () => {
   test("press-move-release previews the dilated image and commits default ratio 2", () => {
     const locked = clickPickTransform(idlePickTransformState(), ctxAt());

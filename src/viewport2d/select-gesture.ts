@@ -18,6 +18,7 @@ import { controlPoints } from "./control-points.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
 import {
   resolveTransformImage,
+  transformAxisOf,
   transformCenterOf,
 } from "../document/transform-math.ts";
 import type { FunctionCurveViewport } from "../document/function-curve.ts";
@@ -402,7 +403,8 @@ function draggedPrimitive(
 }
 
 /** 控制点拖动的预览：普通图元重画自身几何；变换图元预览随参数更新的像
- *  （票 03——拖中心像实时跟随），画法与提交后的像层一致、中心辅助点随行。 */
+ *  （票 03——拖中心像实时跟随；票 04——拖轴端点像与轴虚线实时跟随），
+ *  画法与提交后的像层一致、中心辅助点与对称轴随行。 */
 function controlDragPreview(
   document: GeometryDocument,
   edited: Primitive2d,
@@ -417,6 +419,7 @@ function controlDragPreview(
     type: "transformImage",
     image,
     center: transformCenterOf(edited) ?? undefined,
+    axis: transformAxisOf(edited) ?? undefined,
   };
 }
 

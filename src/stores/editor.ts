@@ -18,6 +18,7 @@ export type EditorTool =
   | "translate"
   | "rotate"
   | "dilate"
+  | "reflect"
   | "voxel"
   | SolidToolId
   | null;
@@ -42,6 +43,7 @@ const twoDPickTools: ReadonlySet<EditorTool> = new Set([
   "translate",
   "rotate",
   "dilate",
+  "reflect",
 ]);
 
 export const useEditorStore = defineStore("editor", () => {

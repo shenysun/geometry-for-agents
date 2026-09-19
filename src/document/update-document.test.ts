@@ -2982,3 +2982,82 @@ describe("moveControlPoint 变换图元中心（票 03）", () => {
     expect(result.document).toBe(original);
   });
 });
+
+describe("moveControlPoint 变换图元轴端点（票 04）", () => {
+  const reflectDoc = () =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        { id: "src", type: "circle", cx: 0, cy: 3, r: 1, fill: "none" },
+        {
+          id: "t-1",
+          type: "transform",
+          sourceId: "src",
+          kind: "reflect",
+          x1: 2,
+          y1: 1,
+          x2: 5,
+          y2: 1,
+        },
+      ],
+    });
+
+  test("拖轴端点只写对应端坐标，另一端与源不动", () => {
+    const moved = moveControlPoint(reflectDoc(), "t-1", "axis-1", {
+      x: -1.2,
+      y: 3.6,
+    }, 1);
+
+    expect(moved.success).toBe(true);
+    if (!moved.success) return;
+    const entry = moved.document.primitives.find(
+      (primitive) => primitive.id === "t-1",
+    );
+    expect(entry).toMatchObject({
+      kind: "reflect",
+      x1: -1,
+      y1: 4,
+      x2: 5,
+      y2: 1,
+    });
+  });
+
+  test("端点拖到与另一端重合：退化轴被契约拒绝，说明书不动", () => {
+    const original = reflectDoc();
+    const degenerate = moveControlPoint(original, "t-1", "axis-2", {
+      x: 2,
+      y: 1,
+    }, 1);
+
+    expect(degenerate.success).toBe(false);
+  });
+
+  test("未知控制点 id 是恒等（平移无 axis 端点）", () => {
+    const doc = mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        { id: "src", type: "circle", cx: 0, cy: 3, r: 1, fill: "none" },
+        {
+          id: "t-2",
+          type: "transform",
+          sourceId: "src",
+          kind: "translate",
+          dx: 1,
+          dy: 2,
+        },
+      ],
+    });
+    const result = moveControlPoint(doc, "t-2", "axis-1", {
+      x: 9,
+      y: 9,
+    }, 1);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document).toBe(doc);
+  });
+});

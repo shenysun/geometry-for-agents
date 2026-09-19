@@ -540,9 +540,19 @@ export function moveControlPointGeometry(
       return primitive;
     case "transform":
       // 拖旋转/位似中心只写 centerX/centerY（票 03）：角度、比与其余参数
-      // 不动，像由渲染层随参数重推导。平移/轴对称无中心控制点：恒等。
+      // 不动，像由渲染层随参数重推导。轴对称拖轴端点只写对应端坐标
+      // （票 04）；端点拖到与另一端重合的退化轴被契约拒绝、说明书不动。
+      // 平移无控制点：恒等。
       if (pointId === "center" && hasTransformCenter(primitive)) {
         return { ...primitive, centerX: world.x, centerY: world.y };
+      }
+      if (primitive.kind === "reflect") {
+        if (pointId === "axis-1") {
+          return { ...primitive, x1: world.x, y1: world.y };
+        }
+        if (pointId === "axis-2") {
+          return { ...primitive, x2: world.x, y2: world.y };
+        }
       }
       return primitive;
     case "line":

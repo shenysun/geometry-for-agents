@@ -506,4 +506,23 @@ describe("controlPoints 变换图元（票 03）", () => {
 
     expect(idsOf(translate)).toEqual([]);
   });
+
+  test("轴对称露出轴两端点控制点（票 04）：选中后可拖、参数字段同步", () => {
+    const reflect = transform2d({
+      id: "t-1",
+      type: "transform",
+      sourceId: "src",
+      kind: "reflect",
+      x1: 2,
+      y1: 1,
+      x2: 5,
+      y2: -3,
+    });
+
+    const points = controlPoints(reflect);
+    expect(points.map((point) => point.id)).toEqual(["axis-1", "axis-2"]);
+    expect(points.every((point) => point.kind === "vertex")).toBe(true);
+    expectPointCloseTo(points[0]!.point, { x: 2, y: 1 });
+    expectPointCloseTo(points[1]!.point, { x: 5, y: -3 });
+  });
 });

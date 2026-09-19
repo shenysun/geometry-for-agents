@@ -54,8 +54,9 @@ describe("toolFromShortcut", () => {
     ["A", "bow"],
     ["T", "triangle"],
     ["P", "parallelogram"],
-    // Shift+E 位似（票 03）：Shift 同族规则——E 是旋转变体族之根。
+    // Shift+E 位似（票 03）、Shift+M 轴对称（票 04）：Shift 同族变体。
     ["E", "dilate"],
+    ["M", "reflect"],
   ] as const)("2D Shift+%s → %s（同族变体）", (pressed, tool) => {
     expect(toolFromShortcut(key(pressed, { shift: true }), "2d")).toBe(tool);
   });

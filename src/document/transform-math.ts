@@ -220,6 +220,20 @@ export function transformCenterOf(
     : null;
 }
 
+/** 轴对称的对称轴端点（票 04）：reflect 给出 (x1,y1)/(x2,y2)，其余 kind
+ *  为 null。控制点目录、轴端点拖动、辅助线画法与预览拼装共用——与中心
+ *  判定（transformCenterOf）对称的单一判定源。 */
+export function transformAxisOf(
+  entry: TransformPrimitive,
+): readonly [Point2, Point2] | null {
+  return entry.kind === "reflect"
+    ? [
+        { x: entry.x1, y: entry.y1 },
+        { x: entry.x2, y: entry.y2 },
+      ]
+    : null;
+}
+
 /** 逆时针圆族（角/弧/扇形/弓形）起止角的像：保向整体加转角；反定向
  *  时扫过区间镜像、逆时针起点换成原终点（起止交换）。 */
 function mapSweepDeg(

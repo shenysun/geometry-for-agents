@@ -108,6 +108,14 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
       "M8 8h.01",
     ],
   },
+  reflect: {
+    // 中线虚轴 + 两侧镜像三角形：轴对称的直白图示（票 04）。
+    paths: [
+      "M8 2v12",
+      "M5 5L2.5 11.5h5z",
+      "M11 5l2.5 6.5h-5z",
+    ],
+  },
   voxel: {
     paths: ["M8 2l5 2.8v6.4L8 14l-5-2.8V4.8z", "M3 4.8L8 7.6l5-2.8", "M8 7.6V14"],
   },
@@ -181,7 +189,8 @@ type PickToolId =
   | "measurePerimeter"
   | "translate"
   | "rotate"
-  | "dilate";
+  | "dilate"
+  | "reflect";
 
 /** 2D 创建工具全集：全部平面绘制工具 + 拾取工具族（ADR 0019 / 0020 / 0022） */
 const CREATION_TOOLS_2D: readonly (DrawTool | PickToolId)[] = [
@@ -192,6 +201,7 @@ const CREATION_TOOLS_2D: readonly (DrawTool | PickToolId)[] = [
   "translate",
   "rotate",
   "dilate",
+  "reflect",
 ];
 
 /** 3D 创建工具全集：单位立方体 + 全部参数体（名单与放置提交共用 SOLID_TOOLS） */
@@ -234,6 +244,7 @@ const GROUP_BY_2D_TOOL: Record<
   translate: "special",
   rotate: "special",
   dilate: "special",
+  reflect: "special",
 };
 
 /** 3D 创建工具 → 分组，穷尽 Record 同上 */
