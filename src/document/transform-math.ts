@@ -2,6 +2,10 @@ import type { Primitive2d, TransformPrimitive } from "./parse-document.ts";
 import { transformable2dTypes } from "./parse-document.ts";
 import type { Point2 } from "./snap.ts";
 
+/** 契约图元类型经本模块转出（function-curve 先例）：变换的一切（参数、
+ *  预览、图元）从这里进。 */
+export type { TransformPrimitive };
+
 /**
  * 变换数学纯函数层（ADR 0022）：四变换求像几何的唯一出口，接缝形态与
  * measure-math / function-curve 同构——无副作用、不触碰契约、不依赖视口
@@ -199,6 +203,155 @@ export function transformParamsOf(
         centerY: entry.centerY,
         ratio: entry.ratio,
       };
+  }
+}
+
+/** 参数键的字面量联合（票 05 属性面板）：各 kind 取其子集，见
+ *  TRANSFORM_PARAM_KEYS。 */
+export type TransformParamKey =
+  | "dx"
+  | "dy"
+  | "centerX"
+  | "centerY"
+  | "angleDeg"
+  | "x1"
+  | "y1"
+  | "x2"
+  | "y2"
+  | "ratio";
+
+/** 按 kind 穷尽的参数键目录：属性面板按它渲染字段行（FUNCTION_CURVE_PARAM_KEYS
+ *  先例）。字段顺序即面板展示顺序。 */
+export const TRANSFORM_PARAM_KEYS: Readonly<
+  Record<TransformPrimitive["kind"], readonly TransformParamKey[]>
+> = {
+  translate: ["dx", "dy"],
+  rotate: ["centerX", "centerY", "angleDeg"],
+  reflect: ["x1", "y1", "x2", "y2"],
+  dilate: ["centerX", "centerY", "ratio"],
+};
+
+/** 联合上按键读参数：目录保证键属于该 kind，读不到不会发生。 */
+export function transformParamOf(
+  params: TransformParams,
+  key: TransformParamKey,
+): number {
+  switch (params.kind) {
+    case "translate":
+      return key === "dx" ? params.dx : params.dy;
+    case "rotate":
+      return key === "centerX"
+        ? params.centerX
+        : key === "centerY"
+          ? params.centerY
+          : params.angleDeg;
+    case "reflect":
+      return key === "x1"
+        ? params.x1
+        : key === "y1"
+          ? params.y1
+          : key === "x2"
+            ? params.x2
+            : params.y2;
+    case "dilate":
+      return key === "centerX"
+        ? params.centerX
+        : key === "centerY"
+          ? params.centerY
+          : params.ratio;
+  }
+}
+
+/** 按键写参数返回新图元（不可变）：预览与提交共用，kind 不变
+ *  （withFunctionCurveParam 先例）。 */
+export function withTransformParam(
+  entry: TransformPrimitive,
+  key: TransformParamKey,
+  value: number,
+): TransformPrimitive {
+  switch (entry.kind) {
+    case "translate":
+      return key === "dx" ? { ...entry, dx: value } : { ...entry, dy: value };
+    case "rotate":
+      return key === "centerX"
+        ? { ...entry, centerX: value }
+        : key === "centerY"
+          ? { ...entry, centerY: value }
+          : { ...entry, angleDeg: value };
+    case "reflect":
+      return key === "x1"
+        ? { ...entry, x1: value }
+        : key === "y1"
+          ? { ...entry, y1: value }
+          : key === "x2"
+            ? { ...entry, x2: value }
+            : { ...entry, y2: value };
+    case "dilate":
+      return key === "centerX"
+        ? { ...entry, centerX: value }
+        : key === "centerY"
+          ? { ...entry, centerY: value }
+          : { ...entry, ratio: value };
+  }
+}
+
+/** 滑块拖动中的变换参数预览（ADR 0007，票 05）：属性面板写、视口预览层
+ *  读，松手一次提交后清空——哪条变换、带哪组参数。 */
+export type TransformPreview = {
+  id: string;
+  params: TransformParams;
+};
+
+/** 预览活跃时取预览参数，否则取契约参数：面板显示与像预览跟手共用。 */
+export function previewTransformParamsOf(
+  preview: TransformPreview | null,
+  entry: TransformPrimitive,
+): TransformParams {
+  return preview !== null && preview.id === entry.id
+    ? preview.params
+    : transformParamsOf(entry);
+}
+
+/** 整组参数写回图元（不可变）：视口拼装滑块预览的像标记时用——参数组
+ *  与图元 kind 不一致时原样返回（kind 由创建工具定死，防御性分支，
+ *  正常调用方不会触发）。 */
+export function withTransformParams(
+  entry: TransformPrimitive,
+  params: TransformParams,
+): TransformPrimitive {
+  switch (entry.kind) {
+    case "translate":
+      return params.kind === "translate"
+        ? { ...entry, dx: params.dx, dy: params.dy }
+        : entry;
+    case "rotate":
+      return params.kind === "rotate"
+        ? {
+            ...entry,
+            centerX: params.centerX,
+            centerY: params.centerY,
+            angleDeg: params.angleDeg,
+          }
+        : entry;
+    case "reflect":
+      return params.kind === "reflect"
+        ? {
+            ...entry,
+            x1: params.x1,
+            y1: params.y1,
+            x2: params.x2,
+            y2: params.y2,
+          }
+        : entry;
+    case "dilate":
+      return params.kind === "dilate"
+        ? {
+            ...entry,
+            centerX: params.centerX,
+            centerY: params.centerY,
+            ratio: params.ratio,
+          }
+        : entry;
   }
 }
 

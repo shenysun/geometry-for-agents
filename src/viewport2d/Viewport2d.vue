@@ -55,12 +55,14 @@ import {
   selectPreview,
   startSelect,
   transformHandles,
+  transformImagePreview,
   upSelect,
   type SelectCommit,
   type SelectContext,
   type SelectGestureResult,
   type SelectGestureState,
 } from "./select-gesture.ts";
+import { withTransformParams } from "../document/transform-math.ts";
 
 /** 命中容差（屏幕像素），换算成世界单位后传给命中测试，让细线可点。 */
 const HIT_TOLERANCE_PX = 6;
@@ -208,6 +210,22 @@ function showSelectionMark(mark: PreviewMark): void {
   projector?.setPreview(mark, SELECTION_STROKE);
 }
 
+/** 属性面板滑块拖动的变换预览（票 05）：把预览参数写回条目拼像标记
+ *  （拼装与控制点拖动共用 transformImagePreview），像随滑块实时转动/
+ *  连续缩放；无预览或条目已不在说明书（防御）返回 null。 */
+function transformSliderPreview(): PreviewMark {
+  const preview = editor.transformPreview;
+  if (preview === null) return null;
+  const entry = documentStore.current.primitives.find(
+    (primitive) => primitive.id === preview.id,
+  );
+  if (entry === undefined || entry.type !== "transform") return null;
+  return transformImagePreview(
+    documentStore.current,
+    withTransformParams(entry, preview.params),
+  );
+}
+
 /** 柄与控制点只在选择工具、有选中、无手势时出现；位置随视图换算更新。 */
 function refreshOverlays(): void {
   let rotate: Point2 | null = null;
@@ -251,6 +269,11 @@ function refreshSelectionMark(): void {
       { type: "functionCurve", ...curvePreview.params },
       SELECTION_STROKE,
     );
+    return;
+  }
+  const sliderImage = transformSliderPreview();
+  if (sliderImage !== null) {
+    projector.setPreview(sliderImage, SELECTION_STROKE);
     return;
   }
   if (editor.tool === "overlapFill") {
@@ -510,6 +533,14 @@ watch(
 // 滑块拖动/松手都走单一路径：预览活跃时强调色上预览层，清空后回落选中标记。
 watch(
   () => editor.functionCurvePreview,
+  () => {
+    refreshSelectionMark();
+  },
+);
+
+// 变换滑块同款（票 05）：预览参数变化即重拼像标记，松手清空回落选中标记。
+watch(
+  () => editor.transformPreview,
   () => {
     refreshSelectionMark();
   },

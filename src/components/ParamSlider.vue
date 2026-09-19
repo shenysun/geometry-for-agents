@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import {
-  SLIDER_RANGE,
-  clampToSliderRange,
+  clampToRange,
   sliderReleaseCommits,
   sliderSettlesWithoutCommit,
   startSliderInteraction,
   trackSliderInput,
+  type SliderDomain,
   type SliderInteraction,
 } from "./function-curve-field.ts";
 
 /**
- * 函数曲线参数滑块（ADR 0021 / 票 04）：属性面板与视口浮动条共用的
- * 滑块本体——同域同精度、超范围钳柄端点（数值保留）。拖动发 preview
+ * 参数滑块本体（ADR 0021 / 票 04，票 05 泛化）：属性面板与视口浮动条
+ * 共用的滑块——同精度、超范围钳柄端点（数值保留）。拖动发 preview
  * （只进预览层实时重绘）、松手发 release（一次提交一步 undo），提交
- * 语义由两处共用的 useFunctionCurveParamEditing 收口。
+ * 语义由各族共用的参数编辑 composable 收口。域（min/max/step）由调用
+ * 方传入：函数曲线 [-10,10]，变换族角度 0–360、比 [-5,5]。
  *
  * 零位移触碰不发 release（票 06）：越界契约值的柄钳在端点，点一下
  * 柄/轨道产生的 change 值只会是钳后值，提交它等于把越界值静默钳到
@@ -22,7 +23,11 @@ import {
  * 发 settle 就地清算预览。
  */
 
-const props = defineProps<{ label: string; value: number }>();
+const props = defineProps<{
+  label: string;
+  value: number;
+  range: SliderDomain;
+}>();
 
 const emit = defineEmits<{
   preview: [value: number];
@@ -34,7 +39,7 @@ const emit = defineEmits<{
 let interaction: SliderInteraction | null = null;
 
 function onPointerDown(): void {
-  interaction = startSliderInteraction(props.value);
+  interaction = startSliderInteraction(props.value, props.range);
 }
 
 function onInput(event: Event): void {
@@ -67,10 +72,10 @@ function onPointerUp(event: Event): void {
   <input
     type="range"
     class="min-w-0 flex-1 accent-indigo-600"
-    :min="SLIDER_RANGE.min"
-    :max="SLIDER_RANGE.max"
-    :step="SLIDER_RANGE.step"
-    :value="clampToSliderRange(value)"
+    :min="range.min"
+    :max="range.max"
+    :step="range.step"
+    :value="clampToRange(value, range)"
     :aria-label="`${label} slider`"
     @pointerdown="onPointerDown"
     @input="onInput"

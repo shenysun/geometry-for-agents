@@ -8,15 +8,15 @@ import {
   type FunctionCurveParamKey,
   type FunctionCurvePrimitive,
 } from "../document/function-curve.ts";
-import { NUMBER_STEP } from "./function-curve-field.ts";
-import FunctionCurveSlider from "./FunctionCurveSlider.vue";
+import { NUMBER_STEP, SLIDER_RANGE } from "./function-curve-field.ts";
+import ParamSlider from "./ParamSlider.vue";
 import { useFunctionCurveParamEditing } from "./use-function-curve-param-editing.ts";
 
 /**
  * 函数曲线参数编辑（ADR 0021 / 票 03）：滑块 + 数字框写同一份契约字段。
  * 滑块拖动全程走预览层（ADR 0007），松手一次提交一步 undo；数字输入
  * 一次一提交，是键盘可达的主通道。参数读写与视口浮动条共用
- * useFunctionCurveParamEditing，滑块本体共用 FunctionCurveSlider——
+ * useFunctionCurveParamEditing，滑块本体共用 ParamSlider——
  * 两处同源，编辑永不打架。
  */
 
@@ -65,9 +65,10 @@ function onNumberChange(key: FunctionCurveParamKey, event: Event): void {
       >
         {{ t(`field.${key}`) }}
       </label>
-      <FunctionCurveSlider
+      <ParamSlider
         :label="t(`field.${key}`)"
         :value="displayValue(key)"
+        :range="SLIDER_RANGE"
         @preview="(value) => startParamPreview(key, value)"
         @release="(raw) => releaseSlider(key, raw)"
         @settle="settleSlider"

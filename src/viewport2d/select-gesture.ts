@@ -6,6 +6,7 @@ import {
   type GridSnap,
   type Point2,
   type Primitive2d,
+  type TransformPrimitive,
 } from "../document/index.ts";
 import {
   moveControlPointGeometry,
@@ -402,16 +403,13 @@ function draggedPrimitive(
   return primitive ?? null;
 }
 
-/** 控制点拖动的预览：普通图元重画自身几何；变换图元预览随参数更新的像
- *  （票 03——拖中心像实时跟随；票 04——拖轴端点像与轴虚线实时跟随），
- *  画法与提交后的像层一致、中心辅助点与对称轴随行。 */
-function controlDragPreview(
+/** 变换图元的像预览标记（票 05 收拢）：控制点拖动（票 03/04）与属性
+ *  面板滑块拖动共用——按传入条目（参数已是编辑/预览值）查源求像，
+ *  中心辅助点与对称轴随行，画法与提交后的像层一致。 */
+export function transformImagePreview(
   document: GeometryDocument,
-  edited: Primitive2d,
+  edited: TransformPrimitive,
 ): PreviewMark {
-  if (edited.type !== "transform") {
-    return previewFromPrimitive(edited);
-  }
   if (document.space !== "2d") return null;
   const image = resolveTransformImage(document.primitives, edited);
   if (image === null) return null;
@@ -421,6 +419,19 @@ function controlDragPreview(
     center: transformCenterOf(edited) ?? undefined,
     axis: transformAxisOf(edited) ?? undefined,
   };
+}
+
+/** 控制点拖动的预览：普通图元重画自身几何；变换图元预览随参数更新的像
+ *  （票 03——拖中心像实时跟随；票 04——拖轴端点像与轴虚线实时跟随），
+ *  拼装走 transformImagePreview 单一出口。 */
+function controlDragPreview(
+  document: GeometryDocument,
+  edited: Primitive2d,
+): PreviewMark {
+  if (edited.type !== "transform") {
+    return previewFromPrimitive(edited);
+  }
+  return transformImagePreview(document, edited);
 }
 
 function snappedDelta(

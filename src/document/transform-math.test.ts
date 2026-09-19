@@ -1,7 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
+  previewTransformParamsOf,
   transformImage,
+  transformParamOf,
+  transformParamsOf,
   transformPoint,
+  withTransformParam,
+  withTransformParams,
   type Transformable2d,
   type TransformParams,
 } from "./transform-math.ts";
@@ -818,5 +823,100 @@ describe("不可变与字段保留", () => {
     expect(transformImage(source, translate(0, 0))).toEqual(source);
     expect(transformImage(source, rotate(0, 0, 0))).toEqual(source);
     expect(transformImage(source, dilate(0, 0, 1))).toEqual(source);
+  });
+});
+
+describe("transform-math 参数读写与预览合并（票 05 属性面板）", () => {
+  const rotateEntry = {
+    id: "t1",
+    type: "transform",
+    sourceId: "s1",
+    kind: "rotate",
+    centerX: 1,
+    centerY: 2,
+    angleDeg: 90,
+  } as const;
+  const translateEntry = {
+    id: "t2",
+    type: "transform",
+    sourceId: "s1",
+    kind: "translate",
+    dx: 3,
+    dy: -4,
+  } as const;
+  const reflectEntry = {
+    id: "t3",
+    type: "transform",
+    sourceId: "s1",
+    kind: "reflect",
+    x1: 0,
+    y1: 0,
+    x2: 2,
+    y2: 2,
+  } as const;
+  const dilateEntry = {
+    id: "t4",
+    type: "transform",
+    sourceId: "s1",
+    kind: "dilate",
+    centerX: 0,
+    centerY: 0,
+    ratio: 2,
+  } as const;
+
+  test("transformParamOf：按 key 读参数，字段同名同义", () => {
+    expect(transformParamOf(transformParamsOf(rotateEntry), "angleDeg")).toBe(90);
+    expect(transformParamOf(transformParamsOf(rotateEntry), "centerY")).toBe(2);
+    expect(transformParamOf(transformParamsOf(translateEntry), "dx")).toBe(3);
+    expect(transformParamOf(transformParamsOf(reflectEntry), "x2")).toBe(2);
+    expect(transformParamOf(transformParamsOf(dilateEntry), "ratio")).toBe(2);
+  });
+
+  test("withTransformParam：只写该键、其余字段原样（不可变）", () => {
+    const edited = withTransformParam(rotateEntry, "angleDeg", -45);
+    expect(edited).toEqual({ ...rotateEntry, angleDeg: -45 });
+    expect(rotateEntry.angleDeg).toBe(90);
+    expect(withTransformParam(translateEntry, "dy", 0)).toEqual({
+      ...translateEntry,
+      dy: 0,
+    });
+    expect(withTransformParam(reflectEntry, "y1", 1)).toEqual({
+      ...reflectEntry,
+      y1: 1,
+    });
+    expect(withTransformParam(dilateEntry, "ratio", -2)).toEqual({
+      ...dilateEntry,
+      ratio: -2,
+    });
+  });
+
+  test("previewTransformParamsOf：预览活跃取预览参数，id 不匹配回落契约", () => {
+    const preview = {
+      id: "t1",
+      params: transformParamsOf(
+        withTransformParam(rotateEntry, "angleDeg", 180),
+      ),
+    };
+    expect(
+      transformParamOf(previewTransformParamsOf(preview, rotateEntry), "angleDeg"),
+    ).toBe(180);
+    expect(
+      transformParamOf(previewTransformParamsOf(preview, translateEntry), "dx"),
+    ).toBe(3);
+    expect(
+      transformParamOf(previewTransformParamsOf(null, rotateEntry), "angleDeg"),
+    ).toBe(90);
+  });
+
+  test("withTransformParams：整组参数写回图元（滑块预览拼装用）", () => {
+    const params = transformParamsOf(
+      withTransformParam(dilateEntry, "ratio", -1.5),
+    );
+    expect(withTransformParams(dilateEntry, params)).toEqual({
+      ...dilateEntry,
+      ratio: -1.5,
+    });
+    // kind 定死：参数组与图元 kind 不一致时原样返回（防御，调用方不会触发）。
+    expect(withTransformParams(rotateEntry, params)).toBe(rotateEntry);
   });
 });

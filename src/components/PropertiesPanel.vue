@@ -21,6 +21,7 @@ import {
 } from "../viewport3d/solid-commit.ts";
 import { displayNamesById } from "./display-name.ts";
 import FunctionCurveFields from "./FunctionCurveFields.vue";
+import TransformFields from "./TransformFields.vue";
 import {
   validateNumericField,
   truncateToPrecision,
@@ -303,6 +304,18 @@ const measureInfo = computed(() => {
 const solid = computed(() => {
   const primitive = selected.value;
   return primitive !== null && isSolidPrimitive(primitive) ? primitive : null;
+});
+
+/** 变换图元（ADR 0022 / 票 05）：kind 与源只读（kind 由创建工具定死，
+ *  函数曲线先例），参数编辑交给 TransformFields（滑块 + 数字框同源契约）。 */
+const transformInfo = computed(() => {
+  const primitive = selected.value;
+  if (primitive === null || primitive.type !== "transform") return null;
+  const names = displayNamesById(documentStore.current.primitives, t);
+  return {
+    entry: primitive,
+    source: names.get(primitive.sourceId) ?? primitive.sourceId,
+  };
 });
 
 /** 函数曲线（ADR 0021）：kind 创建时定死不可改（改 kind 等于换图元），
@@ -755,6 +768,14 @@ function onFillChange(value: string | string[] | undefined): void {
       <p>{{ t("field.kind") }}：{{ t(`tool.${functionCurve.kind}Function`) }}</p>
       <FunctionCurveFields :key="functionCurve.id" :curve="functionCurve" />
       <p>{{ functionCurveExpression }}</p>
+    </div>
+    <div v-if="transformInfo !== null" class="space-y-1 text-zinc-500">
+      <p>{{ t("field.kind") }}：{{ t(`tool.${transformInfo.entry.kind}`) }}</p>
+      <p>{{ t("field.source") }}：{{ transformInfo.source }}</p>
+      <TransformFields
+        :key="transformInfo.entry.id"
+        :entry="transformInfo.entry"
+      />
     </div>
     <div v-if="solid !== null" class="grid grid-cols-2 gap-2">
       <label v-for="field in solidFieldList" :key="field.key" class="space-y-1">

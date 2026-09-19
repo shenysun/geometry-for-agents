@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { GridSnap } from "../document/index.ts";
 import type { FunctionCurvePreview } from "../document/function-curve.ts";
+import type { TransformPreview } from "../document/transform-math.ts";
 import { localeFromLanguages, type AppLocale } from "../i18n/locale.ts";
 import { isDrawTool, type DrawTool } from "../viewport2d/draw-gesture.ts";
 import type { SessionUnderlay } from "../viewport2d/draw-underlay.ts";
@@ -59,6 +60,9 @@ export const useEditorStore = defineStore("editor", () => {
   /** 滑块拖动中的函数曲线参数预览（ADR 0007）：属性面板写、视口预览层读；
    *  松手一次提交说明书后清空，拖动全程不动契约。 */
   const functionCurvePreview = ref<FunctionCurvePreview | null>(null);
+  /** 滑块拖动中的变换参数预览（ADR 0007 / 票 05）：同一条 preview/release
+   *  骨架——属性面板写、视口按预览参数画像，松手一次提交后清空。 */
+  const transformPreview = ref<TransformPreview | null>(null);
   let layoutCommandNonce = 0;
 
   function setLocale(next: AppLocale): void {
@@ -111,6 +115,11 @@ export const useEditorStore = defineStore("editor", () => {
       next === null ? null : { id: next.id, params: { ...next.params } };
   }
 
+  function setTransformPreview(next: TransformPreview | null): void {
+    transformPreview.value =
+      next === null ? null : { id: next.id, params: { ...next.params } };
+  }
+
   function openPanel(panel: ClosablePanelId): void {
     layoutCommand.value = { kind: "open", panel, nonce: ++layoutCommandNonce };
   }
@@ -133,6 +142,7 @@ export const useEditorStore = defineStore("editor", () => {
     closedPanelIds,
     layoutCommand,
     functionCurvePreview,
+    transformPreview,
     setLocale,
     setSpace,
     setTool,
@@ -141,6 +151,7 @@ export const useEditorStore = defineStore("editor", () => {
     setSessionUnderlay,
     setClosedPanelIds,
     setFunctionCurvePreview,
+    setTransformPreview,
     openPanel,
     closePanel,
     resetLayout,

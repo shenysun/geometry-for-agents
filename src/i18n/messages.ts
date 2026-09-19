@@ -145,12 +145,28 @@ export const messages = {
       b: "b",
       c: "c",
       k: "k",
+      // 变换图元参数词条（ADR 0022 / 票 05）：位移向量、中心、轴端点、角度与比。
+      dx: "位移 X",
+      dy: "位移 Y",
+      centerX: "中心 X",
+      centerY: "中心 Y",
+      angleDeg: "角度（度）",
+      x1: "轴端 1 X",
+      y1: "轴端 1 Y",
+      x2: "轴端 2 X",
+      y2: "轴端 2 Y",
+      ratio: "比 k",
     },
     /** 退化参数报错：指明替代路径（ADR 0021），不静默钳制。 */
     paramError: {
       linearA: "a 不能为 0，画水平线请用直线工具",
       quadraticA: "a 不能为 0，画直线请用一次函数工具",
       inverseK: "k 不能为 0，y = 0/x 无定义",
+      // 变换图元退化值（ADR 0022 / 票 05）：像与源重合即无意义。
+      translateZero: "位移向量不能为零——像会与源重合，请至少给一个非零分量",
+      rotateZero: "角度不能为 0° 或 360° 的整倍数——像会与源重合",
+      reflectAxis: "轴的两端点不能重合——退化轴无定义，请把两端点分开",
+      dilateRatio: "比不能为 0 或 1——像会退化成一点或与源重合",
     },
     fill: {
       label: "填充",
@@ -343,12 +359,32 @@ export const messages = {
       b: "b",
       c: "c",
       k: "k",
+      // Transform primitive parameters (ADR 0022 / ticket 05): vector, centers, axis ends, angle, ratio.
+      dx: "Offset X",
+      dy: "Offset Y",
+      centerX: "Center X",
+      centerY: "Center Y",
+      angleDeg: "Angle (deg)",
+      x1: "Axis end 1 X",
+      y1: "Axis end 1 Y",
+      x2: "Axis end 2 X",
+      y2: "Axis end 2 Y",
+      ratio: "Ratio k",
     },
     /** Degenerate parameter errors: point at the alternative (ADR 0021), never clamp silently. */
     paramError: {
       linearA: "a cannot be 0 — use the line tool for a horizontal line",
       quadraticA: "a cannot be 0 — use the linear function tool for a straight line",
       inverseK: "k cannot be 0 — y = 0/x is undefined",
+      // Transform degenerate values (ADR 0022 / ticket 05): an image coinciding with the source is meaningless.
+      translateZero:
+        "The translation vector cannot be zero — the image would coincide with the source; give at least one nonzero component",
+      rotateZero:
+        "The angle cannot be 0° or a multiple of 360° — the image would coincide with the source",
+      reflectAxis:
+        "The two axis endpoints cannot coincide — a degenerate axis is undefined; separate them",
+      dilateRatio:
+        "The ratio cannot be 0 or 1 — the image would collapse to a point or coincide with the source",
     },
     fill: {
       label: "Fill",

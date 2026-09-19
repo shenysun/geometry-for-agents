@@ -14,12 +14,23 @@ import type {
 /** 滑块域 [-10, 10]、步长 0.1，含负数（k 可为负、双曲线落二三象限）。 */
 export const SLIDER_RANGE = { min: -10, max: 10, step: 0.1 } as const;
 
+/** 通用滑块域的两端（票 05 起滑块本体与变换族共用，各自带 step）。 */
+export type SliderRange = { readonly min: number; readonly max: number };
+
+/** 滑块域全三元（两端 + 步进）：ParamSlider 的域入参形状，各族自带。 */
+export type SliderDomain = SliderRange & { readonly step: number };
+
 /** 数字输入的步进粒度与滑块一致，键盘可达主通道一次一提交。 */
 export const NUMBER_STEP = 0.1;
 
 /** 滑块柄钳端点：数值本身不动，只把柄的位置夹进滑块域。 */
 export function clampToSliderRange(value: number): number {
-  return Math.min(SLIDER_RANGE.max, Math.max(SLIDER_RANGE.min, value));
+  return clampToRange(value, SLIDER_RANGE);
+}
+
+/** 任意滑块域的柄钳端点（clampToSliderRange 的域参数化形态）。 */
+export function clampToRange(value: number, range: SliderRange): number {
+  return Math.min(range.max, Math.max(range.min, value));
 }
 
 /** 退化首项（kind, 键）→ 报错文案键：文案指明替代路径，不静默钳制。 */
@@ -61,9 +72,13 @@ export type SliderInteraction = {
   readonly moved: boolean;
 };
 
-/** 指针按下起算一次交互：越界契约值（如 a=15）的柄钳在端点 10。 */
-export function startSliderInteraction(displayValue: number): SliderInteraction {
-  return { base: clampToSliderRange(displayValue), moved: false };
+/** 指针按下起算一次交互：越界契约值（如 a=15）的柄钳在端点 10；变换族
+ *  滑块传入自己的域（默认仍是函数曲线域，既有调用不动）。 */
+export function startSliderInteraction(
+  displayValue: number,
+  range: SliderRange = SLIDER_RANGE,
+): SliderInteraction {
+  return { base: clampToRange(displayValue, range), moved: false };
 }
 
 /** 交互中每个 input 值过一遍：偏离过柄值即记为有位移。 */

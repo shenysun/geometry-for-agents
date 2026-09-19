@@ -7,14 +7,14 @@ import {
   type FunctionCurveParamKey,
   type FunctionCurvePrimitive,
 } from "../document/function-curve.ts";
-import { NUMBER_STEP } from "./function-curve-field.ts";
-import FunctionCurveSlider from "./FunctionCurveSlider.vue";
+import { NUMBER_STEP, SLIDER_RANGE } from "./function-curve-field.ts";
+import ParamSlider from "./ParamSlider.vue";
 import { useFunctionCurveParamEditing } from "./use-function-curve-param-editing.ts";
 
 /**
  * 视口浮动滑块条（ADR 0021 / 票 04）：选中函数曲线时悬在视口上方，
  * 不离视口探究参数。与属性面板（03）共用 useFunctionCurveParamEditing
- * 与 FunctionCurveSlider——同一份契约字段、同规格同精度、同一条预览/
+ * 与 ParamSlider——同一份契约字段、同规格同精度、同一条预览/
  * 提交管线，两处编辑永不打架。仅指针操作：步进按钮按普通可点击控件
  * 处理，键盘可达主通道是属性面板数字框；拖动即时重绘、松手一步 undo。
  */
@@ -73,9 +73,10 @@ function onStep(key: FunctionCurveParamKey, direction: -1 | 1): void {
         >
           −
         </button>
-        <FunctionCurveSlider
+        <ParamSlider
           :label="t(`field.${key}`)"
           :value="displayValue(key)"
+          :range="SLIDER_RANGE"
           @preview="(value) => startParamPreview(key, value)"
           @release="(raw) => releaseSlider(key, raw)"
           @settle="settleSlider"
