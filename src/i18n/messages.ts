@@ -49,6 +49,8 @@ export const messages = {
       noIntersection: "两个图元不相交，没有重叠部分",
       notMeasurable: "度量标注只能拾取封闭图形",
       transformSource: "已锁定源，拖出位移向量",
+      rotateCenter: "已锁定源，点旋转中心",
+      dilateCenter: "已锁定源，点位似中心",
       notTransformable: "变换的源只能是笔画、封闭图形或点名",
     },
     tool: {
@@ -77,9 +79,11 @@ export const messages = {
       measureArea: "面积标注",
       // 周长工具是后续票：词条先落，显示名按 kind 取词条不留裸 key。
       measurePerimeter: "周长标注",
-      // 变换族（ADR 0022）：显示名与对象列表按工具名取词条，旋转/轴对称/
-      // 位似词条随各自 tracer 票落。
+      // 变换族（ADR 0022）：显示名与对象列表按工具名取词条，轴对称词条
+      // 随票 04 落。
       translate: "平移",
+      rotate: "旋转",
+      dilate: "位似",
       voxel: "单位立方体",
       box: "长方体",
       cylinder: "圆柱",
@@ -238,6 +242,8 @@ export const messages = {
       noIntersection: "The two shapes do not overlap",
       notMeasurable: "Measure labels need closed shapes",
       transformSource: "Source locked — drag out the translation vector",
+      rotateCenter: "Source locked — click the rotation center",
+      dilateCenter: "Source locked — click the dilation center",
       notTransformable:
         "Transforms need a stroke, a closed shape, or a named point",
     },
@@ -268,9 +274,10 @@ export const messages = {
       // The perimeter tool lands in a later ticket; the entry exists so
       // kind-based display names never render a bare key.
       measurePerimeter: "Perimeter label",
-      // Transform family (ADR 0022): rotate/reflect/dilate entries land with
-      // their own tracer tickets.
+      // Transform family (ADR 0022): the reflect entry lands with ticket 04.
       translate: "Translate",
+      rotate: "Rotate",
+      dilate: "Dilate",
       voxel: "Unit cube",
       box: "Box",
       cylinder: "Cylinder",

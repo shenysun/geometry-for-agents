@@ -37,7 +37,7 @@ describe("catalogForSpace（分组目录）", () => {
         "inverseFunction",
       ],
       ["angle", "dimension", "label", "measureArea", "measurePerimeter"],
-      ["overlapFill", "translate"],
+      ["overlapFill", "translate", "rotate", "dilate"],
     ]);
   });
 
@@ -80,6 +80,8 @@ describe("catalogForSpace（分组目录）", () => {
           "measureArea",
           "measurePerimeter",
           "translate",
+          "rotate",
+          "dilate",
         ]),
       ].sort(),
     );

@@ -5,6 +5,7 @@ import type {
   Primitive2d,
   Primitive3d,
 } from "./parse-document.ts";
+import { hasTransformCenter } from "./transform-math.ts";
 import {
   baseHeightLocalOffset,
   baseHeightLocalVertices,
@@ -538,7 +539,11 @@ export function moveControlPointGeometry(
       // 无控制点目录，pointId 恒不可识别：恒等。
       return primitive;
     case "transform":
-      // 本期无控制点（轴端点/中心属后续票），pointId 恒不可识别：恒等。
+      // 拖旋转/位似中心只写 centerX/centerY（票 03）：角度、比与其余参数
+      // 不动，像由渲染层随参数重推导。平移/轴对称无中心控制点：恒等。
+      if (pointId === "center" && hasTransformCenter(primitive)) {
+        return { ...primitive, centerX: world.x, centerY: world.y };
+      }
       return primitive;
     case "line":
     case "polygon": {

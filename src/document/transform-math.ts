@@ -202,6 +202,24 @@ export function transformParamsOf(
   }
 }
 
+/** 中心谓词的单一判定源（票 03）：旋转/位似有中心、平移/轴对称没有。
+ *  控制点目录、中心拖动、辅助点画法与预览拼装共用，不各写一遍 kind
+ *  谓词；类型守卫让调用方拿得到窄化后的契约分支。 */
+export function hasTransformCenter(
+  entry: TransformPrimitive,
+): entry is Extract<TransformPrimitive, { kind: "rotate" | "dilate" }> {
+  return entry.kind === "rotate" || entry.kind === "dilate";
+}
+
+/** 变换的中心辅助点：hasTransformCenter 为真时给出 (centerX, centerY)。 */
+export function transformCenterOf(
+  entry: TransformPrimitive,
+): Point2 | null {
+  return hasTransformCenter(entry)
+    ? { x: entry.centerX, y: entry.centerY }
+    : null;
+}
+
 /** 逆时针圆族（角/弧/扇形/弓形）起止角的像：保向整体加转角；反定向
  *  时扫过区间镜像、逆时针起点换成原终点（起止交换）。 */
 function mapSweepDeg(

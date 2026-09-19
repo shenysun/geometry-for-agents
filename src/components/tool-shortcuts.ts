@@ -23,11 +23,12 @@ const SINGLE_KEY_SHORTCUTS: Record<"2d" | "3d", Record<string, EditorTool>> = {
     n: "regularPolygon",
     z: "trapezoid",
     f: "overlapFill",
-    // 变换族取 M/E 两键（ADR 0022，键位表见 ADR 0018）；本票落 M 平移，
-    // E/Shift+E/Shift+M 随旋转/位似/轴对称 tracer 票补齐。M 归平移后度量
+    // 变换族取 M/E 两键（ADR 0022，键位表见 ADR 0018）：M 平移、E 旋转、
+    // Shift+E 位似（票 03）；Shift+M 轴对称随票 04 补齐。M 归平移后度量
     // 标注工具无单键（点工具箱）——M/Shift+M 原属度量族但未进键位表决策
-    // 记录，本票按 ADR 0018 最新裁决让出，待 PO 复核补键。
+    // 记录，按 ADR 0018 最新裁决让出，待 PO 复核补键。
     m: "translate",
+    e: "rotate",
     q: "quadraticFunction",
     h: "inverseFunction",
   },
@@ -47,6 +48,8 @@ const SHIFT_COMBOS: Record<"2d" | "3d", Record<string, EditorTool>> = {
     p: "parallelogram",
     // 直线的函数变体：Shift 同族规则（ADR 0018）。
     l: "linearFunction",
+    // 位似是旋转的 Shift 变体（ADR 0022 键位表）。
+    e: "dilate",
   },
   "3d": {
     b: "box",

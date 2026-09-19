@@ -8,6 +8,7 @@ import type {
 } from "../document/index.ts";
 import {
   resolveTransformImage,
+  transformCenterOf,
   type Transformable2d,
 } from "../document/transform-math.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
@@ -47,10 +48,12 @@ const STROKE = "#18181b";
  * 虚线是草稿/选框的语言，不是精致工具的）。
  */
 export const SELECTION_STROKE = "#6366f1";
-/** 变换像预览标记：像不进说明书，预览层直接携带像图元值（数学层推导）。 */
+/** 变换像预览标记：像不进说明书，预览层直接携带像图元值（数学层推导）；
+ *  旋转/位似随行中心辅助点（与提交后的画法一致）。 */
 export type TransformImagePreview = {
   type: "transformImage";
   image: Transformable2d;
+  center?: Point2;
 };
 /** 预览标记：单形、数组（选中 overlapFill 时同时高亮两个源）或变换像。 */
 export type PreviewMark =
@@ -581,8 +584,21 @@ function transformImageShapes(
   });
 }
 
-/** 一条变换图元的像：查源求像（统一入口在数学层），虚线上屏。调用点已
- *  收窄 2D 说明书。 */
+/** 中心辅助点（旋转/位似）：总是显示的实心小点（spec 渲染条），不进
+ *  说明书、不参与命中——未选中时不抢源图元点击的保证来自它只是绘制节点。 */
+function transformCenterDot(point: Point2, view: ViewTransform): Konva.Circle {
+  const screen = worldToScreen(point, view);
+  return new Konva.Circle({
+    x: screen.x,
+    y: screen.y,
+    radius: 3,
+    fill: STROKE,
+    listening: false,
+  });
+}
+
+/** 一条变换图元的像：查源求像（统一入口在数学层），虚线上屏；旋转/位似
+ *  再画中心辅助点。调用点已收窄 2D 说明书。 */
 function drawTransformImage(
   entry: TransformPrimitive,
   document: Extract<GeometryDocument, { space: "2d" }>,
@@ -590,7 +606,12 @@ function drawTransformImage(
 ): Konva.Shape[] {
   const image = resolveTransformImage(document.primitives, entry);
   if (image === null) return [];
-  return transformImageShapes(image, view);
+  const shapes = transformImageShapes(image, view);
+  const center = transformCenterOf(entry);
+  if (center !== null) {
+    shapes.push(transformCenterDot(center, view));
+  }
+  return shapes;
 }
 
 export function drawGesturePreview(
@@ -612,6 +633,9 @@ export function drawGesturePreview(
   if (preview.type === "transformImage") {
     for (const node of transformImageShapes(preview.image, view)) {
       layer.add(node);
+    }
+    if (preview.center !== undefined) {
+      layer.add(transformCenterDot(preview.center, view));
     }
     return;
   }

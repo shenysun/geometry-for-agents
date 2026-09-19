@@ -40,9 +40,10 @@ describe("toolFromShortcut", () => {
     ["n", "regularPolygon"],
     ["z", "trapezoid"],
     ["f", "overlapFill"],
-    // M 归平移（ADR 0022 键位裁决，ADR 0018 表已补行）：度量标注工具
-    // 让出 M/Shift+M、暂无单键（点工具箱），补键待 PO 复核。
+    // M 归平移、E 归旋转（ADR 0022 键位裁决，ADR 0018 表已补行）：度量
+    // 标注工具让出 M/Shift+M、暂无单键（点工具箱），补键待 PO 复核。
     ["m", "translate"],
+    ["e", "rotate"],
   ] as const)("2D 单键 %s → %s", (pressed, tool) => {
     expect(toolFromShortcut(key(pressed), "2d")).toBe(tool);
   });
@@ -53,6 +54,8 @@ describe("toolFromShortcut", () => {
     ["A", "bow"],
     ["T", "triangle"],
     ["P", "parallelogram"],
+    // Shift+E 位似（票 03）：Shift 同族规则——E 是旋转变体族之根。
+    ["E", "dilate"],
   ] as const)("2D Shift+%s → %s（同族变体）", (pressed, tool) => {
     expect(toolFromShortcut(key(pressed, { shift: true }), "2d")).toBe(tool);
   });

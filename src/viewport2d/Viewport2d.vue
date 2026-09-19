@@ -528,7 +528,8 @@ useEventListener(hostRef, "pointerdown", (event: PointerEvent) => {
     panSuppressed = selectGesture.kind !== "idle";
     return;
   }
-  // 变换两步拾取第二步（ADR 0022）：已锁源后按下即进入拖位移向量。
+  // 变换两步拾取第二步（ADR 0022）：已锁源后按下——平移拖位移向量，
+  // 旋转/位似点中心（票 03）。
   if (transformKindForTool(editor.tool) !== null) {
     pickTransform.handlePointerDown(event);
     return;
@@ -566,8 +567,8 @@ useEventListener(window, "pointermove", (event: PointerEvent) => {
     }
     return;
   }
-  if (pickTransform.activeVector()) {
-    // 拖向量中：像实时预览，说明书不动（ADR 0007）。
+  if (pickTransform.activeDrag()) {
+    // 第二步拖动中（拖向量/拖中心）：像实时预览，说明书不动（ADR 0007）。
     pickTransform.handlePointerMove(event);
     return;
   }
@@ -596,8 +597,8 @@ useEventListener(window, "pointerup", (event: PointerEvent) => {
     dragStart = null;
     return;
   }
-  if (pickTransform.activeVector()) {
-    // 松手一次提交（一步 undo，ADR 0022）；零位移退回已锁源态。
+  if (pickTransform.activeDrag()) {
+    // 松手一次提交（一步 undo，ADR 0022）；平移零位移退回已锁源态。
     pickTransform.handlePointerUp(event);
     dragStart = null;
     return;

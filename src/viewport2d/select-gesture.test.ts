@@ -641,7 +641,11 @@ describe("select-gesture 旋转", () => {
       handleCtx({ x: 2, y: 0 }, { document: ellipseDoc() }),
     );
 
-    if (moved.preview === null || moved.preview.type !== "ellipse") {
+    if (
+      moved.preview === null ||
+      Array.isArray(moved.preview) ||
+      moved.preview.type !== "ellipse"
+    ) {
       throw new Error("expected ellipse preview");
     }
     expect(moved.preview.rotationDeg).toBe(270);
@@ -716,7 +720,11 @@ describe("select-gesture 缩放", () => {
       handleCtx({ x: 2, y: 0 }, { document: ellipseDoc() }),
     );
 
-    if (moved.preview === null || moved.preview.type !== "ellipse") {
+    if (
+      moved.preview === null ||
+      Array.isArray(moved.preview) ||
+      moved.preview.type !== "ellipse"
+    ) {
       throw new Error("expected ellipse preview");
     }
     expect(moved.preview.rx).toBe(1);
@@ -1287,5 +1295,89 @@ describe("select-gesture：函数曲线选中（ADR 0021）", () => {
   test("选中预览按笔画族画法重画曲线（functionCurve 预览标记）", () => {
     const preview = selectPreview(curveDoc(), "f1");
     expect(preview).toEqual({ type: "functionCurve", kind: "linear", a: 1, b: 0 });
+  });
+});
+
+describe("select-gesture 变换图元中心控制点（票 03）", () => {
+  const transformDoc = () =>
+    doc2d([
+      { id: "src", type: "circle", cx: 0, cy: 0, r: 2, fill: "none" },
+      {
+        id: "t-1",
+        type: "transform",
+        sourceId: "src",
+        kind: "rotate",
+        centerX: 3,
+        centerY: 0,
+        angleDeg: 90,
+      },
+    ]);
+
+  function transformCtx(
+    point: Point2,
+    overrides: Partial<SelectContext> = {},
+  ): SelectContext {
+    return {
+      tool: "select",
+      document: transformDoc(),
+      grid: 1,
+      selectionId: "t-1",
+      controlTolerance: 1,
+      ...overrides,
+      point,
+    };
+  }
+
+  test("按下中心命中控制点手势，命中顺序在变换手柄之前（transform 无柄）", () => {
+    const started = startSelect(idleSelectState(), transformCtx({ x: 3, y: 0 }));
+
+    expect(started.state).toEqual({
+      kind: "control",
+      id: "t-1",
+      pointId: "center",
+    });
+    expect(started.selectionId).toBe("t-1");
+  });
+
+  test("拖中心预览随参数更新的像（虚线像层读 transformImage 预览）", () => {
+    const started = startSelect(idleSelectState(), transformCtx({ x: 3, y: 0 }));
+    const moved = moveSelect(started.state, transformCtx({ x: 5, y: 3 }));
+
+    const preview = moved.preview;
+    if (
+      preview === null ||
+      Array.isArray(preview) ||
+      preview.type !== "transformImage"
+    ) {
+      expect.unreachable("expected a transformImage preview");
+      return;
+    }
+    // 像圆心 = (0,0) 绕 (5,3) 逆时针 90°：p−c = (−5,−3) → (3,−5)，加回 (8,−2)。
+    expect(preview.image).toMatchObject({
+      type: "circle",
+      cx: 8,
+      cy: -2,
+      r: 2,
+    });
+    expect(preview.center).toEqual({ x: 5, y: 3 });
+  });
+
+  test("松手提交控制点一步：centerX/centerY 换成吸附后的落点", () => {
+    const started = startSelect(idleSelectState(), transformCtx({ x: 3, y: 0 }));
+    const released = upSelect(started.state, transformCtx({ x: 5.2, y: 3.4 }));
+
+    expect(released.commit).toEqual({
+      kind: "controlPoint",
+      id: "t-1",
+      pointId: "center",
+      point: { x: 5, y: 3 },
+    });
+  });
+
+  test("中心拖回原位不提交（恒等不产生空 undo 步）", () => {
+    const started = startSelect(idleSelectState(), transformCtx({ x: 3, y: 0 }));
+    const released = upSelect(started.state, transformCtx({ x: 3.2, y: 0.4 }));
+
+    expect(released.commit).toBeNull();
   });
 });

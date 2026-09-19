@@ -2921,3 +2921,64 @@ describe("removePrimitive / 变换恒等：变换图元（ADR 0022）", () => {
     ]);
   });
 });
+
+describe("moveControlPoint 变换图元中心（票 03）", () => {
+  const transformDoc = () =>
+    mustParse({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        { id: "src", type: "circle", cx: 0, cy: 0, r: 2, fill: "none" },
+        {
+          id: "t-1",
+          type: "transform",
+          sourceId: "src",
+          kind: "rotate",
+          centerX: 3,
+          centerY: -2,
+          angleDeg: 90,
+        },
+        {
+          id: "t-2",
+          type: "transform",
+          sourceId: "src",
+          kind: "translate",
+          dx: 1,
+          dy: 2,
+        },
+      ],
+    });
+
+  test("拖旋转中心只写 centerX/centerY，角度与源不动", () => {
+    const result = moveControlPoint(transformDoc(), "t-1", "center", {
+      x: -1.2,
+      y: 4.6,
+    }, 1);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const moved = result.document.primitives.find(
+      (primitive) => primitive.id === "t-1",
+    );
+    if (moved?.type !== "transform") return;
+    expect(moved).toMatchObject({
+      kind: "rotate",
+      centerX: -1,
+      centerY: 5,
+      angleDeg: 90,
+    });
+  });
+
+  test("平移变换没有中心控制点：拖动是恒等、说明书原样", () => {
+    const original = transformDoc();
+    const result = moveControlPoint(original, "t-2", "center", {
+      x: 9,
+      y: 9,
+    }, 1);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.document).toBe(original);
+  });
+});

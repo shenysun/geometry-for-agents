@@ -4,7 +4,7 @@ import {
   escPickTransform,
   idlePickTransformState,
   movePickTransform,
-  startPickTransformVector,
+  startPickTransformStep,
   upPickTransform,
   type PickTransformContext,
 } from "./pick-transform-gesture.ts";
@@ -51,6 +51,7 @@ function ctxAt(over: Partial<PickTransformContext> = {}): PickTransformContext {
     tolerance: 0,
     grid: 1,
     id: "transform-new",
+    kind: "translate",
     ...over,
   };
 }
@@ -134,7 +135,7 @@ describe("变换两步拾取手势（ADR 0022）：第一步点源锁定", () =>
 describe("变换两步拾取手势：第二步拖位移向量", () => {
   test("vector drag previews the image and commits one undoable entry on release", () => {
     const locked = clickPickTransform(idlePickTransformState(), ctxAt());
-    const started = startPickTransformVector(
+    const started = startPickTransformStep(
       locked.state,
       ctxAt({ point: { x: 1.2, y: -0.8 } }),
     );
@@ -176,7 +177,7 @@ describe("变换两步拾取手势：第二步拖位移向量", () => {
 
   test("zero displacement on release commits nothing and returns to the locked source", () => {
     const locked = clickPickTransform(idlePickTransformState(), ctxAt());
-    const started = startPickTransformVector(
+    const started = startPickTransformStep(
       locked.state,
       ctxAt({ point: { x: 1.2, y: 1.2 } }),
     );
@@ -192,7 +193,7 @@ describe("变换两步拾取手势：第二步拖位移向量", () => {
 
   test("grid off keeps raw coordinates (Alt 暂不落格)", () => {
     const locked = clickPickTransform(idlePickTransformState(), ctxAt());
-    const started = startPickTransformVector(
+    const started = startPickTransformStep(
       locked.state,
       ctxAt({ point: { x: 1.25, y: 1.25 }, grid: "off" }),
     );
@@ -206,7 +207,7 @@ describe("变换两步拾取手势：第二步拖位移向量", () => {
 
   test("escape resets the gesture to idle", () => {
     const locked = clickPickTransform(idlePickTransformState(), ctxAt());
-    const started = startPickTransformVector(
+    const started = startPickTransformStep(
       locked.state,
       ctxAt({ point: { x: 1, y: 1 } }),
     );
@@ -217,7 +218,7 @@ describe("变换两步拾取手势：第二步拖位移向量", () => {
 
   test("source vanishing mid-gesture neither previews nor commits", () => {
     const locked = clickPickTransform(idlePickTransformState(), ctxAt());
-    const started = startPickTransformVector(
+    const started = startPickTransformStep(
       locked.state,
       ctxAt({ point: { x: 1, y: 1 } }),
     );
@@ -245,5 +246,223 @@ describe("变换两步拾取手势：第二步拖位移向量", () => {
     const released = upPickTransform(started.state, hollow);
     expect(released.commit).toBeNull();
     expect(released.state).toEqual({ kind: "idle" });
+  });
+});
+
+describe("变换两步拾取手势：第二步点旋转中心（票 03）", () => {
+  test("press-move-release previews the rotated image and commits default 90°", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 5.2, y: 0.8 }, kind: "rotate" }),
+    );
+
+    // 中心落格：5.2,0.8 → 5,1；按下即出像（全程实时预览，US 8）。
+    expect(started.state).toEqual({
+      kind: "center",
+      centerKind: "rotate",
+      id: "circle-a",
+      center: { x: 5, y: 1 },
+    });
+    expect(started.preview).not.toBeNull();
+    if (started.preview === null) return;
+    // 按下点的像：圆心 (0,0) 绕 (5,1) 逆时针 90° = (6,−4)。
+    expect(started.preview.image).toMatchObject({ type: "circle", cx: 6, cy: -4 });
+
+    const moved = movePickTransform(
+      started.state,
+      ctxAt({ point: { x: 6.6, y: -1.2 }, kind: "rotate" }),
+    );
+    expect(moved.preview).not.toBeNull();
+    if (moved.preview === null) return;
+    // 中心落格 6.6,−1.2 → 7,−1；像圆心 = (0,0) 绕 (7,−1) 逆时针 90°：
+    // p−c = (−7,1) 旋转后 (−1,−7)，加回中心得 (6,−8)。
+    expect(moved.preview.image).toMatchObject({ type: "circle", cx: 6, cy: -8 });
+    // 中心辅助点随预览（总是显示的辅助几何）。
+    expect(moved.preview.center).toEqual({ x: 7, y: -1 });
+
+    const released = upPickTransform(
+      moved.state,
+      ctxAt({ point: { x: 6.6, y: -1.2 }, kind: "rotate" }),
+    );
+    // 存储保留符号约定（正为逆时针），显示归一属属性面板（票 05）。
+    expect(released.commit).toEqual({
+      id: "transform-new",
+      type: "transform",
+      sourceId: "circle-a",
+      kind: "rotate",
+      centerX: 7,
+      centerY: -1,
+      angleDeg: 90,
+    });
+    expect(released.selectionId).toBe("transform-new");
+    expect(released.state).toEqual({ kind: "idle" });
+    expect(released.preview).toBeNull();
+  });
+
+  test("a plain click on the center commits too（点中心一步定参）", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 3, y: 2 }, kind: "rotate" }),
+    );
+    const released = upPickTransform(
+      started.state,
+      ctxAt({ point: { x: 3.1, y: 2.1 }, kind: "rotate" }),
+    );
+
+    expect(released.commit).toMatchObject({
+      kind: "rotate",
+      centerX: 3,
+      centerY: 2,
+      angleDeg: 90,
+    });
+  });
+
+  test("center gesture neither previews nor commits after the source vanishes", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 5, y: 1 }, kind: "rotate" }),
+    );
+    const hollowDoc = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        {
+          id: "line-b",
+          type: "line",
+          points: [
+            { x: 10, y: 0 },
+            { x: 14, y: 0 },
+          ],
+        },
+      ],
+    });
+    if (!hollowDoc.success) throw new Error(hollowDoc.error);
+    const hollow = ctxAt({ document: hollowDoc.document, kind: "rotate" });
+
+    expect(movePickTransform(started.state, hollow).preview).toBeNull();
+    const released = upPickTransform(started.state, hollow);
+    expect(released.commit).toBeNull();
+    expect(released.state).toEqual({ kind: "idle" });
+  });
+
+  test("escape resets the center gesture to idle", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 5, y: 1 }, kind: "rotate" }),
+    );
+
+    expect(escPickTransform(started.state).state).toEqual({ kind: "idle" });
+  });
+
+  test("kind 由创建工具定死：拖动中换工具不改变本次提交的变换种类", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 3, y: 2 }, kind: "rotate" }),
+    );
+    // 拖中心期间键盘切到位似工具（松手上下文的 kind 已变）：仍按旋转提交。
+    const released = upPickTransform(
+      started.state,
+      ctxAt({ point: { x: 3, y: 2 }, kind: "dilate" }),
+    );
+
+    expect(released.commit).toMatchObject({ kind: "rotate", angleDeg: 90 });
+  });
+
+  test("平移按下瞬间零位移不预览（恒等像不虚线叠在源上）", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 1, y: 1 }, kind: "translate" }),
+    );
+
+    expect(started.preview).toBeNull();
+  });
+});
+
+describe("变换两步拾取手势：第二步点位似中心（票 03）", () => {
+  test("press-move-release previews the dilated image and commits default ratio 2", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 5.2, y: 0.8 }, kind: "dilate" }),
+    );
+
+    expect(started.state).toEqual({
+      kind: "center",
+      centerKind: "dilate",
+      id: "circle-a",
+      center: { x: 5, y: 1 },
+    });
+
+    const moved = movePickTransform(
+      started.state,
+      ctxAt({ point: { x: 6.6, y: -1.2 }, kind: "dilate" }),
+    );
+    expect(moved.preview).not.toBeNull();
+    if (moved.preview === null) return;
+    // 中心落格 6.6,−1.2 → 7,−1；像圆心 = (7,−1) + 2×((0,0)−(7,−1)) = (−7,1)，
+    // 半径 4×2 = 8。
+    expect(moved.preview.image).toMatchObject({
+      type: "circle",
+      cx: -7,
+      cy: 1,
+      r: 8,
+    });
+    expect(moved.preview.center).toEqual({ x: 7, y: -1 });
+
+    const released = upPickTransform(
+      moved.state,
+      ctxAt({ point: { x: 6.6, y: -1.2 }, kind: "dilate" }),
+    );
+    expect(released.commit).toEqual({
+      id: "transform-new",
+      type: "transform",
+      sourceId: "circle-a",
+      kind: "dilate",
+      centerX: 7,
+      centerY: -1,
+      ratio: 2,
+    });
+    expect(released.selectionId).toBe("transform-new");
+    expect(released.state).toEqual({ kind: "idle" });
+  });
+
+  test("a plain click commits the dilation at the clicked center", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 2, y: 3 }, kind: "dilate" }),
+    );
+    const released = upPickTransform(
+      started.state,
+      ctxAt({ point: { x: 2.05, y: 3.05 }, kind: "dilate" }),
+    );
+
+    expect(released.commit).toMatchObject({
+      kind: "dilate",
+      centerX: 2,
+      centerY: 3,
+      ratio: 2,
+    });
+  });
+
+  test("grid off keeps raw center coordinates（Alt 暂不落格）", () => {
+    const locked = clickPickTransform(idlePickTransformState(), ctxAt());
+    const started = startPickTransformStep(
+      locked.state,
+      ctxAt({ point: { x: 2.25, y: 1.25 }, grid: "off", kind: "dilate" }),
+    );
+    const released = upPickTransform(
+      started.state,
+      ctxAt({ point: { x: 3.75, y: 2.25 }, grid: "off", kind: "dilate" }),
+    );
+
+    expect(released.commit).toMatchObject({ centerX: 3.75, centerY: 2.25 });
   });
 });

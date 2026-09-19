@@ -446,3 +446,64 @@ describe("controlPoints 标签", () => {  test("标签没有控制点（位置�
     expect(controlPoints(label)).toEqual([]);
   });
 });
+
+describe("controlPoints 变换图元（票 03）", () => {
+  function transform2d(entry: unknown): Primitive2d {
+    const result = parseDocument({
+      version: 1,
+      space: "2d",
+      underlay: null,
+      primitives: [
+        { id: "src", type: "circle", cx: 0, cy: 0, r: 2, fill: "none" },
+        entry,
+      ],
+    });
+    if (!result.success) throw new Error(result.error);
+    const parsed = result.document.primitives.find(
+      (primitive) => primitive.id === "t-1",
+    );
+    if (parsed === undefined) throw new Error("missing transform");
+    return parsed as Primitive2d;
+  }
+
+  test("旋转/位似各露出一个中心控制点（选中后可拖，参数字段同步）", () => {
+    const rotate = transform2d({
+      id: "t-1",
+      type: "transform",
+      sourceId: "src",
+      kind: "rotate",
+      centerX: 3,
+      centerY: -2,
+      angleDeg: 90,
+    });
+    const dilate = transform2d({
+      id: "t-1",
+      type: "transform",
+      sourceId: "src",
+      kind: "dilate",
+      centerX: -1,
+      centerY: 4,
+      ratio: 2,
+    });
+
+    expect(controlPoints(rotate)).toEqual([
+      { id: "center", kind: "center", point: { x: 3, y: -2 } },
+    ]);
+    expect(controlPoints(dilate)).toEqual([
+      { id: "center", kind: "center", point: { x: -1, y: 4 } },
+    ]);
+  });
+
+  test("平移变换没有控制点（位移向量靠属性面板，票 05）", () => {
+    const translate = transform2d({
+      id: "t-1",
+      type: "transform",
+      sourceId: "src",
+      kind: "translate",
+      dx: 1,
+      dy: 2,
+    });
+
+    expect(idsOf(translate)).toEqual([]);
+  });
+});

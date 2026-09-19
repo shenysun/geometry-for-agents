@@ -16,6 +16,8 @@ export type EditorTool =
   | "measureArea"
   | "measurePerimeter"
   | "translate"
+  | "rotate"
+  | "dilate"
   | "voxel"
   | SolidToolId
   | null;
@@ -38,6 +40,8 @@ const twoDPickTools: ReadonlySet<EditorTool> = new Set([
   "measureArea",
   "measurePerimeter",
   "translate",
+  "rotate",
+  "dilate",
 ]);
 
 export const useEditorStore = defineStore("editor", () => {

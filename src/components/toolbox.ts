@@ -90,6 +90,24 @@ const ICONS: Record<ToolboxToolId, ToolboxIcon> = {
       "M7 12l3.5-5.5",
     ],
   },
+  rotate: {
+    // 源方形 + 绕中心的旋转弧箭头 + 中心点（票 03）。
+    paths: [
+      "M3 9.5h4.5V14H3z",
+      "M13.5 8A5.5 5.5 0 1 1 8 2.5",
+      "M5.9 1.2L8 2.5 6.7 4.6",
+      "M8 8h.01",
+    ],
+  },
+  dilate: {
+    // 同心大小方形 + 角点连线：以中心放大（票 03），负比异侧由参数表达。
+    paths: [
+      "M6.5 6.5h3v3h-3z",
+      "M3 3h10v10H3z",
+      "M9.5 9.5l3.5 3.5",
+      "M8 8h.01",
+    ],
+  },
   voxel: {
     paths: ["M8 2l5 2.8v6.4L8 14l-5-2.8V4.8z", "M3 4.8L8 7.6l5-2.8", "M8 7.6V14"],
   },
@@ -161,7 +179,9 @@ type PickToolId =
   | "overlapFill"
   | "measureArea"
   | "measurePerimeter"
-  | "translate";
+  | "translate"
+  | "rotate"
+  | "dilate";
 
 /** 2D 创建工具全集：全部平面绘制工具 + 拾取工具族（ADR 0019 / 0020 / 0022） */
 const CREATION_TOOLS_2D: readonly (DrawTool | PickToolId)[] = [
@@ -170,6 +190,8 @@ const CREATION_TOOLS_2D: readonly (DrawTool | PickToolId)[] = [
   "measureArea",
   "measurePerimeter",
   "translate",
+  "rotate",
+  "dilate",
 ];
 
 /** 3D 创建工具全集：单位立方体 + 全部参数体（名单与放置提交共用 SOLID_TOOLS） */
@@ -210,6 +232,8 @@ const GROUP_BY_2D_TOOL: Record<
   measureArea: "measurement",
   measurePerimeter: "measurement",
   translate: "special",
+  rotate: "special",
+  dilate: "special",
 };
 
 /** 3D 创建工具 → 分组，穷尽 Record 同上 */

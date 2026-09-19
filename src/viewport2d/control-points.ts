@@ -1,4 +1,5 @@
 import type { Point2, Primitive2d } from "../document/index.ts";
+import { transformCenterOf } from "../document/transform-math.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
 import { regularPolygonWorldVertices } from "../document/regular-polygon.ts";
 import {
@@ -78,10 +79,15 @@ export function controlPoints(primitive: Primitive2d): ControlPoint[] {
     case "functionCurve":
       // 函数曲线无控制点（ADR 0021）：形状由参数决定，编辑走属性面板。
       return [];
-    case "transform":
-      // 变换图元本期无控制点：轴端点/中心属后续 tracer 票，参数编辑走
-      // 属性面板。
-      return [];
+    case "transform": {
+      // 旋转/位似露出中心控制点（票 03）：选中后可拖、参数字段同步；未选中
+      // 时目录不参与（控制点只认当前选中，中心不抢源图元命中）。平移无
+      // 锚点几何（位移向量走属性面板，票 05）。
+      const center = transformCenterOf(primitive);
+      return center === null
+        ? []
+        : [{ id: "center", kind: "center", point: center }];
+    }
     case "line":
     case "polygon":
     case "dimension":

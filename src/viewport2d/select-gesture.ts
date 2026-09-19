@@ -16,6 +16,10 @@ import {
 } from "../document/update-document.ts";
 import { controlPoints } from "./control-points.ts";
 import { baseHeightWorldVertices } from "../document/base-height-family.ts";
+import {
+  resolveTransformImage,
+  transformCenterOf,
+} from "../document/transform-math.ts";
 import type { FunctionCurveViewport } from "../document/function-curve.ts";
 import { functionCurveParamsOf } from "../document/function-curve.ts";
 import type { DrawPreview } from "./draw-gesture.ts";
@@ -37,7 +41,8 @@ export type SelectCommit =
 
 export type SelectGestureResult = {
   state: SelectGestureState;
-  preview: DrawPreview;
+  /** 拖动中的手势预览：普通图元重画自身几何，变换图元画随参数更新的像。 */
+  preview: PreviewMark;
   /** undefined = 选中不变；null = 取消选中。 */
   selectionId?: string | null;
   commit: SelectCommit | null;
@@ -73,7 +78,7 @@ function idleResult(): SelectGestureResult {
   return { state: idleSelectState(), preview: null, commit: null };
 }
 
-function hold(state: SelectGestureState, preview: DrawPreview): SelectGestureResult {
+function hold(state: SelectGestureState, preview: PreviewMark): SelectGestureResult {
   return { state, preview, commit: null };
 }
 
@@ -396,6 +401,25 @@ function draggedPrimitive(
   return primitive ?? null;
 }
 
+/** 控制点拖动的预览：普通图元重画自身几何；变换图元预览随参数更新的像
+ *  （票 03——拖中心像实时跟随），画法与提交后的像层一致、中心辅助点随行。 */
+function controlDragPreview(
+  document: GeometryDocument,
+  edited: Primitive2d,
+): PreviewMark {
+  if (edited.type !== "transform") {
+    return previewFromPrimitive(edited);
+  }
+  if (document.space !== "2d") return null;
+  const image = resolveTransformImage(document.primitives, edited);
+  if (image === null) return null;
+  return {
+    type: "transformImage",
+    image,
+    center: transformCenterOf(edited) ?? undefined,
+  };
+}
+
 function snappedDelta(
   state: Extract<SelectGestureState, { kind: "drag" }>,
   ctx: SelectContext,
@@ -498,7 +522,8 @@ export function moveSelect(
     const target = snap2d(ctx.point, ctx.grid);
     return hold(
       state,
-      previewFromPrimitive(
+      controlDragPreview(
+        ctx.document,
         moveControlPointGeometry(primitive, state.pointId, target),
       ),
     );

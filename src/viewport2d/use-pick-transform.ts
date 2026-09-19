@@ -16,19 +16,27 @@ import {
   escPickTransform,
   idlePickTransformState,
   movePickTransform,
-  startPickTransformVector,
+  startPickTransformStep,
   transformKindForTool,
   upPickTransform,
+  type ImplementedTransformKind,
   type PickTransformContext,
   type PickTransformResult,
   type PickTransformState,
 } from "./pick-transform-gesture.ts";
 
+/** 已锁源后的下一步提示：按变换种类分流（平移拖向量、旋转/位似点中心）。 */
+const SOURCE_HINT_KEY: Record<ImplementedTransformKind, string> = {
+  translate: "pickHint.transformSource",
+  rotate: "pickHint.rotateCenter",
+  dilate: "pickHint.dilateCenter",
+};
+
 /**
- * 变换两步拾取的视口接线（ADR 0022，票 02）：纯状态机在
+ * 变换两步拾取的视口接线（ADR 0022，票 02/03）：纯状态机在
  * pick-transform-gesture.ts，本组合式只持接线胶水——上下文拼装、提示
- * 文案、预览上屏、事件路由。旋转/位似/轴对称 tracer（票 03/04）在同一
- * 骨架上补工具与状态，胶水在此单点扩展。
+ * 文案、预览上屏、事件路由。轴对称 tracer（票 04）在同一骨架上补工具
+ * 与状态，胶水在此单点扩展。
  */
 export function usePickTransformGesture(deps: {
   /** 指针事件 → 世界坐标（视口本地换算）。 */
@@ -58,6 +66,8 @@ export function usePickTransformGesture(deps: {
   function context(
     event: PointerEvent | MouseEvent,
   ): PickTransformContext | null {
+    const kind = transformKindForTool(editor.tool);
+    if (kind === null) return null;
     const point = deps.eventWorld(event);
     if (point === null) return null;
     return {
@@ -68,6 +78,7 @@ export function usePickTransformGesture(deps: {
       curveViewport: deps.curveViewport(),
       grid: deps.gridForEvent(event),
       id: crypto.randomUUID(),
+      kind,
     };
   }
 
@@ -76,8 +87,11 @@ export function usePickTransformGesture(deps: {
     if (result.rejection === "not-transformable") {
       deps.pickHint.value = t("pickHint.notTransformable");
     } else {
+      const kind = transformKindForTool(editor.tool);
       deps.pickHint.value =
-        result.state.kind === "source" ? t("pickHint.transformSource") : null;
+        result.state.kind === "source" && kind !== null
+          ? t(SOURCE_HINT_KEY[kind])
+          : null;
     }
     // 提交分支也先清预览（applyGesture 同例）：不让最后一次拖动预览的
     // 虚线像残留到提交后的画面。
@@ -103,9 +117,9 @@ export function usePickTransformGesture(deps: {
     return state.kind === "source" ? state.id : null;
   }
 
-  /** 是否正在拖位移向量：视口指针路由的判据。 */
-  function activeVector(): boolean {
-    return state.kind === "vector";
+  /** 是否正在第二步拖动（拖向量或拖中心）：视口指针路由的判据。 */
+  function activeDrag(): boolean {
+    return state.kind === "vector" || state.kind === "center";
   }
 
   /** 第一步：点击锁定源（拒绝给提示不切工具）。 */
@@ -115,26 +129,26 @@ export function usePickTransformGesture(deps: {
     apply(clickPickTransform(state, ctx));
   }
 
-  /** 第二步开始：已锁源后按下，进入拖位移向量。 */
+  /** 第二步开始：已锁源后按下——平移拖位移向量，旋转/位似点中心。 */
   function handlePointerDown(event: PointerEvent): void {
     const ctx = context(event);
     if (ctx !== null && state.kind === "source") {
-      apply(startPickTransformVector(state, ctx));
+      apply(startPickTransformStep(state, ctx));
     }
   }
 
   /** 拖动中：像实时预览，说明书不动（ADR 0007）。 */
   function handlePointerMove(event: PointerEvent): void {
-    if (state.kind !== "vector") return;
+    if (!activeDrag()) return;
     const ctx = context(event);
     if (ctx !== null) {
       apply(movePickTransform(state, ctx));
     }
   }
 
-  /** 松手一次提交（一步 undo）；零位移退回已锁源态。 */
+  /** 松手一次提交（一步 undo）；平移零位移退回已锁源态。 */
   function handlePointerUp(event: PointerEvent): void {
-    if (state.kind !== "vector") return;
+    if (!activeDrag()) return;
     const ctx = context(event);
     apply(ctx === null ? escPickTransform(state) : upPickTransform(state, ctx));
   }
@@ -164,7 +178,7 @@ export function usePickTransformGesture(deps: {
     reset,
     enabled,
     activeSourceId,
-    activeVector,
+    activeDrag,
     sourceMark,
   };
 }
